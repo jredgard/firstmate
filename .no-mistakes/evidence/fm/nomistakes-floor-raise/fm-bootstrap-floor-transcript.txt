@@ -1,0 +1,33 @@
+================================================================
+ fm-bootstrap.sh no-mistakes floor demo (floor now 1.48.0)
+================================================================
+$ no-mistakes --version
+no-mistakes version v1.31.2 (fake) 2026-06-27T00:02:18Z
+$ bin/fm-bootstrap.sh
+MISSING: no-mistakes (install: curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh | sh)
+----------------------------------------------------------------
+$ no-mistakes --version
+no-mistakes version v1.47.9 (fake) 2026-06-27T00:02:18Z
+$ bin/fm-bootstrap.sh
+MISSING: no-mistakes (install: curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh | sh)
+----------------------------------------------------------------
+$ no-mistakes --version
+no-mistakes version v1.48.0 (fake) 2026-06-27T00:02:18Z
+$ bin/fm-bootstrap.sh
+(no output - toolchain accepted, exit 0)
+----------------------------------------------------------------
+$ no-mistakes --version
+no-mistakes version v1.49.0 (fake) 2026-06-27T00:02:18Z
+$ bin/fm-bootstrap.sh
+(no output - toolchain accepted, exit 0)
+----------------------------------------------------------------
+$ no-mistakes --version
+no-mistakes version v2.0.0 (fake) 2026-06-27T00:02:18Z
+$ bin/fm-bootstrap.sh
+(no output - toolchain accepted, exit 0)
+----------------------------------------------------------------
+$ no-mistakes --version
+no-mistakes development build
+$ bin/fm-bootstrap.sh
+MISSING: no-mistakes (install: curl -fsSL https://raw.githubusercontent.com/kunchenguid/no-mistakes/main/docs/install.sh | sh)
+----------------------------------------------------------------
