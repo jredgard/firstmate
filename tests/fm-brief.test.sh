@@ -348,7 +348,7 @@ test_no_mistakes_dod_wording() {
   # shellcheck disable=SC2016  # single quotes are deliberate: the backticks must stay literal
   assert_grep 'Keep the assembled `--intent` under 900 characters by compressing phrasing, never by dropping requirements' "$brief" \
     "no-mistakes DOD must cap the --intent length so ADO PR descriptions keep the pipeline report"
-  assert_grep "an oversized intent evicts the pipeline's visible verification report" "$brief" \
+  assert_grep "an intent beyond ~900 characters evicts the pipeline's visible verification report" "$brief" \
     "no-mistakes DOD must explain why the --intent cap exists"
   assert_grep "Once the run reaches checks-passed or completed, branch custody is yours." "$brief" \
     "no-mistakes DOD must transfer branch custody after the rail run"
@@ -358,6 +358,13 @@ test_no_mistakes_dod_wording() {
   # shellcheck disable=SC2016  # single quotes are deliberate: the backticks must stay literal
   assert_grep '`no-mistakes axi sync` only for custody recovery during an active run' "$brief" \
     "no-mistakes DOD must reserve axi sync for active-run custody recovery"
+  # shellcheck disable=SC2016  # single quotes are deliberate: the backticks must stay literal
+  assert_grep 'run `fm-pr-report-compact <org-url> <pr-id>` once' "$brief" \
+    "no-mistakes DOD must compact the PR report at the CI-green custody window"
+  assert_grep "refuses edits after merge, so this is the only window" "$brief" \
+    "no-mistakes DOD must explain why the compaction window is CI-green-to-merge"
+  assert_grep "never alters the attestation" "$brief" \
+    "no-mistakes DOD must state the compaction tool preserves the attestation"
   # Apostrophe prose in the DOD is structurally safe (no `$(...)` wrapper around
   # the heredoc), so it renders verbatim instead of being reworded or escaped
   # away. test_no_heredoc_in_command_substitution guards the structure that makes

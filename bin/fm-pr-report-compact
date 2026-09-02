@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+"""Compact a no-mistakes PR description so the full report fits ADO's 4000-char cap.
+
+Azure DevOps hard-truncates PR descriptions at 4000 characters. A no-mistakes
+run whose review carried substantive findings embeds their full texts in the
+report's <details> blocks, which can push the assembled body past the cap and
+chop it mid-sentence (observed on Mosaiq PR 54362, 2026-09-02: 4023 chars, tail
+cut inside a finding). ADO refuses description edits once a PR completes, so
+the only window to fix the archive is between checks-passed and merge.
+
+This tool keeps everything up to and including the attestation comment
+byte-for-byte (Intent / What Changed / Risk / Pipeline header / attestation —
+the RequireNoMistakes gate binds on the attestation, which must never be
+altered), and replaces the <details> step blocks with one summary line per
+step. Steps whose block was already truncated away are reconstructed from the
+attestation's step list.
+
+Usage:
+  fm-pr-report-compact <org-url> <pr-id>            # compact in place via az
+  fm-pr-report-compact --stdin < body > compacted   # pure filter, for tests
+
+Exits 0 without updating when the body already fits. Run it only after the
+pipeline reports checks-passed (custody has returned); never during a run.
+"""
+import json
+import re
+import subprocess
+import sys
+
+CAP = 4000
+TARGET = 3900
+TRUNCATION_MARK = "(description truncated)"
+
+
+def compact(src: str) -> "str | None":
+    """Return the compacted body, or None when src already fits untruncated."""
+    if len(src) <= CAP and TRUNCATION_MARK not in src:
+        return None
+
+    attestation_end = src.index("-->") + len("-->")
+    head = src[:attestation_end]
+
+    summaries = re.findall(r"<summary>(.*?)</summary>", src[attestation_end:])
+    lines = [re.sub(r"\*\*(.*?)\*\*", r"\1", s).strip() for s in summaries]
+
+    att = re.search(r'"steps":(\[.*?\])', head)
+    steps = json.loads(att.group(1)) if att else []
+    covered = " ".join(lines).lower()
+    for step in steps:
+        if step["step"].lower() not in covered:
+            lines.append(f"✅ {step['step']} - passed")
+
+    body = head + "\n\n" + "\n".join(f"- {line}" for line in lines) + "\n"
+    if len(body) > TARGET:
+        raise SystemExit(f"error: still {len(body)} chars after compaction")
+    return body
+
+
+def main() -> int:
+    if len(sys.argv) == 2 and sys.argv[1] == "--stdin":
+        body = compact(sys.stdin.read())
+        if body is not None:
+            sys.stdout.write(body)
+        return 0
+
+    if len(sys.argv) != 3:
+        print(__doc__, file=sys.stderr)
+        return 2
+
+    org, pr_id = sys.argv[1], sys.argv[2]
+    show = subprocess.run(
+        ["az", "repos", "pr", "show", "--id", pr_id, "--organization", org,
+         "--query", "description", "-o", "tsv"],
+        capture_output=True, text=True, check=True,
+    )
+    body = compact(show.stdout.rstrip("\n"))
+    if body is None:
+        print(f"PR {pr_id}: description fits, nothing to do")
+        return 0
+
+    subprocess.run(
+        ["az", "repos", "pr", "update", "--id", pr_id, "--organization", org,
+         "--description", body, "--query", "pullRequestId", "-o", "tsv"],
+        check=True, stdout=subprocess.DEVNULL,
+    )
+    print(f"PR {pr_id}: report compacted to {len(body)} chars")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

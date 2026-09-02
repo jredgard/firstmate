@@ -61,7 +61,7 @@ Two firstmate-specific rules layer on top of that guidance:
 - NEVER pass \`--yes\` (or \`-y\`) to \`no-mistakes axi run\` or \`no-mistakes axi respond\`. It is banned fleet-wide.
   It auto-resolves every gate including ask-user findings with no escalation, and answering your own ask-user finding is a hard rule violation.
 
-After /no-mistakes reports CI green (the CI-ready return point - do not wait for it to keep monitoring in the background until merge), append \`done: PR {url} checks green\` and stop. You are finished.
+After /no-mistakes reports CI green (the CI-ready return point - do not wait for it to keep monitoring in the background until merge), run \`fm-pr-report-compact <org-url> <pr-id>\` once: Azure DevOps hard-truncates PR descriptions at 4000 characters and refuses edits after merge, so this is the only window to keep the full verification report readable; the tool is a no-op when the body already fits and never alters the attestation. Then append \`done: PR {url} checks green\` and stop. You are finished.
 EOF
       ;;
     *)
