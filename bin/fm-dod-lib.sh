@@ -48,6 +48,7 @@ Firstmate will then instruct you to run /no-mistakes to validate and ship a PR.
 You drive no-mistakes by responding to its gates, not by implementing fixes.
 Follow the guidance no-mistakes itself provides for the mechanics: it loads when you invoke /no-mistakes, and \`no-mistakes axi run --help\` plus the \`help\` lines in each \`axi\` response are authoritative and version-matched to the installed binary.
 When starting no-mistakes, make \`--intent\` preserve all relevant content from this brief's \`# Task\` section plus every later accepted Firstmate requirement, clarification, constraint, exclusion, and supersession, carrying only each requirement's current accepted form; retain direct requirements instead of substituting a diff summary, and exclude generic operational, status, delivery, and other scaffold boilerplate unless it is task-specific.
+Keep the assembled \`--intent\` under 1500 characters by compressing phrasing, never by dropping requirements: Azure DevOps caps the entire PR description at 4000 characters, and an oversized intent evicts the pipeline's visible verification report from the PR body.
 Do not hand-edit, commit, or fix findings yourself while a run is active - the pipeline applies every fix.
 Once the run reaches checks-passed or completed, branch custody is yours.
 For follow-up commits such as verifier-feedback fixes or cosmetic rounds, use plain \`git pull --ff-only\` and \`git push origin <branch>\`.
