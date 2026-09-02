@@ -13,7 +13,11 @@ byte-for-byte (Intent / What Changed / Risk / Pipeline header / attestation —
 the RequireNoMistakes gate binds on the attestation, which must never be
 altered), and replaces the <details> step blocks with one summary line per
 step. Steps whose block was already truncated away are reconstructed from the
-attestation's step list.
+attestation's step list. Before rewriting, the review's recorded findings are
+posted in full as a closed PR comment thread (read-only lookup in
+~/.no-mistakes/state.sqlite by the PR's /pullrequest/<id> url suffix), so the
+substance the compaction sheds stays readable on the PR — comments allow ~150k
+characters and survive merge.
 
 Usage:
   fm-pr-report-compact <org-url> <pr-id>            # compact in place via az
@@ -23,9 +27,12 @@ Exits 0 without updating when the body already fits. Run it only after the
 pipeline reports checks-passed (custody has returned); never during a run.
 """
 import json
+import os
 import re
+import sqlite3
 import subprocess
 import sys
+import tempfile
 
 CAP = 4000
 TARGET = 3900
@@ -56,6 +63,77 @@ def compact(src: str) -> "str | None":
     return body
 
 
+def review_findings_comment(pr_id: str) -> "str | None":
+    """Render the run's recorded review findings, or None when unavailable.
+
+    Read-only against ~/.no-mistakes/state.sqlite: the run is matched by the
+    /pullrequest/<id> suffix of its recorded pr_url, so the tool needs no run
+    id argument. Compaction drops the report's <details> bodies from the
+    description; this preserves their substance where the char limit is ~150k
+    and edits survive merge.
+    """
+    db_path = os.path.expanduser("~/.no-mistakes/state.sqlite")
+    if not os.path.exists(db_path):
+        return None
+    db = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    row = db.execute(
+        """SELECT res.run_id, res.findings_json FROM step_results res
+           JOIN runs ON runs.id = res.run_id
+           WHERE runs.pr_url LIKE '%/pullrequest/' || ? AND res.step_name = 'review'
+           ORDER BY res.completed_at DESC LIMIT 1""",
+        (pr_id,),
+    ).fetchone()
+    if not row or not row[1]:
+        return None
+    run_id, payload = row[0], json.loads(row[1])
+    findings = payload.get("findings", payload) if isinstance(payload, dict) else payload
+    if not findings:
+        return None
+
+    lines = [
+        "## no-mistakes review — recorded findings (full texts)",
+        "",
+        "The PR description keeps the attestation and a one-line-per-step "
+        "summary (Azure DevOps truncates descriptions at 4000 characters), so "
+        f"the review's recorded findings live here in full. Run `{run_id}`.",
+        "",
+    ]
+    for f in findings:
+        where = f.get("file", "")
+        line_no = f.get("line")
+        loc = f"`{where}:{line_no}`" if where and line_no else f"`{where}`" if where else ""
+        lines.append(f"### {f.get('id')} — {f.get('severity')} {loc}")
+        lines.append("")
+        lines.append(str(f.get("description", "")).strip())
+        lines.append("")
+    return "\n".join(lines)
+
+
+def post_thread(org: str, project: str, repo: str, pr_id: str, content: str) -> None:
+    """Post content as a closed comment thread on the PR."""
+    thread = {
+        "comments": [{"parentCommentId": 0, "content": content, "commentType": 1}],
+        "status": "closed",
+    }
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".json", delete=False, encoding="utf-8"
+    ) as fh:
+        json.dump(thread, fh)
+        body_path = fh.name
+    try:
+        subprocess.run(
+            ["az", "devops", "invoke", "--organization", org,
+             "--area", "git", "--resource", "pullRequestThreads",
+             "--route-parameters", f"project={project}", f"repositoryId={repo}",
+             f"pullRequestId={pr_id}",
+             "--api-version", "7.1", "--http-method", "POST",
+             "--in-file", body_path],
+            check=True, stdout=subprocess.DEVNULL,
+        )
+    finally:
+        os.unlink(body_path)
+
+
 def main() -> int:
     if len(sys.argv) == 2 and sys.argv[1] == "--stdin":
         body = compact(sys.stdin.read())
@@ -70,13 +148,22 @@ def main() -> int:
     org, pr_id = sys.argv[1], sys.argv[2]
     show = subprocess.run(
         ["az", "repos", "pr", "show", "--id", pr_id, "--organization", org,
-         "--query", "description", "-o", "tsv"],
+         "--query", "{description: description, repo: repository.name, project: repository.project.name}",
+         "-o", "json"],
         capture_output=True, text=True, check=True,
     )
-    body = compact(show.stdout.rstrip("\n"))
+    pr = json.loads(show.stdout)
+    body = compact((pr.get("description") or "").rstrip("\n"))
     if body is None:
         print(f"PR {pr_id}: description fits, nothing to do")
         return 0
+
+    # Preserve the shed finding texts as a closed comment thread BEFORE
+    # rewriting the description, so no state is lost if the update fails.
+    comment = review_findings_comment(pr_id)
+    if comment:
+        post_thread(org, pr["project"], pr["repo"], pr_id, comment)
+        print(f"PR {pr_id}: full review findings posted as a closed comment thread")
 
     subprocess.run(
         ["az", "repos", "pr", "update", "--id", pr_id, "--organization", org,
