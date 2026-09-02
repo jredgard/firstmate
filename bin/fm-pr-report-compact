@@ -13,18 +13,21 @@ byte-for-byte (Intent / What Changed / Risk / Pipeline header / attestation —
 the RequireNoMistakes gate binds on the attestation, which must never be
 altered), and replaces the <details> step blocks with one summary line per
 step. Steps whose block was already truncated away are reconstructed from the
-attestation's step list. Before rewriting, the review's recorded findings are
-posted in full as a closed PR comment thread (read-only lookup in
-~/.no-mistakes/state.sqlite by the PR's /pullrequest/<id> url suffix), so the
-substance the compaction sheds stays readable on the PR — comments allow ~150k
-characters and survive merge.
+attestation's step list. On EVERY gated PR — whether or not the description
+fits — the review's recorded findings are posted in full as a closed PR
+comment thread (read-only lookup in ~/.no-mistakes/state.sqlite by the PR's
+/pullrequest/<id> url suffix), so reviewers always find them in the same
+place: comments allow ~150k characters and survive merge. A rerun is a no-op
+once the thread exists.
 
 Usage:
   fm-pr-report-compact <org-url> <pr-id>            # compact in place via az
   fm-pr-report-compact --stdin < body > compacted   # pure filter, for tests
 
-Exits 0 without updating when the body already fits. Run it only after the
-pipeline reports checks-passed (custody has returned); never during a run.
+Always posts the findings comment (skipping only when no local run data or an
+existing thread is found); leaves a fitting description untouched. Run it only
+after the pipeline reports checks-passed (custody has returned); never during
+a run.
 """
 import json
 import os
@@ -37,6 +40,7 @@ import tempfile
 CAP = 4000
 TARGET = 3900
 TRUNCATION_MARK = "(description truncated)"
+COMMENT_HEADING = "## no-mistakes review — recorded findings (full texts)"
 
 
 def compact(src: str) -> "str | None":
@@ -91,7 +95,7 @@ def review_findings_comment(pr_id: str) -> "str | None":
         return None
 
     lines = [
-        "## no-mistakes review — recorded findings (full texts)",
+        COMMENT_HEADING,
         "",
         "The PR description keeps the attestation and a one-line-per-step "
         "summary (Azure DevOps truncates descriptions at 4000 characters), so "
@@ -107,6 +111,24 @@ def review_findings_comment(pr_id: str) -> "str | None":
         lines.append(str(f.get("description", "")).strip())
         lines.append("")
     return "\n".join(lines)
+
+
+def findings_thread_exists(org: str, project: str, repo: str, pr_id: str) -> bool:
+    """True when the findings comment thread is already on the PR (rerun guard)."""
+    result = subprocess.run(
+        ["az", "devops", "invoke", "--organization", org,
+         "--area", "git", "--resource", "pullRequestThreads",
+         "--route-parameters", f"project={project}", f"repositoryId={repo}",
+         f"pullRequestId={pr_id}",
+         "--api-version", "7.1", "--http-method", "GET"],
+        capture_output=True, text=True, check=True,
+    )
+    threads = json.loads(result.stdout).get("value", [])
+    return any(
+        (comment.get("content") or "").startswith(COMMENT_HEADING)
+        for thread in threads
+        for comment in thread.get("comments", [])
+    )
 
 
 def post_thread(org: str, project: str, repo: str, pr_id: str, content: str) -> None:
@@ -153,17 +175,24 @@ def main() -> int:
         capture_output=True, text=True, check=True,
     )
     pr = json.loads(show.stdout)
-    body = compact((pr.get("description") or "").rstrip("\n"))
-    if body is None:
-        print(f"PR {pr_id}: description fits, nothing to do")
-        return 0
 
-    # Preserve the shed finding texts as a closed comment thread BEFORE
-    # rewriting the description, so no state is lost if the update fails.
+    # Always give the review findings one predictable home: a closed comment
+    # thread, posted on every gated PR whether or not the description fits.
+    # Posting precedes any description rewrite so nothing is lost if the
+    # update fails; a rerun is a no-op once the thread exists.
     comment = review_findings_comment(pr_id)
-    if comment:
+    if comment is None:
+        print(f"PR {pr_id}: no local run findings found, comment skipped")
+    elif findings_thread_exists(org, pr["project"], pr["repo"], pr_id):
+        print(f"PR {pr_id}: findings comment already posted")
+    else:
         post_thread(org, pr["project"], pr["repo"], pr_id, comment)
         print(f"PR {pr_id}: full review findings posted as a closed comment thread")
+
+    body = compact((pr.get("description") or "").rstrip("\n"))
+    if body is None:
+        print(f"PR {pr_id}: description fits, not rewritten")
+        return 0
 
     subprocess.run(
         ["az", "repos", "pr", "update", "--id", pr_id, "--organization", org,
