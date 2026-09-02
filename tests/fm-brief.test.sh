@@ -346,7 +346,7 @@ test_no_mistakes_dod_wording() {
   assert_grep "exclude generic operational, status, delivery, and other scaffold boilerplate unless it is task-specific" "$brief" \
     "no-mistakes DOD must exclude non-task-specific scaffold boilerplate from --intent"
   # shellcheck disable=SC2016  # single quotes are deliberate: the backticks must stay literal
-  assert_grep 'Keep the assembled `--intent` under 1500 characters by compressing phrasing, never by dropping requirements' "$brief" \
+  assert_grep 'Keep the assembled `--intent` under 900 characters by compressing phrasing, never by dropping requirements' "$brief" \
     "no-mistakes DOD must cap the --intent length so ADO PR descriptions keep the pipeline report"
   assert_grep "an oversized intent evicts the pipeline's visible verification report" "$brief" \
     "no-mistakes DOD must explain why the --intent cap exists"
