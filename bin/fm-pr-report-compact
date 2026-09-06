@@ -158,7 +158,8 @@ def review_findings_comment(pr_id: str) -> "tuple[str | None, str | None]":
         (
             "- Verdict: **no residual findings.**"
             if not findings
-            else f"- Verdict: **{finding_count_text(len(findings))} remain.**"
+            else f"- Verdict: **{finding_count_text(len(findings))} "
+            f"remain{'s' if len(findings) == 1 else ''}.**"
         ),
         "",
     ])

@@ -100,10 +100,27 @@ one = json.dumps({"findings": [{
     "line": 7,
     "description": "Keep this full finding text.",
 }]})
-for pr_id, run_id, result_id, head in (
-    ("111", "run-clean", "result-clean", "head-final"),
-    ("222", "run-completed", "result-completed", "head-completed"),
-    ("333", "run-findings", "result-findings", "head-findings"),
+two = json.dumps({"findings": [
+    {
+        "id": "review-1",
+        "severity": "warning",
+        "file": "bin/example",
+        "line": 7,
+        "description": "Keep this full finding text.",
+    },
+    {
+        "id": "review-2",
+        "severity": "info",
+        "file": "bin/example",
+        "line": 9,
+        "description": "Second residual finding text.",
+    },
+]})
+for pr_id, run_id, result_id, head, payload in (
+    ("111", "run-clean", "result-clean", "head-final", clean),
+    ("222", "run-completed", "result-completed", "head-completed", clean),
+    ("333", "run-findings", "result-findings", "head-findings", one),
+    ("555", "run-multi", "result-multi", "head-multi", two),
 ):
     db.execute(
         "INSERT INTO runs VALUES (?, ?, ?, ?, ?)",
@@ -112,7 +129,7 @@ for pr_id, run_id, result_id, head in (
     )
     db.execute(
         "INSERT INTO step_results VALUES (?, ?, 'review', ?, 1)",
-        (result_id, run_id, one if pr_id == "333" else clean),
+        (result_id, run_id, payload),
     )
 db.execute(
     "INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -132,6 +149,11 @@ db.execute(
     "INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
     ("round-findings", "result-findings", 1, "initial", one,
      "head-findings", None),
+)
+db.execute(
+    "INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ("round-multi", "result-multi", 1, "initial", two,
+     "head-multi", None),
 )
 db.commit()
 PY
@@ -185,6 +207,13 @@ findings_content=$(python3 -c \
 grep -qF '### Review summary' "$AZ_POST_BODY" || fail "findings comment must include the review summary header"
 grep -qF "### review-1 — warning ${tick}bin/example:7${tick}" <<< "$findings_content" || fail "finding heading must retain the current full-text format"
 grep -qF 'Keep this full finding text.' "$AZ_POST_BODY" || fail "finding description must remain in full"
+grep -qF 'Verdict: **1 finding remains.**' "$AZ_POST_BODY" || fail "singular residual verdict must read '1 finding remains.'"
+
+# 8b. Multiple residual findings keep the plural verdict wording.
+: > "$AZ_TRACE"
+run_pr 555 active "$EMPTY_THREADS" >/dev/null || fail "multi-findings PR run failed"
+grep -qF 'Verdict: **2 findings remain.**' "$AZ_POST_BODY" || fail "plural residual verdict must read '2 findings remain.'"
+grep -qF 'Second residual finding text.' "$AZ_POST_BODY" || fail "each residual finding must remain in full"
 
 # 9. Missing local run state is reported without crashing.
 EMPTY_HOME="$TEST_DIR/empty-home"
