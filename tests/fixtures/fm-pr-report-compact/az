@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -eu
+
+printf '%s\n' "$*" >> "$AZ_TRACE"
+if [ "$1 $2 $3" = "repos pr show" ]; then
+  python3 - "$AZ_PR_STATUS" "$AZ_DESCRIPTION_FILE" <<'PY'
+import json
+import sys
+
+with open(sys.argv[2], encoding="utf-8") as stream:
+    description = stream.read()
+print(json.dumps({"description": description, "repo": "repo",
+                  "project": "project", "status": sys.argv[1]}))
+PY
+elif [ "$1 $2" = "devops invoke" ]; then
+  method=""
+  input=""
+  previous=""
+  for arg in "$@"; do
+    [ "$previous" != "--http-method" ] || method="$arg"
+    [ "$previous" != "--in-file" ] || input="$arg"
+    previous="$arg"
+  done
+  if [ "$method" = "GET" ]; then
+    cp "$AZ_THREADS_FILE" /dev/stdout
+  else
+    cp "$input" "$AZ_POST_BODY"
+    printf '{"id":42}\n'
+  fi
+elif [ "$1 $2 $3" = "repos pr update" ]; then
+  printf 'updated\n'
+else
+  printf 'unexpected az invocation: %s\n' "$*" >&2
+  exit 2
+fi
