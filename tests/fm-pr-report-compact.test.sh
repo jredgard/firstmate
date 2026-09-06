@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Behavioral battery for bin/fm-pr-report-compact (--stdin filter mode only;
-# the az-backed mode is the same compact() with transport around it).
+# Behavioral battery for bin/fm-pr-report-compact.
 set -u
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 TOOL="$ROOT/bin/fm-pr-report-compact"
 failures=0
+TEST_DIR=$(mktemp -d)
+trap 'rm -rf "$TEST_DIR"' EXIT
 
 fail() { echo "FAIL: $1" >&2; failures=$((failures + 1)); }
 
@@ -24,6 +25,7 @@ out=$(printf '%s' "$big" | "$TOOL" --stdin) || fail "tool errored on oversized b
 [ -n "$out" ] || fail "oversized body must be rewritten"
 [ "${#out}" -le 3900 ] || fail "compacted body still ${#out} chars"
 printf '%s' "$out" | grep -qF "$ATTESTATION" || fail "attestation must survive byte-for-byte"
+[ "$(printf '%s' "$out" | grep -Fxc "$ATTESTATION")" -eq 1 ] || fail "attestation must survive exactly once"
 printf '%s' "$out" | grep -q -- "- ✅ intent - passed" || fail "surviving step summary must be one-lined"
 printf '%s' "$out" | grep -q -- "- ⚠️ Review - 3 issues" || fail "review summary line must survive compaction"
 printf '%s' "$out" | grep -q -- "- ✅ test - passed" || fail "steps without a details block must be reconstructed from the attestation"
@@ -43,6 +45,184 @@ marked="$small
 …(description truncated)"
 out=$(printf '%s' "$marked" | "$TOOL" --stdin) || fail "tool errored on marked body"
 [ -n "$out" ] || fail "a truncation-marked body must be rewritten"
+
+# Build a minimal no-mistakes state database and an az transport double so the
+# remaining cases exercise the executable's public ADO-backed interface.
+TEST_HOME="$TEST_DIR/home"
+FAKE_BIN="$ROOT/tests/fixtures/fm-pr-report-compact"
+AZ_TRACE="$TEST_DIR/az.trace"
+AZ_POST_BODY="$TEST_DIR/post.json"
+AZ_DESCRIPTION_FILE="$TEST_DIR/description.txt"
+EMPTY_THREADS="$TEST_DIR/empty-threads.json"
+EXISTING_THREADS="$TEST_DIR/existing-threads.json"
+mkdir -p "$TEST_HOME/.no-mistakes"
+printf '%s' "$small" > "$AZ_DESCRIPTION_FILE"
+printf '{"value":[]}\n' > "$EMPTY_THREADS"
+printf '{"value":[{"comments":[{"content":"%s\\nprior"}]}]}\n' \
+  '## no-mistakes review — recorded findings (full texts)' > "$EXISTING_THREADS"
+
+python3 - "$TEST_HOME/.no-mistakes/state.sqlite" <<'PY'
+import json
+import sqlite3
+import sys
+
+db = sqlite3.connect(sys.argv[1])
+db.executescript("""
+CREATE TABLE runs (
+  id TEXT PRIMARY KEY,
+  head_sha TEXT NOT NULL,
+  submitted_head_sha TEXT,
+  review_approved_head_sha TEXT,
+  pr_url TEXT
+);
+CREATE TABLE step_results (
+  id TEXT PRIMARY KEY,
+  run_id TEXT NOT NULL,
+  step_name TEXT NOT NULL,
+  findings_json TEXT,
+  completed_at INTEGER
+);
+CREATE TABLE step_rounds (
+  id TEXT PRIMARY KEY,
+  step_result_id TEXT NOT NULL,
+  round INTEGER NOT NULL,
+  trigger_type TEXT NOT NULL,
+  findings_json TEXT,
+  reviewed_head_sha TEXT,
+  fix_summary TEXT
+);
+""")
+clean = json.dumps({"findings": []})
+one = json.dumps({"findings": [{
+    "id": "review-1",
+    "severity": "warning",
+    "file": "bin/example",
+    "line": 7,
+    "description": "Keep this full finding text.",
+}]})
+two = json.dumps({"findings": [
+    {
+        "id": "review-1",
+        "severity": "warning",
+        "file": "bin/example",
+        "line": 7,
+        "description": "Keep this full finding text.",
+    },
+    {
+        "id": "review-2",
+        "severity": "info",
+        "file": "bin/example",
+        "line": 9,
+        "description": "Second residual finding text.",
+    },
+]})
+for pr_id, run_id, result_id, head, payload in (
+    ("111", "run-clean", "result-clean", "head-final", clean),
+    ("222", "run-completed", "result-completed", "head-completed", clean),
+    ("333", "run-findings", "result-findings", "head-findings", one),
+    ("555", "run-multi", "result-multi", "head-multi", two),
+):
+    db.execute(
+        "INSERT INTO runs VALUES (?, ?, ?, ?, ?)",
+        (run_id, "head-start", head, head,
+         f"https://dev.azure.com/org/project/_git/repo/pullrequest/{pr_id}"),
+    )
+    db.execute(
+        "INSERT INTO step_results VALUES (?, ?, 'review', ?, 1)",
+        (result_id, run_id, payload),
+    )
+db.execute(
+    "INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ("round-clean-1", "result-clean", 1, "initial", one, "head-start", None),
+)
+db.execute(
+    "INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ("round-clean-2", "result-clean", 2, "auto_fix", clean, "head-final",
+     "resolved review-1"),
+)
+db.execute(
+    "INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ("round-completed", "result-completed", 1, "initial", clean,
+     "head-completed", None),
+)
+db.execute(
+    "INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ("round-findings", "result-findings", 1, "initial", one,
+     "head-findings", None),
+)
+db.execute(
+    "INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ("round-multi", "result-multi", 1, "initial", two,
+     "head-multi", None),
+)
+db.commit()
+PY
+
+export TEST_HOME FAKE_BIN AZ_TRACE AZ_POST_BODY AZ_DESCRIPTION_FILE
+
+run_pr() {  # <id> <status> <threads-file>
+  HOME="$TEST_HOME" PATH="$FAKE_BIN:$PATH" AZ_PR_STATUS="$2" \
+    AZ_THREADS_FILE="$3" "$TOOL" https://dev.azure.com/org "$1"
+}
+
+# 5. A clean review always posts a closed summary with every recorded round.
+: > "$AZ_TRACE"
+clean_output=$(run_pr 111 active "$EMPTY_THREADS") || fail "clean PR run failed"
+tick='`'
+grep -qF "Run ID: ${tick}run-clean${tick}" "$AZ_POST_BODY" || fail "clean comment must name the run"
+grep -qF "Reviewed head: ${tick}head-final${tick}" "$AZ_POST_BODY" || fail "clean comment must name the reviewed head"
+grep -qF 'Review rounds: 2' "$AZ_POST_BODY" || fail "clean comment must count review rounds"
+grep -qF "Round 1: trigger ${tick}initial${tick}; outcome: 1 finding" "$AZ_POST_BODY" || fail "clean comment must summarize the initial round"
+grep -qF "Round 2: trigger ${tick}auto_fix${tick}; outcome: no findings" "$AZ_POST_BODY" || fail "clean comment must summarize the clean final round"
+grep -qF 'fix summary: resolved review-1' "$AZ_POST_BODY" || fail "clean comment must retain the round fix summary"
+grep -qF 'Verdict: **no residual findings.**' "$AZ_POST_BODY" || fail "clean comment must state the residual verdict"
+grep -qF '"status": "closed"' "$AZ_POST_BODY" || fail "review comment thread must be closed"
+printf '%s' "$clean_output" | grep -qF 'description fits, not rewritten' || fail "fitting active PR must not be rewritten"
+
+# 6. A completed PR gets its comment but never a description update.
+: > "$AZ_TRACE"
+printf '%s' "$big" > "$AZ_DESCRIPTION_FILE"
+completed_output=$(run_pr 222 completed "$EMPTY_THREADS") || fail "completed PR run failed"
+grep -q -- '--http-method POST' "$AZ_TRACE" || fail "completed PR must still receive a review comment"
+grep -qF 'description left as-merged' <<< "$completed_output" || fail "completed PR must report its description was left as-merged"
+if grep -q '^repos pr update' "$AZ_TRACE"; then
+  fail "completed PR description must not be updated"
+fi
+printf '%s' "$small" > "$AZ_DESCRIPTION_FILE"
+
+# 7. An existing review thread makes the comment post idempotent.
+: > "$AZ_TRACE"
+idempotent_output=$(run_pr 111 active "$EXISTING_THREADS") || fail "idempotent PR run failed"
+if grep -q -- '--http-method POST' "$AZ_TRACE"; then
+  fail "existing review thread must suppress a duplicate post"
+fi
+printf '%s' "$idempotent_output" | grep -qF 'findings comment already posted' || fail "existing thread skip must be reported"
+
+# 8. Residual findings retain their full text below the same summary header.
+: > "$AZ_TRACE"
+run_pr 333 active "$EMPTY_THREADS" >/dev/null || fail "findings PR run failed"
+findings_content=$(python3 -c \
+  'import json, sys; print(json.load(open(sys.argv[1]))["comments"][0]["content"])' \
+  "$AZ_POST_BODY")
+grep -qF '### Review summary' "$AZ_POST_BODY" || fail "findings comment must include the review summary header"
+grep -qF "### review-1 — warning ${tick}bin/example:7${tick}" <<< "$findings_content" || fail "finding heading must retain the current full-text format"
+grep -qF 'Keep this full finding text.' "$AZ_POST_BODY" || fail "finding description must remain in full"
+grep -qF 'Verdict: **1 finding remains.**' "$AZ_POST_BODY" || fail "singular residual verdict must read '1 finding remains.'"
+
+# 8b. Multiple residual findings keep the plural verdict wording.
+: > "$AZ_TRACE"
+run_pr 555 active "$EMPTY_THREADS" >/dev/null || fail "multi-findings PR run failed"
+grep -qF 'Verdict: **2 findings remain.**' "$AZ_POST_BODY" || fail "plural residual verdict must read '2 findings remain.'"
+grep -qF 'Second residual finding text.' "$AZ_POST_BODY" || fail "each residual finding must remain in full"
+
+# 9. Missing local run state is reported without crashing.
+EMPTY_HOME="$TEST_DIR/empty-home"
+mkdir -p "$EMPTY_HOME"
+missing_output=$(HOME="$EMPTY_HOME" PATH="$FAKE_BIN:$PATH" AZ_PR_STATUS=active \
+  AZ_THREADS_FILE="$EMPTY_THREADS" "$TOOL" https://dev.azure.com/org 444) || \
+  fail "missing-state PR run failed"
+printf '%s' "$missing_output" | grep -qF 'review comment could not be built: state database not found' || \
+  fail "missing-state reason must be reported"
 
 if [ "$failures" -gt 0 ]; then
   echo "fm-pr-report-compact battery: $failures failure(s)" >&2

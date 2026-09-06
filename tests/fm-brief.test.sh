@@ -363,7 +363,7 @@ test_no_mistakes_dod_wording() {
     "no-mistakes DOD must compact the PR report at the CI-green custody window"
   assert_grep "refuses edits after merge, so this is the only window" "$brief" \
     "no-mistakes DOD must explain why the compaction window is CI-green-to-merge"
-  assert_grep "posts the review's recorded findings as a closed PR comment on every gated PR" "$brief" \
+  assert_grep "posts a closed review-summary comment, with any residual findings in full, on every gated PR" "$brief" \
     "no-mistakes DOD must give the findings one predictable home on every gated PR"
   assert_grep "never alters the attestation" "$brief" \
     "no-mistakes DOD must state the compaction tool preserves the attestation"
