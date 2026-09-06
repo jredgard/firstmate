@@ -14,8 +14,14 @@ the RequireNoMistakes gate binds on the attestation, which must never be
 altered), and replaces the <details> step blocks with one summary line per
 step. Steps whose block was already truncated away are reconstructed from the
 attestation's step list. On EVERY gated PR — whether or not the description
-fits — a closed review comment records the run and round summary. Any residual
-findings follow in full (read-only lookup in ~/.no-mistakes/state.sqlite by the
+fits — a closed review comment narrates the run: each round lists its findings
+by id, severity, and a bounded one-line summary. A finding is labeled fixed,
+citing the fixing round's fix summary, only when it has a usable id that stays
+absent from every later round, so the label never contradicts the residual
+verdict; a fix summary not attributed that way stays on its own round line
+("fix", or "fix attempted" when the prior round's findings persisted), so
+failed-fix history is never dropped. Any residual findings follow in full
+(read-only lookup in ~/.no-mistakes/state.sqlite by the
 PR's /pullrequest/<id> url suffix), so reviewers always find them in the same
 place: comments allow ~150k characters and survive merge. A rerun is a no-op
 once the thread exists.
