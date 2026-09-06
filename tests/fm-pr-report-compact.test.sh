@@ -116,11 +116,35 @@ two = json.dumps({"findings": [
         "description": "Second residual finding text.",
     },
 ]})
+failing = json.dumps({"findings": [
+    {
+        "id": "review-1",
+        "severity": "warning",
+        "file": "bin/example",
+        "line": 7,
+        "description": "Keep this full finding text.",
+    },
+    {
+        "severity": "info",
+        "file": "bin/example",
+        "line": 11,
+        "description": "Unnamed persisting finding.",
+    },
+]})
+flap = json.dumps({"findings": [{
+    "id": "flap-1",
+    "severity": "warning",
+    "file": "bin/example",
+    "line": 3,
+    "description": "Reappearing finding text.",
+}]})
 for pr_id, run_id, result_id, head, payload in (
     ("111", "run-clean", "result-clean", "head-final", clean),
     ("222", "run-completed", "result-completed", "head-completed", clean),
     ("333", "run-findings", "result-findings", "head-findings", one),
     ("555", "run-multi", "result-multi", "head-multi", two),
+    ("666", "run-failedfix", "result-failedfix", "head-ff-2", failing),
+    ("777", "run-flap", "result-flap", "head-flap-3", flap),
 ):
     db.execute(
         "INSERT INTO runs VALUES (?, ?, ?, ?, ?)",
@@ -154,6 +178,31 @@ db.execute(
     "INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
     ("round-multi", "result-multi", 1, "initial", two,
      "head-multi", None),
+)
+db.execute(
+    "INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ("round-ff-1", "result-failedfix", 1, "initial", failing,
+     "head-ff-1", None),
+)
+db.execute(
+    "INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ("round-ff-2", "result-failedfix", 2, "auto_fix", failing,
+     "head-ff-2", "attempted tightening the guard"),
+)
+db.execute(
+    "INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ("round-flap-1", "result-flap", 1, "initial", flap,
+     "head-flap-1", None),
+)
+db.execute(
+    "INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ("round-flap-2", "result-flap", 2, "auto_fix", clean,
+     "head-flap-2", "moved the guard earlier"),
+)
+db.execute(
+    "INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ("round-flap-3", "result-flap", 3, "auto_fix", flap,
+     "head-flap-3", None),
 )
 db.commit()
 PY
@@ -215,6 +264,34 @@ grep -qF 'Verdict: **1 finding remains.**' "$AZ_POST_BODY" || fail "singular res
 run_pr 555 active "$EMPTY_THREADS" >/dev/null || fail "multi-findings PR run failed"
 grep -qF 'Verdict: **2 findings remain.**' "$AZ_POST_BODY" || fail "plural residual verdict must read '2 findings remain.'"
 grep -qF 'Second residual finding text.' "$AZ_POST_BODY" || fail "each residual finding must remain in full"
+
+# 8c. A failing fix keeps its fix_summary on the round line, never as a
+# 'fixed in round' attribution, and id-less findings are never attributed.
+: > "$AZ_TRACE"
+run_pr 666 active "$EMPTY_THREADS" >/dev/null || fail "failing-fix PR run failed"
+grep -qF "Round 2: trigger ${tick}auto_fix${tick}; outcome: 2 findings; reviewed head: ${tick}head-ff-2${tick}; fix attempted: attempted tightening the guard" "$AZ_POST_BODY" || \
+  fail "failing fix_summary must survive on its round line as a fix attempt"
+if grep -qF 'fixed in round' "$AZ_POST_BODY"; then
+  fail "a persisting finding must never be labeled fixed"
+fi
+grep -qF "${tick}unnamed-finding${tick} (info): Unnamed persisting finding." "$AZ_POST_BODY" || \
+  fail "id-less findings must still be narrated"
+grep -qF 'Verdict: **2 findings remain.**' "$AZ_POST_BODY" || \
+  fail "failing-fix run must keep its residual verdict"
+
+# 8d. A finding that disappears then reappears under the same id is residual,
+# not fixed; the flapped round keeps its fix_summary as an attempt.
+: > "$AZ_TRACE"
+run_pr 777 active "$EMPTY_THREADS" >/dev/null || fail "flapping PR run failed"
+if grep -qF 'fixed in round' "$AZ_POST_BODY"; then
+  fail "a flapping finding must never contradict the residual verdict"
+fi
+grep -qF "Round 2: trigger ${tick}auto_fix${tick}; outcome: no findings; reviewed head: ${tick}head-flap-2${tick}; fix attempted: moved the guard earlier" "$AZ_POST_BODY" || \
+  fail "flapped round must keep its fix_summary as a fix attempt"
+grep -qF "Round 3: trigger ${tick}auto_fix${tick}; outcome: 1 finding" "$AZ_POST_BODY" || \
+  fail "reappearing finding must be listed under its own round"
+grep -qF 'Verdict: **1 finding remains.**' "$AZ_POST_BODY" || \
+  fail "flapping run must keep its residual verdict"
 
 # 9. Missing local run state is reported without crashing.
 EMPTY_HOME="$TEST_DIR/empty-home"
