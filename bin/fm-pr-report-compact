@@ -14,8 +14,14 @@ the RequireNoMistakes gate binds on the attestation, which must never be
 altered), and replaces the <details> step blocks with one summary line per
 step. Steps whose block was already truncated away are reconstructed from the
 attestation's step list. On EVERY gated PR — whether or not the description
-fits — a closed review comment records the run and round summary. Any residual
-findings follow in full (read-only lookup in ~/.no-mistakes/state.sqlite by the
+fits — a closed review comment narrates the run: each round lists its findings
+by id, severity, and a bounded one-line summary. A finding is labeled fixed,
+citing the fixing round's fix summary, only when it has a usable id that stays
+absent from every later round, so the label never contradicts the residual
+verdict; a fix summary not attributed that way stays on its own round line
+("fix", or "fix attempted" when the prior round's findings persisted), so
+failed-fix history is never dropped. Any residual findings follow in full
+(read-only lookup in ~/.no-mistakes/state.sqlite by the
 PR's /pullrequest/<id> url suffix), so reviewers always find them in the same
 place: comments allow ~150k characters and survive merge. A rerun is a no-op
 once the thread exists.
@@ -42,6 +48,7 @@ CAP = 4000
 TARGET = 3900
 TRUNCATION_MARK = "(description truncated)"
 COMMENT_HEADING = "## no-mistakes review — recorded findings (full texts)"
+FINDING_SUMMARY_LIMIT = 240
 
 
 def compact(src: str) -> "str | None":
@@ -84,6 +91,14 @@ def finding_count_text(count: int) -> str:
     if count == 0:
         return "no findings"
     return f"{count} finding{'s' if count != 1 else ''}"
+
+
+def one_line_summary(value: object, limit: int = FINDING_SUMMARY_LIMIT) -> str:
+    """Collapse recorded prose to one readable, bounded Markdown line."""
+    summary = " ".join(str(value or "").split()) or "No summary recorded."
+    if len(summary) <= limit:
+        return summary
+    return summary[: limit - 1].rstrip() + "…"
 
 
 def review_findings_comment(pr_id: str) -> "tuple[str | None, str | None]":
@@ -141,17 +156,74 @@ def review_findings_comment(pr_id: str) -> "tuple[str | None, str | None]":
         f"- Review rounds: {len(rounds)}",
     ]
     try:
-        for round_no, trigger, round_payload, round_head, fix_summary in rounds:
-            outcome = finding_count_text(
-                len(parse_findings(round_payload, f"review round {round_no}"))
+        parsed_rounds = [
+            (
+                round_no,
+                trigger,
+                parse_findings(round_payload, f"review round {round_no}"),
+                round_head,
+                fix_summary,
             )
+            for round_no, trigger, round_payload, round_head, fix_summary in rounds
+        ]
+        round_ids = []
+        for round_no, _, round_findings, _, _ in parsed_rounds:
+            ids = set()
+            for finding in round_findings:
+                if not isinstance(finding, dict):
+                    return None, f"review round {round_no} contains a non-object finding"
+                if finding.get("id") is not None and str(finding["id"]):
+                    ids.add(str(finding["id"]))
+            round_ids.append(ids)
+
+        def fixed_round_index(index: int, finding: dict) -> "int | None":
+            raw_id = finding.get("id")
+            if raw_id is None or not str(raw_id):
+                return None
+            finding_id = str(raw_id)
+            if finding_id in round_ids[-1]:
+                return None
+            last_seen = max(
+                (later for later in range(index, len(parsed_rounds))
+                 if finding_id in round_ids[later]),
+                default=index,
+            )
+            return last_seen + 1
+
+        attributed_rounds = set()
+        for index, (_, _, round_findings, _, _) in enumerate(parsed_rounds):
+            for finding in round_findings:
+                target = fixed_round_index(index, finding)
+                if target is not None and parsed_rounds[target][4]:
+                    attributed_rounds.add(target)
+
+        for index, (
+            round_no, trigger, round_findings, round_head, fix_summary
+        ) in enumerate(parsed_rounds):
+            outcome = finding_count_text(len(round_findings))
             detail = (
                 f"- Round {round_no}: trigger `{trigger}`; outcome: {outcome}; "
                 f"reviewed head: `{round_head or 'not recorded'}`"
             )
-            if fix_summary:
-                detail += f"; fix summary: {' '.join(fix_summary.split())}"
+            if fix_summary and index not in attributed_rounds:
+                prior_had_findings = index > 0 and bool(parsed_rounds[index - 1][2])
+                label = "fix attempted" if prior_had_findings else "fix"
+                detail += f"; {label}: {one_line_summary(fix_summary)}"
             lines.append(detail)
+            for finding in round_findings:
+                finding_id = str(finding.get("id") or "unnamed-finding")
+                severity = str(finding.get("severity") or "severity not recorded")
+                narrative = (
+                    f"  - `{finding_id}` ({severity}): "
+                    f"{one_line_summary(finding.get('description'))}"
+                )
+                target = fixed_round_index(index, finding)
+                if target is not None and parsed_rounds[target][4]:
+                    narrative += (
+                        f"; fixed in round {parsed_rounds[target][0]}: "
+                        f"{one_line_summary(parsed_rounds[target][4])}"
+                    )
+                lines.append(narrative)
     except (json.JSONDecodeError, ValueError) as exc:
         return None, str(exc)
 
