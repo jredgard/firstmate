@@ -1,0 +1,25 @@
+$ printf "%s" "$body" | fm-pr-report-compact --stdin   # oversized PR body: attestation + <details> step blocks + 4200-char padding
+input length:  4689 chars (over the 4000-char Azure DevOps cap)
+output length: 448 chars
+
+attestation line sha256 in input : dd91112e82af0260cae32f823b14833e4ab71ec3ed84549c9371ee11c34b2b66
+attestation line sha256 in output: dd91112e82af0260cae32f823b14833e4ab71ec3ed84549c9371ee11c34b2b66
+exact attestation-line occurrences in output: 1  (byte-for-byte survival)
+
+--- compacted output (what the PR description becomes) ---
+## Intent
+
+Ship the change.
+
+## Pipeline
+
+<!-- no-mistakes-pipeline-attestation:v1 {"head_sha":"d4aeca250cf6e5927915d23a55a7b51c2aac2d34","steps":[{"step":"intent","status":"completed"},{"step":"review","status":"completed"},{"step":"test","status":"completed"},{"step":"pr","status":"running"},{"step":"ci","status":"pending"}]} -->
+
+- ✅ intent - passed
+- ⚠️ Review - 3 issues (1 warning, 2 infos)
+- ✅ test - passed
+- ✅ pr - passed
+- ✅ ci - passed
+
+$ printf "%s" "$small_fitting_body" | fm-pr-report-compact --stdin   # body already fits
+(no output) exit=0 — fitting body is left untouched (overrun-only compaction)

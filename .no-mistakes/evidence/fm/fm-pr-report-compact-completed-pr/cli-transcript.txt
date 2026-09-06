@@ -1,0 +1,31 @@
+$ fm-pr-report-compact https://dev.azure.com/org 111   # clean run, active PR
+PR 111: review summary posted as a closed comment thread
+PR 111: description fits, not rewritten
+thread status: closed
+
+$ fm-pr-report-compact https://dev.azure.com/org 333   # 1 residual finding, active PR
+PR 333: review summary posted as a closed comment thread
+PR 333: description fits, not rewritten
+
+$ fm-pr-report-compact https://dev.azure.com/org 555   # 2 residual findings, active PR
+PR 555: review summary posted as a closed comment thread
+PR 555: description fits, not rewritten
+
+$ fm-pr-report-compact https://dev.azure.com/org 222   # completed (merged) PR
+PR 222: review summary posted as a closed comment thread
+PR 222: status completed; description left as-merged
+az 'repos pr update' calls made: 0
+
+$ fm-pr-report-compact https://dev.azure.com/org 222   # abandoned PR
+PR 222: review summary posted as a closed comment thread
+PR 222: status abandoned; description left as-merged
+az 'repos pr update' calls made: 0
+
+$ fm-pr-report-compact https://dev.azure.com/org 111   # rerun with existing thread (idempotence)
+PR 111: findings comment already posted
+PR 111: description fits, not rewritten
+az POST calls made: 0
+
+$ fm-pr-report-compact https://dev.azure.com/org 444   # no local run data (empty HOME)
+PR 444: review comment could not be built: state database not found at $HOME/.no-mistakes/state.sqlite
+PR 444: description fits, not rewritten
