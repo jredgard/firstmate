@@ -25,9 +25,10 @@ Usage:
   fm-pr-report-compact --stdin < body > compacted   # pure filter, for tests
 
 Always posts the review comment (skipping only when no local run data or an
-existing thread is found); leaves a fitting description untouched. Run it only
-after the pipeline reports checks-passed (custody has returned); never during
-a run.
+existing thread is found); leaves a fitting description untouched. Only active
+PRs are rewritten: on a completed or abandoned PR the comment still posts and
+the description is left as-merged. Run it only after the pipeline reports
+checks-passed (custody has returned); never during a run.
 """
 import json
 import os
