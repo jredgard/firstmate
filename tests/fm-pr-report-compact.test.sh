@@ -174,7 +174,7 @@ grep -qF "Reviewed head: ${tick}head-final${tick}" "$AZ_POST_BODY" || fail "clea
 grep -qF 'Review rounds: 2' "$AZ_POST_BODY" || fail "clean comment must count review rounds"
 grep -qF "Round 1: trigger ${tick}initial${tick}; outcome: 1 finding" "$AZ_POST_BODY" || fail "clean comment must summarize the initial round"
 grep -qF "Round 2: trigger ${tick}auto_fix${tick}; outcome: no findings" "$AZ_POST_BODY" || fail "clean comment must summarize the clean final round"
-grep -qF 'fix summary: resolved review-1' "$AZ_POST_BODY" || fail "clean comment must retain the round fix summary"
+grep -qF "${tick}review-1${tick} (warning): Keep this full finding text.; fixed in round 2: resolved review-1" "$AZ_POST_BODY" || fail "multi-round comment must explain each finding and attribute its fix"
 grep -qF 'Verdict: **no residual findings.**' "$AZ_POST_BODY" || fail "clean comment must state the residual verdict"
 grep -qF '"status": "closed"' "$AZ_POST_BODY" || fail "review comment thread must be closed"
 printf '%s' "$clean_output" | grep -qF 'description fits, not rewritten' || fail "fitting active PR must not be rewritten"
@@ -205,6 +205,7 @@ findings_content=$(python3 -c \
   'import json, sys; print(json.load(open(sys.argv[1]))["comments"][0]["content"])' \
   "$AZ_POST_BODY")
 grep -qF '### Review summary' "$AZ_POST_BODY" || fail "findings comment must include the review summary header"
+grep -qF "${tick}review-1${tick} (warning): Keep this full finding text." "$AZ_POST_BODY" || fail "round summary must name and explain residual findings"
 grep -qF "### review-1 — warning ${tick}bin/example:7${tick}" <<< "$findings_content" || fail "finding heading must retain the current full-text format"
 grep -qF 'Keep this full finding text.' "$AZ_POST_BODY" || fail "finding description must remain in full"
 grep -qF 'Verdict: **1 finding remains.**' "$AZ_POST_BODY" || fail "singular residual verdict must read '1 finding remains.'"

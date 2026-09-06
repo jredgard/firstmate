@@ -42,6 +42,7 @@ CAP = 4000
 TARGET = 3900
 TRUNCATION_MARK = "(description truncated)"
 COMMENT_HEADING = "## no-mistakes review — recorded findings (full texts)"
+FINDING_SUMMARY_LIMIT = 240
 
 
 def compact(src: str) -> "str | None":
@@ -84,6 +85,14 @@ def finding_count_text(count: int) -> str:
     if count == 0:
         return "no findings"
     return f"{count} finding{'s' if count != 1 else ''}"
+
+
+def one_line_summary(value: object, limit: int = FINDING_SUMMARY_LIMIT) -> str:
+    """Collapse recorded prose to one readable, bounded Markdown line."""
+    summary = " ".join(str(value or "").split()) or "No summary recorded."
+    if len(summary) <= limit:
+        return summary
+    return summary[: limit - 1].rstrip() + "…"
 
 
 def review_findings_comment(pr_id: str) -> "tuple[str | None, str | None]":
@@ -141,17 +150,50 @@ def review_findings_comment(pr_id: str) -> "tuple[str | None, str | None]":
         f"- Review rounds: {len(rounds)}",
     ]
     try:
-        for round_no, trigger, round_payload, round_head, fix_summary in rounds:
-            outcome = finding_count_text(
-                len(parse_findings(round_payload, f"review round {round_no}"))
+        parsed_rounds = [
+            (
+                round_no,
+                trigger,
+                parse_findings(round_payload, f"review round {round_no}"),
+                round_head,
+                fix_summary,
             )
+            for round_no, trigger, round_payload, round_head, fix_summary in rounds
+        ]
+        for index, (round_no, trigger, round_findings, round_head, _) in enumerate(
+            parsed_rounds
+        ):
+            outcome = finding_count_text(len(round_findings))
             detail = (
                 f"- Round {round_no}: trigger `{trigger}`; outcome: {outcome}; "
                 f"reviewed head: `{round_head or 'not recorded'}`"
             )
-            if fix_summary:
-                detail += f"; fix summary: {' '.join(fix_summary.split())}"
             lines.append(detail)
+            for finding in round_findings:
+                if not isinstance(finding, dict):
+                    return None, f"review round {round_no} contains a non-object finding"
+                finding_id = str(finding.get("id") or "unnamed-finding")
+                severity = str(finding.get("severity") or "severity not recorded")
+                narrative = (
+                    f"  - `{finding_id}` ({severity}): "
+                    f"{one_line_summary(finding.get('description'))}"
+                )
+                for later_round, _, later_findings, _, later_fix in parsed_rounds[
+                    index + 1:
+                ]:
+                    later_ids = {
+                        str(item.get("id"))
+                        for item in later_findings
+                        if isinstance(item, dict) and item.get("id") is not None
+                    }
+                    if finding_id not in later_ids:
+                        if later_fix:
+                            narrative += (
+                                f"; fixed in round {later_round}: "
+                                f"{one_line_summary(later_fix)}"
+                            )
+                        break
+                lines.append(narrative)
     except (json.JSONDecodeError, ValueError) as exc:
         return None, str(exc)
 
