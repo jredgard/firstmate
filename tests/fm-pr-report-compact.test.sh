@@ -37,6 +37,16 @@ if printf '%s' "$out" | grep -q -- '⚠️\|<details>'; then
   fail "stale board values and details blocks must be removed"
 fi
 
+# 1b. What Changed bullets that merely mention step names are prose, not
+# board lines, and must survive normalization.
+prose_body=$(printf '## Intent\n\nShip it.\n\n## What Changed\n\n- Added test - covers the new path\n- Renamed pr - update call sites\n\n## Risk Assessment\n\nLow.\n\n## Pipeline\n\n%s' "$ATTESTATION")
+prose_out=$(printf '%s' "$prose_body" | "$TOOL" --stdin) || \
+  fail "tool errored on prose bullets naming step names"
+printf '%s' "$prose_out" | grep -qF -- '- Added test - covers the new path' || \
+  fail "prose bullet naming a step must survive normalization"
+printf '%s' "$prose_out" | grep -qF -- '- Renamed pr - update call sites' || \
+  fail "second prose bullet naming a step must survive normalization"
+
 # 2. Intent/What Changed/Risk prefix stays verbatim.
 printf '%s' "$out" | grep -q "^## Intent" || fail "Intent section must survive"
 printf '%s' "$out" | grep -q "^## Risk Assessment" || fail "Risk section must survive"
@@ -66,6 +76,35 @@ printf '%s' "$near_out" | grep -qF 'AB#55008' || fail "Intent trimming must reta
 printf '%s' "$near_out" | grep -qF 'Verdict: Low.' || fail "Risk verdict must survive trimming"
 printf '%s' "$near_out" | grep -qF "$ATTESTATION" || fail "trimmed body must retain the attestation byte-for-byte"
 printf '%s' "$near_out" | grep -q -- '- ✅ ci - passed' || fail "trimmed body must retain the full board"
+
+# 5b. ADO measures its cap in UTF-16 code units, so a body whose code-point
+# count fits but whose UTF-16 length exceeds the cap is still trimmed.
+astral_body=$(python3 - "$ATTESTATION" <<'PY'
+import sys
+
+att = sys.argv[1]
+board = "\n".join(
+    f"- ✅ {step} - passed" for step in ("intent", "review", "test", "pr", "ci")
+)
+head_prefix = "## Intent\n\nKeep this first sentence. "
+head_suffix = "\n\n## What Changed\n\n- Bullet.\n\n## Risk Assessment\n\nLow.\n\n## Pipeline"
+rockets = 150
+fixed = len(head_prefix) + len(head_suffix) + 2 + len(att) + 2 + len(board)
+filler = 3995 - fixed - rockets
+body = head_prefix + "x" * filler + "🚀" * rockets + head_suffix + "\n\n" + att
+normalized_cp = fixed + filler + rockets
+assert filler > 0 and normalized_cp <= 4000 < normalized_cp + rockets
+print(body, end="")
+PY
+) || fail "astral near-cap fixture construction failed"
+astral_out=$(printf '%s' "$astral_body" | "$TOOL" --stdin) || \
+  fail "tool errored on the astral near-cap body"
+[ -n "$astral_out" ] || fail "astral near-cap body must be rewritten"
+printf '%s' "$astral_out" | python3 -c \
+  'import sys; sys.exit(0 if len(sys.stdin.read().encode("utf-16-le")) // 2 <= 4000 else 1)' || \
+  fail "normalized astral body must fit the cap in UTF-16 code units"
+printf '%s' "$astral_out" | grep -qF "$ATTESTATION" || \
+  fail "astral trimming must retain the attestation byte-for-byte"
 
 # 6. A 3998-char v1.70-style raw file dump truncated inside an unclosed text
 # fence is replaced, leaving later sections outside code and no marker behind.
@@ -261,10 +300,11 @@ PY
 
 export TEST_HOME FAKE_BIN AZ_TRACE AZ_POST_BODY AZ_UPDATE_BODY AZ_DESCRIPTION_FILE
 
-run_pr() {  # <id> <status> <threads-file> [policy-status] [pr-exists]
+run_pr() {  # <id> <status> <threads-file> [policy-status] [pr-exists] [policy-blocking]
   HOME="$TEST_HOME" PATH="$FAKE_BIN:$PATH" AZ_PR_STATUS="$2" \
     AZ_POLICY_STATUS="${4:-approved}" \
     AZ_PR_EXISTS="${5:-true}" \
+    AZ_POLICY_BLOCKING="${6:-true}" \
     AZ_THREADS_FILE="$3" "$TOOL" https://dev.azure.com/org "$1"
 }
 
@@ -377,6 +417,18 @@ if grep -q '^repos pr update' "$AZ_TRACE" || [ -s "$AZ_UPDATE_BODY" ]; then
   fail "non-green Build policy must not write the description"
 fi
 
+# 10b. A non-blocking Build policy that is not approved never blocks a
+# legitimately green PR from being normalized.
+: > "$AZ_TRACE"
+: > "$AZ_UPDATE_BODY"
+printf '%s' "$new_format" > "$AZ_DESCRIPTION_FILE"
+nonblocking_output=$(run_pr 111 active "$EXISTING_THREADS" queued true false) || \
+  fail "non-blocking Build policy run failed"
+printf '%s' "$nonblocking_output" | grep -qF 'description normalized to' || \
+  fail "non-blocking Build policy must not block normalization"
+grep -qF -- '- ✅ ci - passed' "$AZ_UPDATE_BODY" || \
+  fail "non-blocking policy run must still write the final board"
+
 # 11. A missing PR fails the PR verification before any write.
 : > "$AZ_TRACE"
 : > "$AZ_UPDATE_BODY"
@@ -386,6 +438,8 @@ fi
 printf '%s' "$missing_pr_output" | grep -qF \
   'PR 111 could not be verified as existing' || \
   fail "missing PR refusal must name the failed existence check"
+printf '%s' "$missing_pr_output" | grep -qF 'pull request not found' || \
+  fail "missing PR refusal must surface the az stderr detail"
 if grep -q -- '--http-method POST\|repos pr update' "$AZ_TRACE" || [ -s "$AZ_UPDATE_BODY" ]; then
   fail "missing PR verification must happen before any write"
 fi

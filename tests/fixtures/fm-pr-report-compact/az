@@ -17,12 +17,13 @@ print(json.dumps({"description": description, "repo": "repo",
                   "project": "project", "status": sys.argv[1]}))
 PY
 elif [ "$1 $2 $3 $4" = "repos pr policy list" ]; then
-  python3 - "${AZ_POLICY_STATUS:-approved}" <<'PY'
+  python3 - "${AZ_POLICY_STATUS:-approved}" "${AZ_POLICY_BLOCKING:-true}" <<'PY'
 import json
 import sys
 
 print(json.dumps([{
     "configuration": {
+        "isBlocking": sys.argv[2] == "true",
         "type": {
             "displayName": "Build",
             "id": "0609b952-1397-4640-95ec-e00a01b2c241",
