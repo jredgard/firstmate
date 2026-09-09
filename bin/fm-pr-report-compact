@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compact a no-mistakes PR description so the full report fits ADO's 4000-char cap.
+"""Normalize a no-mistakes PR description after ADO checks pass.
 
 Azure DevOps hard-truncates PR descriptions at 4000 characters. A no-mistakes
 run whose review carried substantive findings embeds their full texts in the
@@ -8,14 +8,17 @@ chop it mid-sentence (observed on Mosaiq PR 54362, 2026-09-02: 4023 chars, tail
 cut inside a finding). ADO refuses description edits once a PR completes, so
 the only window to fix the archive is between checks-passed and merge.
 
-This tool keeps everything up to and including the attestation comment
-byte-for-byte (Intent / What Changed / Risk / Pipeline header / attestation —
-the RequireNoMistakes gate binds on the attestation, which must never be
-altered), and replaces the <details> step blocks with one summary line per
-step. Steps whose block was already truncated away are reconstructed from the
-attestation's step list. On EVERY gated PR — whether or not the description
-fits — a closed review comment narrates the run: each round lists its findings
-by id, severity, and a bounded one-line summary. A finding is labeled fixed,
+This tool keeps the attestation comment byte-for-byte (the RequireNoMistakes
+gate binds on it), removes any stale visible status board or <details> report,
+and emits one verified passed line per attested step. It verifies that the PR
+exists and that its ADO Build policy is approved before writing passed for the
+PR and CI steps. If the normalized body is too long, it trims Intent and then
+What Changed prose while preserving work-item tokens, the Risk section, and
+the complete attestation. A fenced raw changed-file dump is replaced with a
+Files-tab pointer so a truncated, unclosed fence cannot swallow later sections.
+On EVERY gated PR — whether or not the description fits — a closed review
+comment narrates the run: each round lists its findings by id, severity, and a
+bounded one-line summary. A finding is labeled fixed,
 citing the fixing round's fix summary, only when it has a usable id that stays
 absent from every later round, so the label never contradicts the residual
 verdict; a fix summary not attributed that way stays on its own round line
@@ -27,14 +30,15 @@ place: comments allow ~150k characters and survive merge. A rerun is a no-op
 once the thread exists.
 
 Usage:
-  fm-pr-report-compact <org-url> <pr-id>            # compact in place via az
-  fm-pr-report-compact --stdin < body > compacted   # pure filter, for tests
+  fm-pr-report-compact <org-url> <pr-id>            # normalize in place via az
+  fm-pr-report-compact --stdin < body > normalized  # pure CI-green test filter
 
 Always posts the review comment (skipping only when no local run data or an
-existing thread is found); leaves a fitting description untouched. Only active
-PRs are rewritten: on a completed or abandoned PR the comment still posts and
-the description is left as-merged. Run it only after the pipeline reports
-checks-passed (custody has returned); never during a run.
+existing thread is found). Only active PRs are rewritten: on a completed or
+abandoned PR the comment still posts and the description is left as-merged.
+Run it only after the pipeline reports checks-passed (custody has returned);
+never during a run. The --stdin interface performs no network calls and treats
+PR and CI as verified so description shapes can be tested in isolation.
 """
 import json
 import os
@@ -45,34 +49,196 @@ import sys
 import tempfile
 
 CAP = 4000
-TARGET = 3900
-TRUNCATION_MARK = "(description truncated)"
 COMMENT_HEADING = "## no-mistakes review — recorded findings (full texts)"
 FINDING_SUMMARY_LIMIT = 240
+TRUNCATION_RE = re.compile(r"(?:…|\.\.\.)?\(description truncated\)", re.IGNORECASE)
+ATTESTATION_RE = re.compile(
+    r"<!--\s*no-mistakes-pipeline-attestation:v1\s+(\{.*?\})\s*-->",
+    re.DOTALL,
+)
+WORK_ITEM_RE = re.compile(
+    r"(?i)(?:\bAB#\d+\b|"
+    r"https?://[^\s<>()]*/_workitems/edit/\d+[^\s<>()]*|"
+    r"\bwork[- ]item(?:\s+|\s*[:#]\s*)#?\d+\b)"
+)
+BUILD_POLICY_TYPE_ID = "0609b952-1397-4640-95ec-e00a01b2c241"
 
 
-def compact(src: str) -> "str | None":
-    """Return the compacted body, or None when src already fits untruncated."""
-    if len(src) <= CAP and TRUNCATION_MARK not in src:
-        return None
+def first_sentence(value: str) -> str:
+    """Return the first prose sentence, collapsing internal whitespace."""
+    text = " ".join(value.split())
+    match = re.match(r".*?[.!?](?=\s|$)", text)
+    return (match.group(0) if match else text).strip()
 
-    attestation_end = src.index("-->") + len("-->")
-    head = src[:attestation_end]
 
-    summaries = re.findall(r"<summary>(.*?)</summary>", src[attestation_end:])
-    lines = [re.sub(r"\*\*(.*?)\*\*", r"\1", s).strip() for s in summaries]
+def section_body(src: str, heading: str) -> "str | None":
+    """Return a level-two Markdown section body, case-insensitively."""
+    match = re.search(
+        rf"(?ims)^##[ \t]+{re.escape(heading)}[ \t]*\r?\n(.*?)(?=^##[ \t]+|\Z)",
+        src,
+    )
+    return match.group(1).strip() if match else None
 
-    att = re.search(r'"steps":(\[.*?\])', head)
-    steps = json.loads(att.group(1)) if att else []
-    covered = " ".join(lines).lower()
+
+def replace_section_body(src: str, heading: str, body: str) -> str:
+    """Replace one level-two Markdown section body."""
+    pattern = re.compile(
+        rf"(?ims)(^##[ \t]+{re.escape(heading)}[ \t]*\r?\n).*?(?=^##[ \t]+|\Z)"
+    )
+    return pattern.sub(
+        lambda match: match.group(1) + "\n" + body.strip() + "\n\n",
+        src,
+        count=1,
+    )
+
+
+def compact_intent(src: str) -> str:
+    """Reduce Intent to its first sentence while retaining work-item tokens."""
+    original = section_body(src, "Intent")
+    if original is None:
+        return src
+    summary = first_sentence(original)
+    tokens = list(dict.fromkeys(WORK_ITEM_RE.findall(original)))
+    missing = [token for token in tokens if token.casefold() not in summary.casefold()]
+    if missing:
+        summary = f"{summary} Work items: {', '.join(missing)}."
+    return replace_section_body(src, "Intent", summary)
+
+
+def compact_what_changed(src: str, maximal: bool = False) -> str:
+    """Condense What Changed bullets, or replace them with a minimal pointer."""
+    original = section_body(src, "What Changed")
+    if original is None:
+        return src
+    if maximal:
+        summary = "- See the commit diff for implementation details."
+    else:
+        items = []
+        for line in original.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            line = re.sub(r"^[-*+]\s+", "", line)
+            sentence = first_sentence(line)
+            if sentence:
+                items.append(f"- {sentence}")
+        summary = "\n".join(items) or "- See the commit diff for implementation details."
+    return replace_section_body(src, "What Changed", summary)
+
+
+def remove_changed_file_dump(src: str) -> str:
+    """Replace no-mistakes' fenced raw file dump with a short stable pointer."""
+    original = section_body(src, "What Changed")
+    if original is None:
+        return src
+    dump = re.compile(
+        r"(?ims)^[ \t]*```text[ \t]*\r?\n.*?(?:^[ \t]*```[ \t]*(?:\r?\n|\Z)|\Z)"
+    )
+    if not dump.search(original):
+        return src
+    replacement = dump.sub("Full file list: see the Files tab.\n", original)
+    return replace_section_body(src, "What Changed", replacement)
+
+
+def code_fences_balanced(src: str) -> bool:
+    """Return whether Markdown backtick and tilde code fences are balanced."""
+    opened = None
+    for match in re.finditer(r"(?m)^[ \t]{0,3}(`{3,}|~{3,})(.*)$", src):
+        marker = match.group(1)
+        if opened is None:
+            opened = marker
+        elif (
+            marker[0] == opened[0]
+            and len(marker) >= len(opened)
+            and not match.group(2).strip()
+        ):
+            opened = None
+    return opened is None
+
+
+def remove_status_board(src: str, step_names: list) -> str:
+    """Remove old visible status lines for attested steps from the head."""
+    names = "|".join(re.escape(name) for name in step_names)
+    if not names:
+        return src
+    status_line = re.compile(
+        rf"^[ \t]*-[ \t]+\S+[ \t]+(?:\*\*)?(?:{names})(?:\*\*)?"
+        r"[ \t]+-.*$",
+        re.IGNORECASE,
+    )
+    return "".join(
+        line for line in src.splitlines(keepends=True)
+        if not status_line.match(line.rstrip("\r\n"))
+    )
+
+
+def normalized_body(head: str, attestation: str, steps: list) -> str:
+    """Assemble the canonical head, attestation, and passed status board."""
+    if not re.search(r"(?mi)^##[ \t]+Pipeline[ \t]*$", head):
+        head = head.rstrip() + "\n\n## Pipeline"
+    lines = [f"- ✅ {step['step']} - passed" for step in steps]
+    return head.rstrip() + "\n\n" + attestation + "\n\n" + "\n".join(lines)
+
+
+def compact(src: str, verified_steps: "set[str] | None" = None) -> "str | None":
+    """Return the normalized body, or None when src is already normalized."""
+    match = ATTESTATION_RE.search(src)
+    if not match:
+        raise SystemExit("error: no valid no-mistakes attestation found")
+    try:
+        payload = json.loads(match.group(1))
+        steps = payload["steps"]
+        step_names = [str(step["step"]) for step in steps]
+    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        raise SystemExit(f"error: invalid no-mistakes attestation: {exc}") from exc
+    if not isinstance(steps, list) or not steps:
+        raise SystemExit("error: no steps found in no-mistakes attestation")
+
+    verified = {name.casefold() for name in (verified_steps or step_names)}
     for step in steps:
-        if step["step"].lower() not in covered:
-            lines.append(f"✅ {step['step']} - passed")
+        name = str(step["step"])
+        status = str(step.get("status") or "").casefold()
+        if name.casefold() in ("pr", "ci"):
+            if name.casefold() not in verified:
+                raise SystemExit(
+                    f"error: {name} was not verified green; description not updated"
+                )
+        elif status not in ("completed", "passed"):
+            raise SystemExit(
+                f"error: attested step {name} is {status or 'unknown'}, not passed; "
+                "description not updated"
+            )
 
-    body = head + "\n\n" + "\n".join(f"- {line}" for line in lines) + "\n"
-    if len(body) > TARGET:
-        raise SystemExit(f"error: still {len(body)} chars after compaction")
-    return body
+    attestation = match.group(0)
+    head = remove_status_board(src[:match.start()], step_names).rstrip()
+    head = TRUNCATION_RE.sub("", head)
+    head = remove_changed_file_dump(head).rstrip()
+    body = normalized_body(head, attestation, steps)
+    if len(body) > CAP:
+        head = compact_intent(head).rstrip()
+        body = normalized_body(head, attestation, steps)
+    if len(body) > CAP:
+        head = compact_what_changed(head).rstrip()
+        body = normalized_body(head, attestation, steps)
+    if len(body) > CAP:
+        head = compact_what_changed(head, maximal=True).rstrip()
+        body = normalized_body(head, attestation, steps)
+    if len(body) > CAP:
+        raise SystemExit(
+            f"error: normalized description is still {len(body)} chars after maximal "
+            f"legal trimming (Azure DevOps cap is {CAP}); description not updated"
+        )
+    if TRUNCATION_RE.search(body):
+        raise SystemExit(
+            "error: normalized description still contains a truncation marker; "
+            "description not updated"
+        )
+    if not code_fences_balanced(body):
+        raise SystemExit(
+            "error: normalized description contains an unclosed code fence; "
+            "description not updated"
+        )
+    return None if src == body else body
 
 
 def parse_findings(raw: str, source: str) -> list:
@@ -301,6 +467,43 @@ def post_thread(org: str, project: str, repo: str, pr_id: str, content: str) -> 
         os.unlink(body_path)
 
 
+def verify_build_policy(org: str, pr_id: str) -> None:
+    """Refuse unless every ADO Build policy evaluation is approved."""
+    try:
+        result = subprocess.run(
+            ["az", "repos", "pr", "policy", "list", "--id", pr_id,
+             "--organization", org, "-o", "json"],
+            capture_output=True, text=True, check=True,
+        )
+        policies = json.loads(result.stdout)
+    except (json.JSONDecodeError, subprocess.CalledProcessError) as exc:
+        raise SystemExit(
+            f"error: CI was not verified green because Build policy status could not "
+            f"be read for PR {pr_id}; description not updated"
+        ) from exc
+
+    builds = []
+    for policy in policies if isinstance(policies, list) else []:
+        configuration = policy.get("configuration") or {}
+        policy_type = configuration.get("type") or policy.get("type") or {}
+        type_id = str(policy_type.get("id") or "").casefold()
+        display_name = str(policy_type.get("displayName") or "").casefold()
+        if type_id == BUILD_POLICY_TYPE_ID or display_name == "build":
+            builds.append(policy)
+    if not builds:
+        raise SystemExit(
+            f"error: CI was not verified green because no Build policy evaluation "
+            f"was found for PR {pr_id}; description not updated"
+        )
+
+    statuses = [str(policy.get("status") or "unknown").casefold() for policy in builds]
+    if any(status != "approved" for status in statuses):
+        raise SystemExit(
+            f"error: CI was not verified green for PR {pr_id}; Build policy status: "
+            f"{', '.join(statuses)}; description not updated"
+        )
+
+
 def main() -> int:
     if len(sys.argv) == 2 and sys.argv[1] == "--stdin":
         body = compact(sys.stdin.read())
@@ -313,14 +516,22 @@ def main() -> int:
         return 2
 
     org, pr_id = sys.argv[1], sys.argv[2]
-    show = subprocess.run(
-        ["az", "repos", "pr", "show", "--id", pr_id, "--organization", org,
-         "--query", "{description: description, repo: repository.name, "
-         "project: repository.project.name, status: status}",
-         "-o", "json"],
-        capture_output=True, text=True, check=True,
-    )
-    pr = json.loads(show.stdout)
+    try:
+        show = subprocess.run(
+            ["az", "repos", "pr", "show", "--id", pr_id, "--organization", org,
+             "--query", "{description: description, repo: repository.name, "
+             "project: repository.project.name, status: status}",
+             "-o", "json"],
+            capture_output=True, text=True, check=True,
+        )
+        pr = json.loads(show.stdout)
+    except (json.JSONDecodeError, subprocess.CalledProcessError) as exc:
+        print(
+            f"error: PR {pr_id} could not be verified as existing; "
+            "description not updated",
+            file=sys.stderr,
+        )
+        return 1
 
     # Always give the review findings one predictable home: a closed comment
     # thread, posted on every gated PR whether or not the description fits.
@@ -346,9 +557,10 @@ def main() -> int:
             )
         return 0
 
-    body = compact((pr.get("description") or "").rstrip("\n"))
+    verify_build_policy(org, pr_id)
+    body = compact(pr.get("description") or "", {"pr", "ci"})
     if body is None:
-        print(f"PR {pr_id}: description fits, not rewritten")
+        print(f"PR {pr_id}: description already normalized, not rewritten")
         return 0
 
     subprocess.run(
@@ -356,7 +568,7 @@ def main() -> int:
          "--description", body, "--query", "pullRequestId", "-o", "tsv"],
         check=True, stdout=subprocess.DEVNULL,
     )
-    print(f"PR {pr_id}: report compacted to {len(body)} chars")
+    print(f"PR {pr_id}: description normalized to {len(body)} chars")
     return 0
 
 
