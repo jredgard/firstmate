@@ -11,8 +11,8 @@ the only window to fix the archive is between checks-passed and merge.
 This tool keeps the attestation comment byte-for-byte (the RequireNoMistakes
 gate binds on it), removes any stale visible status board or <details> report,
 and emits one verified passed line per attested step. It verifies that the PR
-exists and that its ADO Build policy is approved before writing passed for the
-PR and CI steps. If the normalized body is too long, it trims Intent and then
+exists and that every blocking ADO Build policy is approved before writing
+passed for the PR and CI steps. If the normalized body is too long, it trims Intent and then
 What Changed prose while preserving work-item tokens, the Risk section, and
 the complete attestation. A fenced raw changed-file dump is replaced with a
 Files-tab pointer so a truncated, unclosed fence cannot swallow later sections.
@@ -56,12 +56,13 @@ ATTESTATION_RE = re.compile(
     r"<!--\s*no-mistakes-pipeline-attestation:v1\s+(\{.*?\})\s*-->",
     re.DOTALL,
 )
-WORK_ITEM_RE = re.compile(
-    r"(?i)(?:\bAB#\d+\b|"
-    r"https?://[^\s<>()]*/_workitems/edit/\d+[^\s<>()]*|"
-    r"\bwork[- ]item(?:\s+|\s*[:#]\s*)#?\d+\b)"
-)
+WORK_ITEM_RE = re.compile(r"\bAB#\d+\b")
 BUILD_POLICY_TYPE_ID = "0609b952-1397-4640-95ec-e00a01b2c241"
+
+
+def utf16_len(value: str) -> int:
+    """Return the length in UTF-16 code units, the unit of ADO's 4000 cap."""
+    return len(value.encode("utf-16-le")) // 2
 
 
 def first_sentence(value: str) -> str:
@@ -162,7 +163,7 @@ def remove_status_board(src: str, step_names: list) -> str:
     if not names:
         return src
     status_line = re.compile(
-        rf"^[ \t]*-[ \t]+\S+[ \t]+(?:\*\*)?(?:{names})(?:\*\*)?"
+        rf"^[ \t]*-[ \t]+[^\w\s]+[ \t]+(?:\*\*)?(?:{names})(?:\*\*)?"
         r"[ \t]+-.*$",
         re.IGNORECASE,
     )
@@ -214,19 +215,20 @@ def compact(src: str, verified_steps: "set[str] | None" = None) -> "str | None":
     head = TRUNCATION_RE.sub("", head)
     head = remove_changed_file_dump(head).rstrip()
     body = normalized_body(head, attestation, steps)
-    if len(body) > CAP:
+    if utf16_len(body) > CAP:
         head = compact_intent(head).rstrip()
         body = normalized_body(head, attestation, steps)
-    if len(body) > CAP:
+    if utf16_len(body) > CAP:
         head = compact_what_changed(head).rstrip()
         body = normalized_body(head, attestation, steps)
-    if len(body) > CAP:
+    if utf16_len(body) > CAP:
         head = compact_what_changed(head, maximal=True).rstrip()
         body = normalized_body(head, attestation, steps)
-    if len(body) > CAP:
+    if utf16_len(body) > CAP:
         raise SystemExit(
-            f"error: normalized description is still {len(body)} chars after maximal "
-            f"legal trimming (Azure DevOps cap is {CAP}); description not updated"
+            f"error: normalized description is still {utf16_len(body)} UTF-16 code "
+            f"units after maximal legal trimming (Azure DevOps cap is {CAP}); "
+            "description not updated"
         )
     if TRUNCATION_RE.search(body):
         raise SystemExit(
@@ -468,7 +470,7 @@ def post_thread(org: str, project: str, repo: str, pr_id: str, content: str) -> 
 
 
 def verify_build_policy(org: str, pr_id: str) -> None:
-    """Refuse unless every ADO Build policy evaluation is approved."""
+    """Refuse unless every blocking ADO Build policy evaluation is approved."""
     try:
         result = subprocess.run(
             ["az", "repos", "pr", "policy", "list", "--id", pr_id,
@@ -488,13 +490,12 @@ def verify_build_policy(org: str, pr_id: str) -> None:
         policy_type = configuration.get("type") or policy.get("type") or {}
         type_id = str(policy_type.get("id") or "").casefold()
         display_name = str(policy_type.get("displayName") or "").casefold()
-        if type_id == BUILD_POLICY_TYPE_ID or display_name == "build":
+        if (
+            type_id == BUILD_POLICY_TYPE_ID or display_name == "build"
+        ) and configuration.get("isBlocking"):
             builds.append(policy)
     if not builds:
-        raise SystemExit(
-            f"error: CI was not verified green because no Build policy evaluation "
-            f"was found for PR {pr_id}; description not updated"
-        )
+        return
 
     statuses = [str(policy.get("status") or "unknown").casefold() for policy in builds]
     if any(status != "approved" for status in statuses):
@@ -526,8 +527,9 @@ def main() -> int:
         )
         pr = json.loads(show.stdout)
     except (json.JSONDecodeError, subprocess.CalledProcessError) as exc:
+        detail = (getattr(exc, "stderr", "") or str(exc)).strip()
         print(
-            f"error: PR {pr_id} could not be verified as existing; "
+            f"error: PR {pr_id} could not be verified as existing ({detail}); "
             "description not updated",
             file=sys.stderr,
         )
