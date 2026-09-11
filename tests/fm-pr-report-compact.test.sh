@@ -11,6 +11,8 @@ trap 'rm -rf "$TEST_DIR"' EXIT
 fail() { echo "FAIL: $1" >&2; failures=$((failures + 1)); }
 
 ATTESTATION='<!-- no-mistakes-pipeline-attestation:v1 {"head_sha":"d4aeca250cf6e5927915d23a55a7b51c2aac2d34","steps":[{"step":"intent","status":"completed"},{"step":"review","status":"completed"},{"step":"test","status":"completed"},{"step":"pr","status":"running"},{"step":"ci","status":"pending"}]} -->'
+ATTESTATION_HEAD=d4aeca250cf6e5927915d23a55a7b51c2aac2d34
+ROUND_MARKER="<!-- fm-pr-report-compact:attestation-head:$ATTESTATION_HEAD -->"
 
 make_body() {  # <padding-chars> -> an assembled PR body on stdout
   local pad_len=$1
@@ -54,12 +56,21 @@ AZ_TRACE="$TEST_DIR/az.trace"
 AZ_POST_BODY="$TEST_DIR/post.json"
 AZ_DESCRIPTION_FILE="$TEST_DIR/description.txt"
 EMPTY_THREADS="$TEST_DIR/empty-threads.json"
-EXISTING_THREADS="$TEST_DIR/existing-threads.json"
+SAME_ROUND_THREADS="$TEST_DIR/same-round-threads.json"
+OLDER_ROUND_THREADS="$TEST_DIR/older-round-threads.json"
+LEGACY_THREADS="$TEST_DIR/legacy-threads.json"
 mkdir -p "$TEST_HOME/.no-mistakes"
 printf '%s' "$small" > "$AZ_DESCRIPTION_FILE"
 printf '{"value":[]}\n' > "$EMPTY_THREADS"
+printf '{"value":[{"comments":[{"content":"%s\\n%s\\nprior"}]}]}\n' \
+  '## no-mistakes review — recorded findings (full texts)' "$ROUND_MARKER" \
+  > "$SAME_ROUND_THREADS"
+printf '{"value":[{"comments":[{"content":"%s\\n%s\\nprior"}]}]}\n' \
+  '## no-mistakes review — recorded findings (full texts)' \
+  '<!-- fm-pr-report-compact:attestation-head:older-head -->' \
+  > "$OLDER_ROUND_THREADS"
 printf '{"value":[{"comments":[{"content":"%s\\nprior"}]}]}\n' \
-  '## no-mistakes review — recorded findings (full texts)' > "$EXISTING_THREADS"
+  '## no-mistakes review — recorded findings (full texts)' > "$LEGACY_THREADS"
 
 python3 - "$TEST_HOME/.no-mistakes/state.sqlite" <<'PY'
 import json
@@ -219,6 +230,7 @@ run_pr() {  # <id> <status> <threads-file>
 clean_output=$(run_pr 111 active "$EMPTY_THREADS") || fail "clean PR run failed"
 tick='`'
 grep -qF "Run ID: ${tick}run-clean${tick}" "$AZ_POST_BODY" || fail "clean comment must name the run"
+grep -qF "$ROUND_MARKER" "$AZ_POST_BODY" || fail "review comment must identify its attestation round"
 grep -qF "Reviewed head: ${tick}head-final${tick}" "$AZ_POST_BODY" || fail "clean comment must name the reviewed head"
 grep -qF 'Review rounds: 2' "$AZ_POST_BODY" || fail "clean comment must count review rounds"
 grep -qF "Round 1: trigger ${tick}initial${tick}; outcome: 1 finding" "$AZ_POST_BODY" || fail "clean comment must summarize the initial round"
@@ -228,24 +240,37 @@ grep -qF 'Verdict: **no residual findings.**' "$AZ_POST_BODY" || fail "clean com
 grep -qF '"status": "closed"' "$AZ_POST_BODY" || fail "review comment thread must be closed"
 printf '%s' "$clean_output" | grep -qF 'description fits, not rewritten' || fail "fitting active PR must not be rewritten"
 
-# 6. A completed PR gets its comment but never a description update.
+# 6. A completed PR gets a newer-round comment but never a description update.
 : > "$AZ_TRACE"
 printf '%s' "$big" > "$AZ_DESCRIPTION_FILE"
-completed_output=$(run_pr 222 completed "$EMPTY_THREADS") || fail "completed PR run failed"
-grep -q -- '--http-method POST' "$AZ_TRACE" || fail "completed PR must still receive a review comment"
+completed_output=$(run_pr 222 completed "$OLDER_ROUND_THREADS") || fail "completed PR run failed"
+grep -q -- '--http-method POST' "$AZ_TRACE" || fail "completed PR must still receive a newer-round review comment"
+grep -qF "$ROUND_MARKER" "$AZ_POST_BODY" || fail "completed PR comment must identify the current attestation round"
 grep -qF 'description left as-merged' <<< "$completed_output" || fail "completed PR must report its description was left as-merged"
 if grep -q '^repos pr update' "$AZ_TRACE"; then
   fail "completed PR description must not be updated"
 fi
 printf '%s' "$small" > "$AZ_DESCRIPTION_FILE"
 
-# 7. An existing review thread makes the comment post idempotent.
+# 7. A review thread for the current attestation makes the post idempotent.
 : > "$AZ_TRACE"
-idempotent_output=$(run_pr 111 active "$EXISTING_THREADS") || fail "idempotent PR run failed"
+idempotent_output=$(run_pr 111 active "$SAME_ROUND_THREADS") || fail "idempotent PR run failed"
 if grep -q -- '--http-method POST' "$AZ_TRACE"; then
-  fail "existing review thread must suppress a duplicate post"
+  fail "same-round review thread must suppress a duplicate post"
 fi
 printf '%s' "$idempotent_output" | grep -qF 'findings comment already posted' || fail "existing thread skip must be reported"
+
+# 7b. A review thread for an older attestation does not suppress the new round.
+: > "$AZ_TRACE"
+run_pr 111 active "$OLDER_ROUND_THREADS" >/dev/null || fail "newer-round PR run failed"
+grep -q -- '--http-method POST' "$AZ_TRACE" || fail "newer attestation must receive a new review comment"
+grep -qF "$ROUND_MARKER" "$AZ_POST_BODY" || fail "newer-round comment must carry the current marker"
+
+# 7c. A markerless legacy review thread does not suppress the current round.
+: > "$AZ_TRACE"
+run_pr 111 active "$LEGACY_THREADS" >/dev/null || fail "legacy-thread PR run failed"
+grep -q -- '--http-method POST' "$AZ_TRACE" || fail "markerless legacy thread must receive the current review comment"
+grep -qF "$ROUND_MARKER" "$AZ_POST_BODY" || fail "legacy follow-up comment must carry the current marker"
 
 # 8. Residual findings retain their full text below the same summary header.
 : > "$AZ_TRACE"

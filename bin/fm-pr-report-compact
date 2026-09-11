@@ -24,17 +24,19 @@ failed-fix history is never dropped. Any residual findings follow in full
 (read-only lookup in ~/.no-mistakes/state.sqlite by the
 PR's /pullrequest/<id> url suffix), so reviewers always find them in the same
 place: comments allow ~150k characters and survive merge. A rerun is a no-op
-once the thread exists.
+when a comment marker matches the current attestation. A newer attestation
+posts a new closed thread, and a legacy markerless comment does not suppress
+the current round.
 
 Usage:
   fm-pr-report-compact <org-url> <pr-id>            # compact in place via az
   fm-pr-report-compact --stdin < body > compacted   # pure filter, for tests
 
-Always posts the review comment (skipping only when no local run data or an
-existing thread is found); leaves a fitting description untouched. Only active
-PRs are rewritten: on a completed or abandoned PR the comment still posts and
-the description is left as-merged. Run it only after the pipeline reports
-checks-passed (custody has returned); never during a run.
+Always posts the review comment (skipping only when no local run data or a
+comment for the current attestation is found); leaves a fitting description
+untouched. Only active PRs are rewritten: on a completed or abandoned PR the
+comment still posts and the description is left as-merged. Run it only after
+the pipeline reports checks-passed (custody has returned); never during a run.
 """
 import json
 import os
@@ -48,6 +50,7 @@ CAP = 4000
 TARGET = 3900
 TRUNCATION_MARK = "(description truncated)"
 COMMENT_HEADING = "## no-mistakes review — recorded findings (full texts)"
+COMMENT_ROUND_MARKER = "fm-pr-report-compact:attestation-head"
 FINDING_SUMMARY_LIMIT = 240
 
 
@@ -101,7 +104,31 @@ def one_line_summary(value: object, limit: int = FINDING_SUMMARY_LIMIT) -> str:
     return summary[: limit - 1].rstrip() + "…"
 
 
-def review_findings_comment(pr_id: str) -> "tuple[str | None, str | None]":
+def attestation_head(src: str) -> "str | None":
+    """Return the head SHA from the no-mistakes attestation, when present."""
+    match = re.search(
+        r"<!--\s*no-mistakes-pipeline-attestation:v1\s+(\{.*?\})\s*-->",
+        src,
+        re.DOTALL,
+    )
+    if not match:
+        return None
+    try:
+        payload = json.loads(match.group(1))
+    except json.JSONDecodeError:
+        return None
+    head = payload.get("head_sha") if isinstance(payload, dict) else None
+    return str(head) if head else None
+
+
+def round_marker(head_sha: str) -> str:
+    """Return the hidden comment marker for one attested PR head."""
+    return f"<!-- {COMMENT_ROUND_MARKER}:{head_sha} -->"
+
+
+def review_findings_comment(
+    pr_id: str, current_attestation_head: str
+) -> "tuple[str | None, str | None]":
     """Render the run's review record, or a reason it cannot be rendered.
 
     Read-only against ~/.no-mistakes/state.sqlite: the run is matched by the
@@ -148,6 +175,7 @@ def review_findings_comment(pr_id: str) -> "tuple[str | None, str | None]":
 
     lines = [
         COMMENT_HEADING,
+        round_marker(current_attestation_head),
         "",
         "### Review summary",
         "",
@@ -258,8 +286,10 @@ def review_findings_comment(pr_id: str) -> "tuple[str | None, str | None]":
     return "\n".join(lines), None
 
 
-def findings_thread_exists(org: str, project: str, repo: str, pr_id: str) -> bool:
-    """True when the findings comment thread is already on the PR (rerun guard)."""
+def findings_thread_covers_attestation(
+    org: str, project: str, repo: str, pr_id: str, current_attestation_head: str
+) -> bool:
+    """True when a findings comment covers the current attestation round."""
     result = subprocess.run(
         ["az", "devops", "invoke", "--organization", org,
          "--area", "git", "--resource", "pullRequestThreads",
@@ -269,8 +299,10 @@ def findings_thread_exists(org: str, project: str, repo: str, pr_id: str) -> boo
         capture_output=True, text=True, check=True,
     )
     threads = json.loads(result.stdout).get("value", [])
+    marker = round_marker(current_attestation_head)
     return any(
         (comment.get("content") or "").startswith(COMMENT_HEADING)
+        and marker in (comment.get("content") or "")
         for thread in threads
         for comment in thread.get("comments", [])
     )
@@ -325,15 +357,30 @@ def main() -> int:
     # Always give the review findings one predictable home: a closed comment
     # thread, posted on every gated PR whether or not the description fits.
     # Posting precedes any description rewrite so nothing is lost if the
-    # update fails; a rerun is a no-op once the thread exists.
-    comment, comment_error = review_findings_comment(pr_id)
+    # update fails; a rerun is a no-op once a thread covers the same attestation.
+    current_attestation_head = attestation_head(pr.get("description") or "")
+    if current_attestation_head is None:
+        comment = None
+        comment_error = "current attestation head_sha not found"
+    else:
+        comment, comment_error = review_findings_comment(
+            pr_id, current_attestation_head
+        )
     if comment is None:
         print(f"PR {pr_id}: review comment could not be built: {comment_error}")
-    elif findings_thread_exists(org, pr["project"], pr["repo"], pr_id):
-        print(f"PR {pr_id}: findings comment already posted")
+    elif findings_thread_covers_attestation(
+        org, pr["project"], pr["repo"], pr_id, current_attestation_head
+    ):
+        print(
+            f"PR {pr_id}: findings comment already posted for attestation "
+            f"{current_attestation_head}"
+        )
     else:
         post_thread(org, pr["project"], pr["repo"], pr_id, comment)
-        print(f"PR {pr_id}: review summary posted as a closed comment thread")
+        print(
+            f"PR {pr_id}: review summary posted as a closed comment thread for "
+            f"attestation {current_attestation_head}"
+        )
 
     status = (pr.get("status") or "").lower()
     if status != "active":
