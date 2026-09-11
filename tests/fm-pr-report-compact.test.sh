@@ -14,33 +14,123 @@ ATTESTATION='<!-- no-mistakes-pipeline-attestation:v1 {"head_sha":"d4aeca250cf6e
 
 make_body() {  # <padding-chars> -> an assembled PR body on stdout
   local pad_len=$1
-  printf '## Intent\n\nShip the change.\n\n## What Changed\n\nFiles.\n\n## Risk Assessment\n\nLow.\n\n## Pipeline\n\nUpdates from [git push no-mistakes](https://github.com/kunchenguid/no-mistakes)\n\n%s\n\n' "$ATTESTATION"
+  printf '## Intent\n\nShip the change.\n\n## What Changed\n\nFiles.\n\n## Risk Assessment\n\nLow.\n\n## Pipeline\n\nUpdates from [git push no-mistakes](https://github.com/kunchenguid/no-mistakes)\n\n'
+  printf '%s\n%s\n%s\n\n%s\n\n' \
+    '- ✅ intent - passed' '- ✅ pr - passed' '- ⚠️ ci - pending' "$ATTESTATION"
+  printf '%s\n\n' '- ⚠️ ci - pending'
   printf '<details>\n<summary>✅ **intent** - passed</summary>\n\nok\n</details>\n\n'
   printf '<details>\n<summary>⚠️ **Review** - 3 issues (1 warning, 2 infos)</summary>\n\n%s\n</details>\n' "$(printf 'x%.0s' $(seq 1 "$pad_len"))"
 }
 
-# 1. An oversized body is compacted under the cap with the attestation verbatim.
+# 1. An old-format body gets a fresh all-passed board and loses stale details.
 big=$(make_body 4200)
 out=$(printf '%s' "$big" | "$TOOL" --stdin) || fail "tool errored on oversized body"
 [ -n "$out" ] || fail "oversized body must be rewritten"
-[ "${#out}" -le 3900 ] || fail "compacted body still ${#out} chars"
+[ "${#out}" -le 4000 ] || fail "normalized body still ${#out} chars"
 printf '%s' "$out" | grep -qF "$ATTESTATION" || fail "attestation must survive byte-for-byte"
 [ "$(printf '%s' "$out" | grep -Fxc "$ATTESTATION")" -eq 1 ] || fail "attestation must survive exactly once"
-printf '%s' "$out" | grep -q -- "- ✅ intent - passed" || fail "surviving step summary must be one-lined"
-printf '%s' "$out" | grep -q -- "- ⚠️ Review - 3 issues" || fail "review summary line must survive compaction"
-printf '%s' "$out" | grep -q -- "- ✅ test - passed" || fail "steps without a details block must be reconstructed from the attestation"
-printf '%s' "$out" | grep -qv "<details>" || fail "details blocks must be removed"
+for step in intent review test pr ci; do
+  printf '%s' "$out" | grep -q -- "- ✅ $step - passed" || \
+    fail "$step must have a verified passed line"
+done
+if printf '%s' "$out" | grep -q -- '⚠️\|<details>'; then
+  fail "stale board values and details blocks must be removed"
+fi
+
+# 1b. What Changed bullets that merely mention step names are prose, not
+# board lines, and must survive normalization.
+prose_body=$(printf '## Intent\n\nShip it.\n\n## What Changed\n\n- Added test - covers the new path\n- Renamed pr - update call sites\n\n## Risk Assessment\n\nLow.\n\n## Pipeline\n\n%s' "$ATTESTATION")
+prose_out=$(printf '%s' "$prose_body" | "$TOOL" --stdin) || \
+  fail "tool errored on prose bullets naming step names"
+printf '%s' "$prose_out" | grep -qF -- '- Added test - covers the new path' || \
+  fail "prose bullet naming a step must survive normalization"
+printf '%s' "$prose_out" | grep -qF -- '- Renamed pr - update call sites' || \
+  fail "second prose bullet naming a step must survive normalization"
 
 # 2. Intent/What Changed/Risk prefix stays verbatim.
 printf '%s' "$out" | grep -q "^## Intent" || fail "Intent section must survive"
 printf '%s' "$out" | grep -q "^## Risk Assessment" || fail "Risk section must survive"
 
-# 3. A body that already fits is left alone (empty stdout, exit 0).
+# 3. A fitting new-format body without a board is normalized.
 small=$(make_body 10)
-out=$(printf '%s' "$small" | "$TOOL" --stdin) || fail "tool errored on fitting body"
-[ -z "$out" ] || fail "a fitting body must not be rewritten"
+new_format=$(printf '%s' "$small" | sed '/^- .* - /d' | sed '/<details>/,$d')
+new_out=$(printf '%s' "$new_format" | "$TOOL" --stdin) || \
+  fail "tool errored on fitting new-format body"
+[ -n "$new_out" ] || fail "a fitting body without a board must be normalized"
+printf '%s' "$new_out" | grep -q -- '- ✅ ci - passed' || \
+  fail "a fitting body must gain the final CI status"
 
-# 4. A body carrying the ADO truncation mark is compacted even when short.
+# 4. An already-normalized body produces no output.
+out=$(printf '%s' "$new_out" | "$TOOL" --stdin) || \
+  fail "tool errored on an already-normalized body"
+[ -z "$out" ] || fail "an already-normalized body must not be rewritten"
+
+# 5. A near-cap head is legally trimmed without losing AB# tokens or Risk.
+padding=$(printf 'verbose prose %.0s' $(seq 1 300))
+near_cap=$(printf '## Intent\n\nKeep this first sentence. %s AB#55008\n\n## What Changed\n\n- A very detailed implementation bullet.\n\n## Risk Assessment\n\nVerdict: Low.\n\n## Pipeline\n\n%s' "$padding" "$ATTESTATION")
+[ "${#near_cap}" -ge 3990 ] || fail "near-cap fixture must be at least 3990 chars"
+near_out=$(printf '%s' "$near_cap" | "$TOOL" --stdin) || \
+  fail "tool errored while trimming the near-cap head"
+[ "${#near_out}" -le 4000 ] || fail "trimmed near-cap body is ${#near_out} chars"
+printf '%s' "$near_out" | grep -qF 'AB#55008' || fail "Intent trimming must retain AB# tokens"
+printf '%s' "$near_out" | grep -qF 'Verdict: Low.' || fail "Risk verdict must survive trimming"
+printf '%s' "$near_out" | grep -qF "$ATTESTATION" || fail "trimmed body must retain the attestation byte-for-byte"
+printf '%s' "$near_out" | grep -q -- '- ✅ ci - passed' || fail "trimmed body must retain the full board"
+
+# 5b. ADO measures its cap in UTF-16 code units, so a body whose code-point
+# count fits but whose UTF-16 length exceeds the cap is still trimmed.
+astral_body=$(python3 - "$ATTESTATION" <<'PY'
+import sys
+
+att = sys.argv[1]
+board = "\n".join(
+    f"- ✅ {step} - passed" for step in ("intent", "review", "test", "pr", "ci")
+)
+head_prefix = "## Intent\n\nKeep this first sentence. "
+head_suffix = "\n\n## What Changed\n\n- Bullet.\n\n## Risk Assessment\n\nLow.\n\n## Pipeline"
+rockets = 150
+fixed = len(head_prefix) + len(head_suffix) + 2 + len(att) + 2 + len(board)
+filler = 3995 - fixed - rockets
+body = head_prefix + "x" * filler + "🚀" * rockets + head_suffix + "\n\n" + att
+normalized_cp = fixed + filler + rockets
+assert filler > 0 and normalized_cp <= 4000 < normalized_cp + rockets
+print(body, end="")
+PY
+) || fail "astral near-cap fixture construction failed"
+astral_out=$(printf '%s' "$astral_body" | "$TOOL" --stdin) || \
+  fail "tool errored on the astral near-cap body"
+[ -n "$astral_out" ] || fail "astral near-cap body must be rewritten"
+printf '%s' "$astral_out" | python3 -c \
+  'import sys; sys.exit(0 if len(sys.stdin.read().encode("utf-16-le")) // 2 <= 4000 else 1)' || \
+  fail "normalized astral body must fit the cap in UTF-16 code units"
+printf '%s' "$astral_out" | grep -qF "$ATTESTATION" || \
+  fail "astral trimming must retain the attestation byte-for-byte"
+
+# 6. A 3998-char v1.70-style raw file dump truncated inside an unclosed text
+# fence is replaced, leaving later sections outside code and no marker behind.
+dump_prefix=$'## Intent\n\nShip the file-list fix.\n\n## What Changed\n\n- Updated generated files.\n\n```text\n'
+dump_suffix=$'\n…(description truncated)\n\n## Risk Assessment\n\nVerdict: Low.\n\n## Pipeline\n\n'
+dump_suffix+="$ATTESTATION"
+dump_budget=$((3998 - ${#dump_prefix} - ${#dump_suffix}))
+dump_source=$(printf 'src/generated/very-long-file-name.cs\n%.0s' $(seq 1 200))
+dump_source=${dump_source:0:$dump_budget}
+truncated_dump="${dump_prefix}${dump_source}${dump_suffix}"
+[ "${#truncated_dump}" -eq 3998 ] || fail "truncated file-list fixture must be 3998 chars"
+dump_out=$(printf '%s' "$truncated_dump" | "$TOOL" --stdin) || \
+  fail "tool errored on an unclosed changed-file dump"
+printf '%s' "$dump_out" | grep -qF 'Full file list: see the Files tab.' || \
+  fail "raw changed-file dump must become the Files-tab pointer"
+if printf '%s' "$dump_out" | grep -q '```\|description truncated'; then
+  fail "normalized file-list shape must have no unclosed fence or truncation marker"
+fi
+printf '%s' "$dump_out" | grep -q '^## Risk Assessment$' || \
+  fail "Risk section must render outside the removed file-list fence"
+printf '%s' "$dump_out" | grep -q -- '- ✅ ci - passed' || \
+  fail "file-list normalization must retain the full board"
+printf '%s' "$dump_out" | grep -qF "$ATTESTATION" || \
+  fail "file-list normalization must retain the exact attestation"
+
+# 7. A body carrying the ADO truncation mark is normalized when short.
 marked="$small
 …(description truncated)"
 out=$(printf '%s' "$marked" | "$TOOL" --stdin) || fail "tool errored on marked body"
@@ -52,11 +142,12 @@ TEST_HOME="$TEST_DIR/home"
 FAKE_BIN="$ROOT/tests/fixtures/fm-pr-report-compact"
 AZ_TRACE="$TEST_DIR/az.trace"
 AZ_POST_BODY="$TEST_DIR/post.json"
+AZ_UPDATE_BODY="$TEST_DIR/update.txt"
 AZ_DESCRIPTION_FILE="$TEST_DIR/description.txt"
 EMPTY_THREADS="$TEST_DIR/empty-threads.json"
 EXISTING_THREADS="$TEST_DIR/existing-threads.json"
 mkdir -p "$TEST_HOME/.no-mistakes"
-printf '%s' "$small" > "$AZ_DESCRIPTION_FILE"
+printf '%s' "$new_format" > "$AZ_DESCRIPTION_FILE"
 printf '{"value":[]}\n' > "$EMPTY_THREADS"
 printf '{"value":[{"comments":[{"content":"%s\\nprior"}]}]}\n' \
   '## no-mistakes review — recorded findings (full texts)' > "$EXISTING_THREADS"
@@ -207,15 +298,19 @@ db.execute(
 db.commit()
 PY
 
-export TEST_HOME FAKE_BIN AZ_TRACE AZ_POST_BODY AZ_DESCRIPTION_FILE
+export TEST_HOME FAKE_BIN AZ_TRACE AZ_POST_BODY AZ_UPDATE_BODY AZ_DESCRIPTION_FILE
 
-run_pr() {  # <id> <status> <threads-file>
+run_pr() {  # <id> <status> <threads-file> [policy-status] [pr-exists] [policy-blocking]
   HOME="$TEST_HOME" PATH="$FAKE_BIN:$PATH" AZ_PR_STATUS="$2" \
+    AZ_POLICY_STATUS="${4:-approved}" \
+    AZ_PR_EXISTS="${5:-true}" \
+    AZ_POLICY_BLOCKING="${6:-true}" \
     AZ_THREADS_FILE="$3" "$TOOL" https://dev.azure.com/org "$1"
 }
 
 # 5. A clean review always posts a closed summary with every recorded round.
 : > "$AZ_TRACE"
+: > "$AZ_UPDATE_BODY"
 clean_output=$(run_pr 111 active "$EMPTY_THREADS") || fail "clean PR run failed"
 tick='`'
 grep -qF "Run ID: ${tick}run-clean${tick}" "$AZ_POST_BODY" || fail "clean comment must name the run"
@@ -226,7 +321,9 @@ grep -qF "Round 2: trigger ${tick}auto_fix${tick}; outcome: no findings" "$AZ_PO
 grep -qF "${tick}review-1${tick} (warning): Keep this full finding text.; fixed in round 2: resolved review-1" "$AZ_POST_BODY" || fail "multi-round comment must explain each finding and attribute its fix"
 grep -qF 'Verdict: **no residual findings.**' "$AZ_POST_BODY" || fail "clean comment must state the residual verdict"
 grep -qF '"status": "closed"' "$AZ_POST_BODY" || fail "review comment thread must be closed"
-printf '%s' "$clean_output" | grep -qF 'description fits, not rewritten' || fail "fitting active PR must not be rewritten"
+printf '%s' "$clean_output" | grep -qF 'description normalized to' || fail "fitting active PR without a board must be normalized"
+grep -qF -- '- ✅ ci - passed' "$AZ_UPDATE_BODY" || fail "ADO update must receive the final board"
+grep -qF "$ATTESTATION" "$AZ_UPDATE_BODY" || fail "ADO update must retain the exact attestation"
 
 # 6. A completed PR gets its comment but never a description update.
 : > "$AZ_TRACE"
@@ -237,15 +334,19 @@ grep -qF 'description left as-merged' <<< "$completed_output" || fail "completed
 if grep -q '^repos pr update' "$AZ_TRACE"; then
   fail "completed PR description must not be updated"
 fi
-printf '%s' "$small" > "$AZ_DESCRIPTION_FILE"
+printf '%s' "$new_out" > "$AZ_DESCRIPTION_FILE"
 
 # 7. An existing review thread makes the comment post idempotent.
 : > "$AZ_TRACE"
+: > "$AZ_UPDATE_BODY"
 idempotent_output=$(run_pr 111 active "$EXISTING_THREADS") || fail "idempotent PR run failed"
 if grep -q -- '--http-method POST' "$AZ_TRACE"; then
   fail "existing review thread must suppress a duplicate post"
 fi
 printf '%s' "$idempotent_output" | grep -qF 'findings comment already posted' || fail "existing thread skip must be reported"
+printf '%s' "$idempotent_output" | grep -qF 'description already normalized, not rewritten' || \
+  fail "normalized description skip must be reported"
+[ ! -s "$AZ_UPDATE_BODY" ] || fail "fully normalized rerun must produce zero writes"
 
 # 8. Residual findings retain their full text below the same summary header.
 : > "$AZ_TRACE"
@@ -301,6 +402,47 @@ missing_output=$(HOME="$EMPTY_HOME" PATH="$FAKE_BIN:$PATH" AZ_PR_STATUS=active \
   fail "missing-state PR run failed"
 printf '%s' "$missing_output" | grep -qF 'review comment could not be built: state database not found' || \
   fail "missing-state reason must be reported"
+
+# 10. A non-green Build policy fails loudly without writing the description.
+: > "$AZ_TRACE"
+: > "$AZ_UPDATE_BODY"
+printf '%s' "$new_format" > "$AZ_DESCRIPTION_FILE"
+if nongreen_output=$(run_pr 111 active "$EXISTING_THREADS" queued 2>&1); then
+  fail "non-green Build policy must fail"
+fi
+printf '%s' "$nongreen_output" | grep -qF \
+  'CI was not verified green for PR 111; Build policy status: queued' || \
+  fail "non-green refusal must name the Build policy state"
+if grep -q '^repos pr update' "$AZ_TRACE" || [ -s "$AZ_UPDATE_BODY" ]; then
+  fail "non-green Build policy must not write the description"
+fi
+
+# 10b. A non-blocking Build policy that is not approved never blocks a
+# legitimately green PR from being normalized.
+: > "$AZ_TRACE"
+: > "$AZ_UPDATE_BODY"
+printf '%s' "$new_format" > "$AZ_DESCRIPTION_FILE"
+nonblocking_output=$(run_pr 111 active "$EXISTING_THREADS" queued true false) || \
+  fail "non-blocking Build policy run failed"
+printf '%s' "$nonblocking_output" | grep -qF 'description normalized to' || \
+  fail "non-blocking Build policy must not block normalization"
+grep -qF -- '- ✅ ci - passed' "$AZ_UPDATE_BODY" || \
+  fail "non-blocking policy run must still write the final board"
+
+# 11. A missing PR fails the PR verification before any write.
+: > "$AZ_TRACE"
+: > "$AZ_UPDATE_BODY"
+if missing_pr_output=$(run_pr 111 active "$EXISTING_THREADS" approved false 2>&1); then
+  fail "missing PR verification must fail"
+fi
+printf '%s' "$missing_pr_output" | grep -qF \
+  'PR 111 could not be verified as existing' || \
+  fail "missing PR refusal must name the failed existence check"
+printf '%s' "$missing_pr_output" | grep -qF 'pull request not found' || \
+  fail "missing PR refusal must surface the az stderr detail"
+if grep -q -- '--http-method POST\|repos pr update' "$AZ_TRACE" || [ -s "$AZ_UPDATE_BODY" ]; then
+  fail "missing PR verification must happen before any write"
+fi
 
 if [ "$failures" -gt 0 ]; then
   echo "fm-pr-report-compact battery: $failures failure(s)" >&2
