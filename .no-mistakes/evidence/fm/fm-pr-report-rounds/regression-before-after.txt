@@ -1,0 +1,12 @@
+$ tests/fm-pr-report-compact.test.sh   # run against the PRE-FIX binary (base commit 7ba1887)
+FAIL: review comment must identify its attestation round
+FAIL: completed PR must still receive a newer-round review comment
+FAIL: completed PR comment must identify the current attestation round
+FAIL: newer attestation must receive a new review comment
+FAIL: newer-round comment must carry the current marker
+FAIL: markerless legacy thread must receive the current review comment
+FAIL: legacy follow-up comment must carry the current marker
+fm-pr-report-compact battery: 7 failure(s)
+
+$ tests/fm-pr-report-compact.test.sh   # run against the FIXED binary (target commit ce26a5e)
+fm-pr-report-compact battery: OK

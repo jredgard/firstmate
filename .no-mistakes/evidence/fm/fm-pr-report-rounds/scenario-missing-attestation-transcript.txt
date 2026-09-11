@@ -1,0 +1,5 @@
+$ fm-pr-report-compact https://dev.azure.com/org 9001   # PR description carries no no-mistakes attestation
+PR 9001: review comment could not be built: current attestation head_sha not found
+PR 9001: description fits, not rewritten
+exit=0
+az trace shows no POST

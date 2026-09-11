@@ -1,0 +1,4 @@
+$ fm-pr-report-compact https://dev.azure.com/org 9001   # rerun: thread already carries the marker for attestation d4aeca25…
+PR 9001: findings comment already posted for attestation d4aeca250cf6e5927915d23a55a7b51c2aac2d34
+PR 9001: description fits, not rewritten
+az trace shows no POST: duplicate suppressed

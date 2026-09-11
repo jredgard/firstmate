@@ -1,0 +1,3 @@
+$ fm-pr-report-compact https://dev.azure.com/org 9001   # PR already carries a findings comment for attestation "older-head"; description now attests d4aeca25…
+PR 9001: review summary posted as a closed comment thread for attestation d4aeca250cf6e5927915d23a55a7b51c2aac2d34
+PR 9001: description fits, not rewritten
