@@ -32,11 +32,12 @@ Usage:
   fm-pr-report-compact <org-url> <pr-id>            # compact in place via az
   fm-pr-report-compact --stdin < body > compacted   # pure filter, for tests
 
-Always posts the review comment (skipping only when no local run data or a
-comment for the current attestation is found); leaves a fitting description
-untouched. Only active PRs are rewritten: on a completed or abandoned PR the
-comment still posts and the description is left as-merged. Run it only after
-the pipeline reports checks-passed (custody has returned); never during a run.
+Always posts the review comment (skipping only when the description carries no
+readable attestation, no local run data is found, or a comment for the current
+attestation already exists); leaves a fitting description untouched. Only
+active PRs are rewritten: on a completed or abandoned PR the comment still
+posts and the description is left as-merged. Run it only after the pipeline
+reports checks-passed (custody has returned); never during a run.
 """
 import json
 import os
