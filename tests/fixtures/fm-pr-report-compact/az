@@ -3,6 +3,10 @@ set -eu
 
 printf '%s\n' "$*" >> "$AZ_TRACE"
 if [ "$1 $2 $3" = "repos pr show" ]; then
+  if [ "${AZ_PR_EXISTS:-true}" != "true" ]; then
+    printf 'pull request not found\n' >&2
+    exit 3
+  fi
   python3 - "$AZ_PR_STATUS" "$AZ_DESCRIPTION_FILE" <<'PY'
 import json
 import sys
@@ -11,6 +15,32 @@ with open(sys.argv[2], encoding="utf-8") as stream:
     description = stream.read()
 print(json.dumps({"description": description, "repo": "repo",
                   "project": "project", "status": sys.argv[1]}))
+PY
+elif [ "$1 $2 $3 $4" = "repos pr policy list" ]; then
+  python3 - "${AZ_POLICY_STATUS:-approved}" "${AZ_POLICY_BLOCKING:-true}" \
+    "${AZ_POLICY_SHAPE:-canonical}" <<'PY'
+import json
+import sys
+
+status, blocking, shape = sys.argv[1:4]
+if shape == "alias":
+    policy = {
+        "type": {"displayName": "Build"},
+        "configuration": {"isBlocking": "true"},
+        "status": status,
+    }
+else:
+    policy = {
+        "configuration": {
+            "isBlocking": blocking == "true",
+            "type": {
+                "displayName": "Build",
+                "id": "0609b952-1397-4640-95ec-e00a01b2c241",
+            },
+        },
+        "status": status,
+    }
+print(json.dumps([policy]))
 PY
 elif [ "$1 $2" = "devops invoke" ]; then
   method=""
@@ -28,6 +58,13 @@ elif [ "$1 $2" = "devops invoke" ]; then
     printf '{"id":42}\n'
   fi
 elif [ "$1 $2 $3" = "repos pr update" ]; then
+  previous=""
+  for arg in "$@"; do
+    if [ "$previous" = "--description" ]; then
+      printf '%s' "$arg" > "$AZ_UPDATE_BODY"
+    fi
+    previous="$arg"
+  done
   printf 'updated\n'
 else
   printf 'unexpected az invocation: %s\n' "$*" >&2
