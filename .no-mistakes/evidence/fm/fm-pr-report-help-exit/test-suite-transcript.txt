@@ -1,0 +1,6 @@
+$ tests/fm-pr-report-compact.test.sh
+fm-pr-report-compact battery: OK
+exit=0
+
+$ printf ... | bin/fm-pr-report-compact --stdin   (quick filter sanity)
+exit=0

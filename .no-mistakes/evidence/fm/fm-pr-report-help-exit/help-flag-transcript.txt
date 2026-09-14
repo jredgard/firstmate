@@ -1,0 +1,20 @@
+$ bin/fm-pr-report-compact --help   (stdout below, stderr captured separately)
+exit=0
+stdout bytes: 2531, stderr bytes: 0
+--- first 6 stdout lines ---
+Compact a no-mistakes PR description so the full report fits ADO's 4000-char cap.
+
+Azure DevOps hard-truncates PR descriptions at 4000 characters. A no-mistakes
+run whose review carried substantive findings embeds their full texts in the
+report's <details> blocks, which can push the assembled body past the cap and
+chop it mid-sentence (observed on Mosaiq PR 54362, 2026-09-02: 4023 chars, tail
+--- Usage section ---
+Usage:
+  fm-pr-report-compact <org-url> <pr-id>            # compact in place via az
+  fm-pr-report-compact --stdin < body > compacted   # pure filter, for tests
+
+
+$ bin/fm-pr-report-compact -h
+exit=0
+stdout bytes: 2531, stderr bytes: 0
+-h output identical to --help

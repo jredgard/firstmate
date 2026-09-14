@@ -1,0 +1,19 @@
+$ bin/fm-pr-report-compact unexpected   (single bad argument)
+exit=2
+stdout bytes: 0, stderr bytes: 2531
+usage present on stderr
+
+$ bin/fm-pr-report-compact   (no arguments)
+exit=2
+stdout bytes: 0, stderr bytes: 2531
+usage present on stderr
+
+$ bin/fm-pr-report-compact a b c d   (too many arguments)
+exit=2
+stdout bytes: 0, stderr bytes: 2531
+
+--- regression reproduction on base commit 6275bdd ---
+$ git show 6275bdd:bin/fm-pr-report-compact | python3 - --help
+exit=2
+stdout bytes: 0, stderr bytes: 2531
+base: usage went to STDERR (bug reproduced)
