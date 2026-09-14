@@ -1,0 +1,11 @@
+=== E1: attested step with status "failed" must refuse ===
+error: attested step review is failed, not passed; description not updated
+exit=1
+
+=== E2: body with no attestation must refuse ===
+error: no valid no-mistakes attestation found
+exit=1
+
+=== E3: malformed attestation JSON must refuse ===
+error: invalid no-mistakes attestation: steps must be a non-empty list
+exit=1

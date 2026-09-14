@@ -1,0 +1,12 @@
+=== --help (exit 0, usage on stdout) ===
+attestation already exists). Only active PRs are normalized: on a completed or
+abandoned PR the comment still posts and the description is left as-merged.
+Run it only after the pipeline reports checks-passed (custody has returned);
+never during a run. The --stdin interface performs no network calls and treats
+PR and CI as verified so description shapes can be tested in isolation.
+
+exit=0
+
+=== bad args (nonzero, usage on stderr, empty stdout) ===
+exit=2 stdout-bytes=0
+usage on stderr: yes

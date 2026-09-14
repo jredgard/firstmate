@@ -1,0 +1,22 @@
+## Intent
+
+Keep this first sentence. Work items: AB#55008.
+
+## What Changed
+
+- A detailed implementation bullet. More detail here.
+- Another bullet with specifics. Extra clause.
+
+## Risk Assessment
+
+Verdict: Low. Rollback is a revert.
+
+## Pipeline
+
+<!-- no-mistakes-pipeline-attestation:v1 {"head_sha":"d4aeca250cf6e5927915d23a55a7b51c2aac2d34","steps":[{"step":"intent","status":"completed"},{"step":"review","status":"completed"},{"step":"test","status":"completed"},{"step":"pr","status":"running"},{"step":"ci","status":"pending"}]} -->
+
+- ✅ intent - passed
+- ✅ review - passed
+- ✅ test - passed
+- ✅ pr - passed
+- ✅ ci - passed
