@@ -144,7 +144,8 @@ printf '%s' "$dump_out" | grep -qF 'Verdict: Low.' || \
   fail "Risk must render outside the removed file-list fence"
 
 # 5b. A properly closed text fence is author content and survives intact.
-closed_fence=$(printf '## Intent\n\nShip it.\n\n## What Changed\n\n```text\nexample output line\n```\n\nAfter the fence.\n\n## Risk Assessment\n\nLow.\n\n## Pipeline\n\n%s' "$ATTESTATION")
+closed_fence=$'## Intent\n\nShip it.\n\n## What Changed\n\n```text\nexample output line\n```\n\nAfter the fence.\n\n## Risk Assessment\n\nLow.\n\n## Pipeline\n\n'
+closed_fence+="$ATTESTATION"
 closed_out=$(printf '%s' "$closed_fence" | "$TOOL" --stdin) || \
   fail "tool errored on a closed text fence"
 printf '%s' "$closed_out" | grep -qF 'example output line' || \
