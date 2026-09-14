@@ -24,6 +24,24 @@ make_body() {  # <padding-chars> -> an assembled PR body on stdout
   printf '<details>\n<summary>⚠️ **Review** - 3 issues (1 warning, 2 infos)</summary>\n\n%s\n</details>\n' "$(printf 'x%.0s' $(seq 1 "$pad_len"))"
 }
 
+# Explicit help succeeds on stdout without writing stderr.
+for help_flag in --help -h; do
+  if "$TOOL" "$help_flag" > "$TEST_DIR/help.stdout" 2> "$TEST_DIR/help.stderr"; then
+    grep -q '^Usage:$' "$TEST_DIR/help.stdout" || fail "$help_flag must print usage to stdout"
+    [ ! -s "$TEST_DIR/help.stderr" ] || fail "$help_flag must not write stderr"
+  else
+    fail "$help_flag must exit zero"
+  fi
+done
+
+# Genuine argument errors fail with usage on stderr and no stdout.
+if "$TOOL" unexpected > "$TEST_DIR/error.stdout" 2> "$TEST_DIR/error.stderr"; then
+  fail "bad arguments must exit nonzero"
+else
+  grep -q '^Usage:$' "$TEST_DIR/error.stderr" || fail "bad arguments must print usage to stderr"
+  [ ! -s "$TEST_DIR/error.stdout" ] || fail "bad arguments must not write stdout"
+fi
+
 # 1. An old-format body gets a fresh all-passed board and loses stale details.
 big=$(make_body 4200)
 out=$(printf '%s' "$big" | "$TOOL" --stdin) || fail "tool errored on oversized body"
