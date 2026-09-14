@@ -15,9 +15,9 @@ removes stale status boards and details reports, and emits one verified passed
 line per attested step. It verifies that the PR exists and that every blocking
 ADO Build policy is approved before any active-PR write. If the normalized body
 is too long, it trims Intent and then What Changed prose while preserving work
-item tokens, the complete Risk section, and the attestation. A fenced raw file
-dump becomes a Files-tab pointer so an unclosed fence cannot swallow later
-sections. On every gated PR, a closed review comment narrates the run: each
+item tokens, the complete Risk section, and the attestation. An unclosed fenced
+raw file dump becomes a Files-tab pointer so a truncated fence cannot swallow
+later sections; a properly closed fence is author content and is kept. On every gated PR, a closed review comment narrates the run: each
 round lists its findings by id, severity, and a bounded one-line summary. A
 finding is labeled fixed,
 citing the fixing round's fix summary, only when it has a usable id that stays
@@ -65,7 +65,7 @@ ATTESTATION_RE = re.compile(
 WORK_ITEM_RE = re.compile(r"\bAB#\d+\b", re.IGNORECASE)
 DETAILS_RE = re.compile(r"<details\b[^>]*>.*?(?:</details>|\Z)", re.IGNORECASE | re.DOTALL)
 RAW_FILE_DUMP_RE = re.compile(
-    r"(?ims)^[ \t]*```text[ \t]*\r?\n.*?(?:^[ \t]*```[ \t]*(?:\r?\n|\Z)|\Z)"
+    r"(?ims)^[ \t]*```text[ \t]*\r?\n(?:(?!^[ \t]*```).)*\Z"
 )
 CANONICAL_SECTIONS = ("Intent", "What Changed", "Risk Assessment", "Pipeline")
 
@@ -501,13 +501,6 @@ def post_thread(org: str, project: str, repo: str, pr_id: str, content: str) -> 
         os.unlink(body_path)
 
 
-def bool_value(value: object) -> bool:
-    """Interpret ADO JSON booleans without treating the string false as true."""
-    if isinstance(value, bool):
-        return value
-    return str(value).casefold() == "true"
-
-
 def verify_build_policy(org: str, pr_id: str) -> None:
     """Refuse unless every blocking ADO Build policy is approved."""
     try:
@@ -538,12 +531,11 @@ def verify_build_policy(org: str, pr_id: str) -> None:
         if not isinstance(policy, dict):
             continue
         configuration = policy.get("configuration") or {}
-        policy_type = configuration.get("type") or policy.get("type") or {}
-        type_id = str(policy_type.get("id") or "").casefold()
-        display_name = str(policy_type.get("displayName") or "").casefold()
+        policy_type = configuration.get("type") or {}
         if (
-            type_id == BUILD_POLICY_TYPE_ID or display_name == "build"
-        ) and bool_value(configuration.get("isBlocking")):
+            str(policy_type.get("id") or "").casefold() == BUILD_POLICY_TYPE_ID
+            and configuration.get("isBlocking") is True
+        ):
             builds.append(policy)
     statuses = [str(policy.get("status") or "unknown").casefold() for policy in builds]
     rejected = [status for status in statuses if status != "approved"]

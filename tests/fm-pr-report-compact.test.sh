@@ -143,6 +143,18 @@ fi
 printf '%s' "$dump_out" | grep -qF 'Verdict: Low.' || \
   fail "Risk must render outside the removed file-list fence"
 
+# 5b. A properly closed text fence is author content and survives intact.
+closed_fence=$(printf '## Intent\n\nShip it.\n\n## What Changed\n\n```text\nexample output line\n```\n\nAfter the fence.\n\n## Risk Assessment\n\nLow.\n\n## Pipeline\n\n%s' "$ATTESTATION")
+closed_out=$(printf '%s' "$closed_fence" | "$TOOL" --stdin) || \
+  fail "tool errored on a closed text fence"
+printf '%s' "$closed_out" | grep -qF 'example output line' || \
+  fail "closed text fence content must survive normalization"
+printf '%s' "$closed_out" | grep -qF 'After the fence.' || \
+  fail "prose after a closed text fence must survive normalization"
+if printf '%s' "$closed_out" | grep -qF 'Full file list: see the Files tab.'; then
+  fail "closed text fence must not become the Files-tab pointer"
+fi
+
 # 6. A body carrying the ADO truncation mark is normalized when short.
 marked="$small
 …(description truncated)"
@@ -322,10 +334,10 @@ PY
 
 export TEST_HOME FAKE_BIN AZ_TRACE AZ_POST_BODY AZ_UPDATE_BODY AZ_DESCRIPTION_FILE
 
-run_pr() {  # <id> <status> <threads-file> [policy-status] [pr-exists] [blocking]
+run_pr() {  # <id> <status> <threads-file> [policy-status] [pr-exists] [blocking] [policy-shape]
   HOME="$TEST_HOME" PATH="$FAKE_BIN:$PATH" AZ_PR_STATUS="$2" \
     AZ_POLICY_STATUS="${4:-approved}" AZ_PR_EXISTS="${5:-true}" \
-    AZ_POLICY_BLOCKING="${6:-true}" \
+    AZ_POLICY_BLOCKING="${6:-true}" AZ_POLICY_SHAPE="${7:-canonical}" \
     AZ_THREADS_FILE="$3" "$TOOL" https://dev.azure.com/org "$1"
 }
 
@@ -469,6 +481,18 @@ printf '%s' "$nonblocking_output" | grep -qF 'description normalized to' || \
   fail "non-blocking Build policy must not block normalization"
 grep -qF -- '- ✅ ci - passed' "$AZ_UPDATE_BODY" || \
   fail "non-blocking policy run must write the final board"
+
+# 11c. An alias-shaped policy (displayName only, top-level type, string
+# isBlocking) is not a Build-policy match: only the exact well-known type GUID
+# at configuration.type.id with a JSON-boolean isBlocking gates normalization.
+: > "$AZ_TRACE"
+: > "$AZ_UPDATE_BODY"
+alias_output=$(run_pr 111 active "$SAME_ROUND_THREADS" queued true true alias) || \
+  fail "alias-shaped policy run failed"
+printf '%s' "$alias_output" | grep -qF 'description normalized to' || \
+  fail "alias-shaped policy must not be matched as a blocking Build policy"
+grep -qF -- '- ✅ ci - passed' "$AZ_UPDATE_BODY" || \
+  fail "alias-shaped policy run must write the final board"
 
 # 12. A missing PR fails existence verification before any write.
 : > "$AZ_TRACE"
