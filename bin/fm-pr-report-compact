@@ -17,13 +17,13 @@ ADO Build policy is approved before any active-PR write. If the normalized body
 is too long, it trims Intent and then What Changed prose while preserving work
 item tokens, the complete Risk section, and the attestation. An unclosed fenced
 raw file dump becomes a Files-tab pointer so a truncated fence cannot swallow
-later sections; a properly closed fence is author content and is kept. On every gated PR, a closed review comment narrates the run: each
-round lists its findings by id, severity, and a bounded one-line summary. A
-finding is labeled fixed,
-citing the fixing round's fix summary, only when it has a usable id that stays
-absent from every later round, so the label never contradicts the residual
-verdict; a fix summary not attributed that way stays on its own round line
-("fix", or "fix attempted" when the prior round's findings persisted), so
+later sections; a properly closed fence is author content and is kept. On
+every gated PR, a closed review comment narrates the run: each round lists its
+findings by id, severity, and a bounded one-line summary. A finding is labeled
+fixed, citing the fixing round's fix summary, only when it has a usable id
+that stays absent from every later round, so the label never contradicts the
+residual verdict; a fix summary not attributed that way stays on its own round
+line ("fix", or "fix attempted" when the prior round's findings persisted), so
 failed-fix history is never dropped. Any residual findings follow in full
 (read-only lookup in ~/.no-mistakes/state.sqlite by the
 PR's /pullrequest/<id> url suffix), so reviewers always find them in the same
@@ -592,7 +592,8 @@ def main() -> int:
         verify_build_policy(org, pr_id)
 
     # Always give the review findings one predictable home: a closed comment
-    # thread, posted on every gated PR whether or not the description fits.
+    # thread, posted on every gated PR whether or not the description is
+    # rewritten.
     # Posting precedes any description rewrite so nothing is lost if the
     # update fails; a rerun is a no-op once a thread covers the same attestation.
     current_attestation_head = attestation_head(pr.get("description") or "")
