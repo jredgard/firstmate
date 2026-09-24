@@ -1137,6 +1137,79 @@ SH
   done
 }
 
+test_spawn_forwards_invoking_environment() {
+  local harness setting rec id out status launch result expected value
+  for harness in claude codex; do
+    for setting in ambient filtered; do
+      id="forward-$harness-$setting"
+      rec=$(make_spawn_case "$id" "$harness" "$id")
+      read_case_record "$rec"
+      cat > "$HOME_DIR/config/spawn-env-forward" <<'EOF'
+# Names only: the invoking process supplies values at launch time.
+CLAUDE_CODE_USE_FOUNDRY
+ANTHROPIC_FOUNDRY_RESOURCE
+ANTHROPIC_FOUNDRY_API_KEY
+CODEX_HOME
+AZURE_OPENAI_API_KEY
+CODEGRAPH_MOSAIQ_READ_KEY
+FM_TEST_EMPTY
+FM_TEST_UNSET
+EOF
+      [ "$setting" = ambient ] || : > "$HOME_DIR/config/launch-env-allowlist"
+      cat > "$FAKEBIN_DIR/$harness" <<'SH'
+#!/bin/sh
+printf '%s\n' "${CLAUDE_CODE_USE_FOUNDRY-unset}" "${ANTHROPIC_FOUNDRY_RESOURCE-unset}" \
+  "${ANTHROPIC_FOUNDRY_API_KEY-unset}" "${CODEX_HOME-unset}" \
+  "${AZURE_OPENAI_API_KEY-unset}" "${CODEGRAPH_MOSAIQ_READ_KEY-unset}" \
+  "${FM_TEST_EMPTY-unset}" "${FM_TEST_UNSET-unset}"
+SH
+      chmod +x "$FAKEBIN_DIR/$harness"
+      value="synthetic ' quote; \$(touch $CASE_DIR/SHOULD_NOT_EXIST) \`false\`"
+      out=$(
+        unset FM_TEST_UNSET
+        CLAUDE_CODE_USE_FOUNDRY=1 \
+          ANTHROPIC_FOUNDRY_RESOURCE=synthetic-resource \
+          ANTHROPIC_FOUNDRY_API_KEY=synthetic-claude-key \
+          CODEX_HOME="$CASE_DIR/codex-home" \
+          AZURE_OPENAI_API_KEY="$value" \
+          CODEGRAPH_MOSAIQ_READ_KEY=synthetic-codegraph-key FM_TEST_EMPTY='' \
+          run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR"
+      )
+      status=$?
+      expect_code 0 "$status" "$harness spawn with forwarding and setting=$setting should succeed: $out"
+      launch=$(cat "$LAUNCH_LOG")
+      assert_not_contains "$launch" 'FM_TEST_UNSET=' "an unset listed name must add no launch prefix"
+      result=$(env -i HOME="$HOME_DIR/user-home" PATH="$FAKEBIN_DIR:$PATH" TERM=xterm \
+        TMUX=synthetic-pane /bin/sh -c "$launch") \
+        || fail "$harness setting=$setting emitted launch did not run"
+      expected=$(printf '%s\n' 1 synthetic-resource synthetic-claude-key \
+        "$CASE_DIR/codex-home" "$value" synthetic-codegraph-key '' unset)
+      assert_equals "$expected" "$result" \
+        "$harness setting=$setting must receive only listed set values from Firstmate, with shell quoting intact"
+      [ ! -e "$CASE_DIR/SHOULD_NOT_EXIST" ] \
+        || fail "$harness setting=$setting executed shell syntax inside a forwarded value"
+      pass "$harness setting=$setting forwards set names, skips unset names, and quotes values"
+    done
+  done
+}
+
+test_spawn_forward_config_rejects_invalid_names() {
+  local rec id out status bad
+  id=forward-invalid
+  rec=$(make_spawn_case "$id" codex "$id")
+  read_case_record "$rec"
+  for bad in 'AZURE_OPENAI_API_KEY=value' 'NAME;false' '1INVALID'; do
+    printf '%s\n' "$bad" > "$HOME_DIR/config/spawn-env-forward"
+    out=$(run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR")
+    status=$?
+    expect_code 1 "$status" "an invalid forwarding name must refuse spawn"
+    assert_contains "$out" 'config/spawn-env-forward' "refusal must identify the forwarding file"
+    [ ! -s "$LAUNCH_LOG" ] || fail "invalid forwarding file delivered a launch command"
+    [ ! -f "$HOME_DIR/state/$id.meta" ] || fail "invalid forwarding file published a task"
+  done
+  pass "invalid forwarding names refuse before launch or task publication"
+}
+
 test_launch_environment_invalid_config_refuses() {
   local rec id bad out status
   id=env-invalid
@@ -1305,6 +1378,8 @@ SH
 }
 
 test_launch_environment_allowlist
+test_spawn_forwards_invoking_environment
+test_spawn_forward_config_rejects_invalid_names
 test_launch_environment_invalid_config_refuses
 test_launch_environment_inaccessible_config_refuses
 test_launch_environment_inherited_by_secondmate

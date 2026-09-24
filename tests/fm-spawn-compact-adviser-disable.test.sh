@@ -264,6 +264,7 @@ test_relaunch_rebuilds_the_switch() {
     mkdir -p "$home/state" "$home/data" "$home/config" "$home/projects" "$dir/fake"
     touch "$home/state/.last-watcher-beat"
     [ "$setting" = absent ] || : > "$home/config/launch-env-allowlist"
+    printf 'CODEX_HOME\n' > "$home/config/spawn-env-forward"
     make_relaunch_stub "$dir"
     fm_git_worktree "$proj" "$wt" "wt-relaunch-$setting"
     fm_test_spawn_brief "$home" "$id"
@@ -288,6 +289,7 @@ test_relaunch_rebuilds_the_switch() {
 
     mkdir -p "$dir/user-home"
     out=$(env PATH="$dir/fakebin:$PATH" FM_HOME="$home" FM_FAKE_DIR="$dir/fake" \
+      CODEX_HOME="$dir/from-firstmate" \
       HOME="$dir/user-home" CLAUDE_CONFIG_DIR='' FM_SPAWN_NO_GUARD=1 \
       FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 \
       "$CONTROL" "$id" relaunch --note 'replacement continues the same task' 2>&1)
@@ -307,8 +309,19 @@ $launch") \
       || fail "relaunch with allowlist=$setting: the replacement launch failed to run"
     assert_equals 1 "$seen" \
       "a relaunched agent with allowlist=$setting must start with the compact adviser disabled, exactly as a fresh spawn does"
+    cat > "$dir/fakebin/codex" <<'SH'
+#!/bin/sh
+printf '%s\n' "${CODEX_HOME-unset}"
+SH
+    chmod +x "$dir/fakebin/codex"
+    seen=$(env -i HOME="$dir/user-home" PATH="$dir/fakebin:$PATH" TERM=xterm \
+      TMUX=synthetic-pane /bin/sh -c "$preamble
+$launch") \
+      || fail "relaunch with allowlist=$setting: the forwarded environment probe failed"
+    assert_equals "$dir/from-firstmate" "$seen" \
+      "a relaunch with allowlist=$setting must forward the invoking process's CODEX_HOME"
   done
-  pass "relaunch rebuilds the compact-adviser switch for the replacement agent in both allowlist postures"
+  pass "relaunch rebuilds the compact-adviser switch and forwards configured environment in both allowlist postures"
 }
 
 # A command-prefix assignment only covers the first simple command. A raw

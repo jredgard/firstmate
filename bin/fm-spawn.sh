@@ -291,6 +291,16 @@
 #   This is an exec environment boundary, not a sandbox for the pane's startup
 #   shell, credential files, same-user processes, or later shell initialization.
 #   See docs/configuration.md for provider/Git setup and supported limits.
+# Spawn environment forwarding (config/spawn-env-forward):
+#   Optional local, gitignored file with one POSIX environment name per line;
+#   blank lines and lines beginning with # are ignored. Invalid or unreadable
+#   input refuses before launch. Each listed name that is set in the invoking
+#   Firstmate process is shell-quoted onto every launch command, including
+#   relaunches, so a terminal daemon need not inherit that process's environment.
+#   Unset names add no prefix; set empty values are forwarded as empty.
+#   This file holds names only, never values, and is local to each home rather
+#   than inherited by secondmates, whose invoking process may have a different
+#   environment or run on another machine.
 # Claude permission mode (config/claude-permission-mode):
 #   One token selecting the permission flag every claude launch (ship, scout,
 #   secondmate, and relaunch) carries. Absent or `bypass` keeps today's
@@ -486,6 +496,24 @@ if [ "$LAUNCH_ENV_ENABLED" = 1 ]; then
     else error("expected environment names only") end
   ' "$CONFIG/launch-env-allowlist" 2>/dev/null); then
     echo "error: config/launch-env-allowlist must contain one environment name per line, blank lines, or # comments" >&2
+    exit 1
+  fi
+fi
+if ! SPAWN_ENV_FORWARD_ENABLED=$(fm_config_source_present "$CONFIG/spawn-env-forward"); then
+  exit 1
+fi
+SPAWN_ENV_FORWARD_NAMES=
+if [ "$SPAWN_ENV_FORWARD_ENABLED" = 1 ]; then
+  if [ ! -f "$CONFIG/spawn-env-forward" ] || [ ! -r "$CONFIG/spawn-env-forward" ]; then
+    echo "error: config/spawn-env-forward must be a readable regular file" >&2
+    exit 1
+  fi
+  if ! SPAWN_ENV_FORWARD_NAMES=$(jq -Rrs '
+    split("\n") | map(select(. != "" and (startswith("#") | not))) |
+    if all(.[]; test("^[A-Za-z_][A-Za-z0-9_]*$")) then .[]
+    else error("expected environment names only") end
+  ' "$CONFIG/spawn-env-forward" 2>/dev/null); then
+    echo "error: config/spawn-env-forward must contain one environment name per line, blank lines, or # comments" >&2
     exit 1
   fi
 fi
@@ -4721,6 +4749,11 @@ esac
 if [ "$HARNESS" = claude ] && [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
   LAUNCH="CLAUDE_CONFIG_DIR=$(shell_quote "$CLAUDE_CONFIG_DIR") $LAUNCH"
 fi
+for env_name in $SPAWN_ENV_FORWARD_NAMES; do
+  if [ "${!env_name+x}" = x ]; then
+    LAUNCH="$env_name=$(shell_quote "${!env_name}") $LAUNCH"
+  fi
+done
 if [ "$KIND" = secondmate ]; then
   sq_home=$(shell_quote "$PROJ_ABS")
   sq_primary_home=$(shell_quote "$FM_HOME")
