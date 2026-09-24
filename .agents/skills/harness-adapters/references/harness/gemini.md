@@ -39,8 +39,8 @@ Accepting persists to `~/.gemini/trustedFolders.json`, so the spawn's environmen
 ## Credential precondition, and the wedge it causes
 
 A Gemini worker needs a credential it can use without a dialog, and firstmate does not manage one.
-Export `GEMINI_API_KEY` into the environment BEFORE the session-provider daemon starts, or complete `gemini`'s own sign-in.
-The daemon matters: a long-lived tmux or Herdr server hands panes the environment it was started with, so a key exported after that server came up never reaches a worker.
+Export `GEMINI_API_KEY` into the environment BEFORE the session-provider daemon starts, complete `gemini`'s own sign-in, or list the name in the [spawn environment forwarding contract](../../../../../docs/configuration.md#forwarding-firstmates-environment-to-workers-configspawn-env-forward) so the launch carries Firstmate's own value.
+The daemon matters for ambient inheritance: a long-lived tmux or Herdr server hands panes the environment it was started with, so a key exported after that server came up never reaches a worker unless the spawn forwards it explicitly.
 The headless probe `gemini --skip-trust -p '<prompt>'` exits 41 with `you must specify the GEMINI_API_KEY environment variable` when no credential is resolvable, which is the cheapest pre-dispatch confirmation.
 A first run also shows an auth-method picker (`How would you like to authenticate for this project?`, default `● 2. Use Gemini API Key`); answering it once writes `security.auth.selectedType` to the user `settings.json` and it does not return.
 
