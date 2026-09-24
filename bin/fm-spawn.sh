@@ -291,14 +291,22 @@
 #   This is an exec environment boundary, not a sandbox for the pane's startup
 #   shell, credential files, same-user processes, or later shell initialization.
 #   See docs/configuration.md for provider/Git setup and supported limits.
-# Spawn environment forwarding (config/spawn-env-forward):
-#   Optional local, gitignored file with one POSIX environment name per line;
-#   blank lines and lines beginning with # are ignored. Invalid or unreadable
-#   input refuses before launch. Each listed name that is set in the invoking
-#   Firstmate process is shell-quoted onto every launch command, including
-#   relaunches, so a terminal daemon need not inherit that process's environment.
+# Spawn environment forwarding (built-in auth names + config/spawn-env-forward):
+#   Claude launches always forward CLAUDE_CODE_USE_FOUNDRY,
+#   ANTHROPIC_FOUNDRY_RESOURCE, and ANTHROPIC_FOUNDRY_API_KEY; codex launches
+#   always forward CODEX_HOME and AZURE_OPENAI_API_KEY. These are the harness's
+#   standard Foundry/Azure-OpenAI auth names, so an environment-authenticated
+#   Firstmate launches authenticated workers out of the box. The optional local,
+#   gitignored config/spawn-env-forward file adds installation-specific names:
+#   one POSIX environment name per line; blank lines and lines beginning with #
+#   are ignored. Invalid or unreadable input refuses before launch. Each
+#   forwarded name that is set in the invoking Firstmate process is
+#   shell-quoted onto every launch command, including relaunches, so a terminal
+#   daemon need not inherit that process's environment; a raw launch command is
+#   wrapped in /bin/sh -c first, so the assignments cover a compound command
+#   without exporting the values into the pane's interactive shell.
 #   Unset names add no prefix; set empty values are forwarded as empty.
-#   This file holds names only, never values, and is local to each home rather
+#   The file holds names only, never values, and is local to each home rather
 #   than inherited by secondmates, whose invoking process may have a different
 #   environment or run on another machine.
 # Claude permission mode (config/claude-permission-mode):
@@ -4749,11 +4757,30 @@ esac
 if [ "$HARNESS" = claude ] && [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
   LAUNCH="CLAUDE_CONFIG_DIR=$(shell_quote "$CLAUDE_CONFIG_DIR") $LAUNCH"
 fi
-for env_name in $SPAWN_ENV_FORWARD_NAMES; do
+# Spawn environment forwarding (header above): the harness's standard auth
+# names forward whenever set, and config/spawn-env-forward adds extras. The
+# assignments are a command prefix, which binds only the first simple command,
+# so a raw launch command is wrapped in /bin/sh -c first: the values then reach
+# every command in a compound raw launch without being exported into the pane's
+# interactive shell.
+case "$HARNESS" in
+claude) SPAWN_ENV_FORWARD_DEFAULTS='CLAUDE_CODE_USE_FOUNDRY ANTHROPIC_FOUNDRY_RESOURCE ANTHROPIC_FOUNDRY_API_KEY' ;;
+codex) SPAWN_ENV_FORWARD_DEFAULTS='CODEX_HOME AZURE_OPENAI_API_KEY' ;;
+*) SPAWN_ENV_FORWARD_DEFAULTS= ;;
+esac
+spawn_forward_prefix=
+spawn_forward_seen=' '
+for env_name in $SPAWN_ENV_FORWARD_DEFAULTS $SPAWN_ENV_FORWARD_NAMES; do
+  case "$spawn_forward_seen" in *" $env_name "*) continue ;; esac
+  spawn_forward_seen="$spawn_forward_seen$env_name "
   if [ "${!env_name+x}" = x ]; then
-    LAUNCH="$env_name=$(shell_quote "${!env_name}") $LAUNCH"
+    spawn_forward_prefix="$spawn_forward_prefix$env_name=$(shell_quote "${!env_name}") "
   fi
 done
+if [ -n "$spawn_forward_prefix" ]; then
+  [ "$RAW_LAUNCH" -eq 0 ] || LAUNCH="/bin/sh -c $(shell_quote "$LAUNCH")"
+  LAUNCH="$spawn_forward_prefix$LAUNCH"
+fi
 if [ "$KIND" = secondmate ]; then
   sq_home=$(shell_quote "$PROJ_ABS")
   sq_primary_home=$(shell_quote "$FM_HOME")

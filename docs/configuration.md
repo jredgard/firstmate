@@ -403,17 +403,18 @@ The text is static and never executed or expanded; secondmate charters never tak
 
 ## Forwarding Firstmate's environment to workers (config/spawn-env-forward)
 
-The optional local, gitignored `config/spawn-env-forward` lists environment variable names whose values `fm-spawn.sh` copies from the invoking Firstmate process into each new worker, scout, or secondmate launch, including relaunches.
-This covers credentials and configuration locations that a long-lived terminal daemon may not have inherited.
+`fm-spawn.sh` copies the values of the launched harness's standard authentication names from the invoking Firstmate process into each new worker, scout, or secondmate launch, including relaunches: Claude launches carry `CLAUDE_CODE_USE_FOUNDRY`, `ANTHROPIC_FOUNDRY_RESOURCE`, and `ANTHROPIC_FOUNDRY_API_KEY`, and Codex launches carry `CODEX_HOME` and `AZURE_OPENAI_API_KEY`, whenever the name is set in Firstmate's environment.
+This covers credentials and configuration locations that a long-lived terminal daemon may not have inherited, so an environment-authenticated Firstmate launches authenticated workers without any configuration.
+The optional local, gitignored `config/spawn-env-forward` lists additional installation-specific names forwarded the same way.
 Put one name matching `[A-Za-z_][A-Za-z0-9_]*` on each line, never a value or assignment; blank lines and lines beginning with `#` are allowed.
 For example:
 
 ```text
-CODEX_HOME
-AZURE_OPENAI_API_KEY
+CODEGRAPH_MOSAIQ_READ_KEY
 ```
 
 Only names set in Firstmate's environment are forwarded, including names set to an empty value; unset names add nothing to the launch command.
+A raw launch command is wrapped in `/bin/sh -c` when forwarded names apply, so the values reach every command of a compound launch without being exported into the pane's interactive shell.
 The file is read on each spawn, so edits apply to the next launch without restarting Firstmate.
 Invalid names, an unreadable or nonregular file, or a path inspection error stop the launch before a worker starts.
 Values are shell-quoted into the launch command, so access to that command or its private staging file can expose them.

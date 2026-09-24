@@ -1146,11 +1146,6 @@ test_spawn_forwards_invoking_environment() {
       read_case_record "$rec"
       cat > "$HOME_DIR/config/spawn-env-forward" <<'EOF'
 # Names only: the invoking process supplies values at launch time.
-CLAUDE_CODE_USE_FOUNDRY
-ANTHROPIC_FOUNDRY_RESOURCE
-ANTHROPIC_FOUNDRY_API_KEY
-CODEX_HOME
-AZURE_OPENAI_API_KEY
 CODEGRAPH_MOSAIQ_READ_KEY
 FM_TEST_EMPTY
 FM_TEST_UNSET
@@ -1167,11 +1162,11 @@ SH
       value="synthetic ' quote; \$(touch $CASE_DIR/SHOULD_NOT_EXIST) \`false\`"
       out=$(
         unset FM_TEST_UNSET
-        CLAUDE_CODE_USE_FOUNDRY=1 \
-          ANTHROPIC_FOUNDRY_RESOURCE=synthetic-resource \
-          ANTHROPIC_FOUNDRY_API_KEY=synthetic-claude-key \
-          CODEX_HOME="$CASE_DIR/codex-home" \
-          AZURE_OPENAI_API_KEY="$value" \
+        FM_TEST_FWD_CLAUDE_CODE_USE_FOUNDRY=1 \
+          FM_TEST_FWD_ANTHROPIC_FOUNDRY_RESOURCE=synthetic-resource \
+          FM_TEST_FWD_ANTHROPIC_FOUNDRY_API_KEY=synthetic-claude-key \
+          FM_TEST_FWD_CODEX_HOME="$CASE_DIR/codex-home" \
+          FM_TEST_FWD_AZURE_OPENAI_API_KEY="$value" \
           CODEGRAPH_MOSAIQ_READ_KEY=synthetic-codegraph-key FM_TEST_EMPTY='' \
           run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR"
       )
@@ -1179,17 +1174,64 @@ SH
       expect_code 0 "$status" "$harness spawn with forwarding and setting=$setting should succeed: $out"
       launch=$(cat "$LAUNCH_LOG")
       assert_not_contains "$launch" 'FM_TEST_UNSET=' "an unset listed name must add no launch prefix"
+      if [ "$harness" = claude ]; then
+        assert_not_contains "$launch" 'CODEX_HOME=' "a claude launch must not carry codex-standard auth names"
+      else
+        assert_not_contains "$launch" 'ANTHROPIC_FOUNDRY_API_KEY=' "a codex launch must not carry claude-standard auth names"
+      fi
       result=$(env -i HOME="$HOME_DIR/user-home" PATH="$FAKEBIN_DIR:$PATH" TERM=xterm \
         TMUX=synthetic-pane /bin/sh -c "$launch") \
         || fail "$harness setting=$setting emitted launch did not run"
-      expected=$(printf '%s\n' 1 synthetic-resource synthetic-claude-key \
-        "$CASE_DIR/codex-home" "$value" synthetic-codegraph-key '' unset)
+      if [ "$harness" = claude ]; then
+        expected=$(printf '%s\n' 1 synthetic-resource synthetic-claude-key \
+          unset unset synthetic-codegraph-key '' unset)
+      else
+        expected=$(printf '%s\n' unset unset unset \
+          "$CASE_DIR/codex-home" "$value" synthetic-codegraph-key '' unset)
+      fi
       assert_equals "$expected" "$result" \
-        "$harness setting=$setting must receive only listed set values from Firstmate, with shell quoting intact"
+        "$harness setting=$setting must receive its standard auth names plus listed set extras from Firstmate, with shell quoting intact"
       [ ! -e "$CASE_DIR/SHOULD_NOT_EXIST" ] \
         || fail "$harness setting=$setting executed shell syntax inside a forwarded value"
-      pass "$harness setting=$setting forwards set names, skips unset names, and quotes values"
+      pass "$harness setting=$setting forwards standard auth names and listed extras, skips unset names, and quotes values"
     done
+  done
+}
+
+test_spawn_forwards_default_auth_names_without_config() {
+  local harness rec id out status launch result expected
+  for harness in claude codex; do
+    id="forward-default-$harness"
+    rec=$(make_spawn_case "$id" "$harness" "$id")
+    read_case_record "$rec"
+    [ ! -e "$HOME_DIR/config/spawn-env-forward" ] \
+      || fail "the case home must start without a forwarding file"
+    cat > "$FAKEBIN_DIR/$harness" <<'SH'
+#!/bin/sh
+printf '%s\n' "${CLAUDE_CODE_USE_FOUNDRY-unset}" "${ANTHROPIC_FOUNDRY_RESOURCE-unset}" \
+  "${ANTHROPIC_FOUNDRY_API_KEY-unset}" "${CODEX_HOME-unset}" "${AZURE_OPENAI_API_KEY-unset}"
+SH
+    chmod +x "$FAKEBIN_DIR/$harness"
+    out=$(FM_TEST_FWD_CLAUDE_CODE_USE_FOUNDRY=1 \
+      FM_TEST_FWD_ANTHROPIC_FOUNDRY_RESOURCE=synthetic-resource \
+      FM_TEST_FWD_ANTHROPIC_FOUNDRY_API_KEY=synthetic-claude-key \
+      FM_TEST_FWD_CODEX_HOME="$CASE_DIR/codex-home" \
+      FM_TEST_FWD_AZURE_OPENAI_API_KEY=synthetic-azure-key \
+      run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR")
+    status=$?
+    expect_code 0 "$status" "$harness spawn without a forwarding file should succeed: $out"
+    launch=$(cat "$LAUNCH_LOG")
+    result=$(env -i HOME="$HOME_DIR/user-home" PATH="$FAKEBIN_DIR:$PATH" TERM=xterm \
+      TMUX=synthetic-pane /bin/sh -c "$launch") \
+      || fail "$harness default-forward emitted launch did not run"
+    if [ "$harness" = claude ]; then
+      expected=$(printf '%s\n' 1 synthetic-resource synthetic-claude-key unset unset)
+    else
+      expected=$(printf '%s\n' unset unset unset "$CASE_DIR/codex-home" synthetic-azure-key)
+    fi
+    assert_equals "$expected" "$result" \
+      "a $harness worker must receive the harness's standard auth names from Firstmate with no config/spawn-env-forward file"
+    pass "$harness forwards its standard auth names by default without configuration"
   done
 }
 
@@ -1379,6 +1421,7 @@ SH
 
 test_launch_environment_allowlist
 test_spawn_forwards_invoking_environment
+test_spawn_forwards_default_auth_names_without_config
 test_spawn_forward_config_rejects_invalid_names
 test_launch_environment_invalid_config_refuses
 test_launch_environment_inaccessible_config_refuses
