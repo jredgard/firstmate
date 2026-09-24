@@ -415,13 +415,14 @@ CODEGRAPH_MOSAIQ_READ_KEY
 
 Only names set in Firstmate's environment are forwarded, including names set to an empty value; unset names add nothing to the launch command.
 A raw launch command is wrapped in `/bin/sh -c` when forwarded names apply, so the values reach every command of a compound launch without being exported into the pane's interactive shell.
+Muse launches are the one exclusion: no name is forwarded onto them, standard or listed in this file, because forwarding shell-quotes values into the launch command while Muse's credential preflight guarantees secrets never enter it; Muse credentials cross the daemon boundary through its stored `auth.json` instead.
 The file is read on each spawn, so edits apply to the next launch without restarting Firstmate.
 Invalid names, an unreadable or nonregular file, or a path inspection error stop the launch before a worker starts.
 Values are shell-quoted into the launch command, so access to that command or its private staging file can expose them.
 Keep secret values out of this file and the repository.
 The file is not inherited by secondmate homes because each home's invoking process may have a different environment or run on another machine; configure forwarding separately in a secondmate home when its workers need it.
 These explicit launch assignments also reach workers when `config/launch-env-allowlist` filters the destination pane's ambient environment.
-[`tests/fm-spawn-dispatch-profile.test.sh`](../tests/fm-spawn-dispatch-profile.test.sh) exercises fresh Claude and Codex commands under a synthetic pane, and [`tests/fm-spawn-compact-adviser-disable.test.sh`](../tests/fm-spawn-compact-adviser-disable.test.sh) exercises relaunches.
+[`tests/fm-spawn-dispatch-profile.test.sh`](../tests/fm-spawn-dispatch-profile.test.sh) exercises fresh Claude and Codex commands under a synthetic pane, [`tests/fm-spawn-compact-adviser-disable.test.sh`](../tests/fm-spawn-compact-adviser-disable.test.sh) exercises relaunches, and [`tests/fm-muse-harness.test.sh`](../tests/fm-muse-harness.test.sh) pins the Muse exclusion.
 
 ## Worker launch environment (config/launch-env-allowlist)
 

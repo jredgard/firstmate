@@ -306,6 +306,10 @@
 #   wrapped in /bin/sh -c first, so the assignments cover a compound command
 #   without exporting the values into the pane's interactive shell.
 #   Unset names add no prefix; set empty values are forwarded as empty.
+#   muse launches are excluded from forwarding entirely, built-in and
+#   config-listed names alike: forwarding shell-quotes values into the launch
+#   command, and muse's credential preflight guarantees secrets never enter
+#   argv; its stored-credential path covers the daemon boundary instead.
 #   The file holds names only, never values, and is local to each home rather
 #   than inherited by secondmates, whose invoking process may have a different
 #   environment or run on another machine.
@@ -4766,6 +4770,15 @@ fi
 case "$HARNESS" in
 claude) SPAWN_ENV_FORWARD_DEFAULTS='CLAUDE_CODE_USE_FOUNDRY ANTHROPIC_FOUNDRY_RESOURCE ANTHROPIC_FOUNDRY_API_KEY' ;;
 codex) SPAWN_ENV_FORWARD_DEFAULTS='CODEX_HOME AZURE_OPENAI_API_KEY' ;;
+# muse takes NO forwarding, config-listed names included: every forwarded
+# value is shell-quoted into the launch command's argv, and muse's credential
+# preflight (muse_credential_present above) exists to guarantee secrets never
+# enter argv. Muse credentials cross the daemon boundary through the stored
+# auth.json or an already-present worker environment instead.
+muse)
+  SPAWN_ENV_FORWARD_DEFAULTS=
+  SPAWN_ENV_FORWARD_NAMES=
+  ;;
 *) SPAWN_ENV_FORWARD_DEFAULTS= ;;
 esac
 spawn_forward_prefix=
