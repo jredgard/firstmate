@@ -326,15 +326,32 @@ fm_test_run_spawn() {
   # because bin/fm-spawn.sh prefixes the launch only when the value is non-empty,
   # so every launch-shape assertion in the suite keeps reading the same command.
   # A test that needs the set case opts in through FM_TEST_CLAUDE_CONFIG_DIR.
-  local spawn_home=$home/user-home
+  # The default-forwarded auth names (bin/fm-spawn.sh's spawn environment
+  # forwarding) must be UNSET rather than pinned empty: fm-spawn forwards a
+  # set-but-empty value as an empty assignment, so a value inherited from the
+  # developer's shell - or an empty pin - would change every launch-shape
+  # assertion in the suite. A test that needs the set case opts in through the
+  # matching FM_TEST_FWD_<name>.
+  local spawn_home=$home/user-home spawn_fwd spawn_fwd_opt
   mkdir -p "$spawn_home"
-  FM_ROOT_OVERRIDE='' FM_HOME="$home" HOME="$spawn_home" \
-    CLAUDE_CONFIG_DIR="${FM_TEST_CLAUDE_CONFIG_DIR:-}" \
-    FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
-    FM_PROJECTS_OVERRIDE="$home/projects" FM_CONFIG_OVERRIDE="$home/config" \
-    FM_SPAWN_NO_GUARD=1 FM_FAKE_PANE_PATH="$pane" TMUX="${TMUX:-fake,1,0}" \
-    PATH="$fakebin:$PATH" \
-    "$ROOT/bin/fm-spawn.sh" "$@" 2>&1
+  (
+    for spawn_fwd in CLAUDE_CODE_USE_FOUNDRY ANTHROPIC_FOUNDRY_RESOURCE \
+      ANTHROPIC_FOUNDRY_API_KEY CODEX_HOME AZURE_OPENAI_API_KEY; do
+      spawn_fwd_opt="FM_TEST_FWD_$spawn_fwd"
+      if [ "${!spawn_fwd_opt+x}" = x ]; then
+        export "$spawn_fwd=${!spawn_fwd_opt}"
+      else
+        unset "$spawn_fwd"
+      fi
+    done
+    FM_ROOT_OVERRIDE='' FM_HOME="$home" HOME="$spawn_home" \
+      CLAUDE_CONFIG_DIR="${FM_TEST_CLAUDE_CONFIG_DIR:-}" \
+      FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
+      FM_PROJECTS_OVERRIDE="$home/projects" FM_CONFIG_OVERRIDE="$home/config" \
+      FM_SPAWN_NO_GUARD=1 FM_FAKE_PANE_PATH="$pane" TMUX="${TMUX:-fake,1,0}" \
+      PATH="$fakebin:$PATH" \
+      "$ROOT/bin/fm-spawn.sh" "$@" 2>&1
+  )
 }
 
 # --- send-world stubs -------------------------------------------------------

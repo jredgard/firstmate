@@ -401,6 +401,29 @@ An absent or blank file changes nothing, while a present path that is not a read
 The text is static and never executed or expanded; secondmate charters never take it, and the file is local to each home rather than part of secondmate inherited configuration.
 `bin/fm-brief.sh`'s header owns the placement rule and its safety argument.
 
+## Forwarding Firstmate's environment to workers (config/spawn-env-forward)
+
+`fm-spawn.sh` copies the values of the launched harness's standard authentication names from the invoking Firstmate process into each new worker, scout, or secondmate launch, including relaunches: Claude launches carry `CLAUDE_CODE_USE_FOUNDRY`, `ANTHROPIC_FOUNDRY_RESOURCE`, and `ANTHROPIC_FOUNDRY_API_KEY`, and Codex launches carry `CODEX_HOME` and `AZURE_OPENAI_API_KEY`, whenever the name is set in Firstmate's environment.
+This covers credentials and configuration locations that a long-lived terminal daemon may not have inherited, so an environment-authenticated Firstmate launches authenticated workers without any configuration.
+The optional local, gitignored `config/spawn-env-forward` lists additional installation-specific names forwarded the same way.
+Put one name matching `[A-Za-z_][A-Za-z0-9_]*` on each line, never a value or assignment; blank lines and lines beginning with `#` are allowed.
+For example:
+
+```text
+CODEGRAPH_MOSAIQ_READ_KEY
+```
+
+Only names set in Firstmate's environment are forwarded, including names set to an empty value; unset names add nothing to the launch command.
+A raw launch command is wrapped in `/bin/sh -c` when forwarded names apply, so the values reach every command of a compound launch without being exported into the pane's interactive shell.
+Muse launches are the one exclusion: no name is forwarded onto them, standard or listed in this file, because forwarding shell-quotes values into the launch command while Muse's credential preflight guarantees secrets never enter it; Muse credentials cross the daemon boundary through its stored `auth.json` instead.
+The file is read on each spawn, so edits apply to the next launch without restarting Firstmate.
+Invalid names, an unreadable or nonregular file, or a path inspection error stop the launch before a worker starts.
+Values are shell-quoted into the launch command, so access to that command or its private staging file can expose them.
+Keep secret values out of this file and the repository.
+The file is not inherited by secondmate homes because each home's invoking process may have a different environment or run on another machine; configure forwarding separately in a secondmate home when its workers need it.
+These explicit launch assignments also reach workers when `config/launch-env-allowlist` filters the destination pane's ambient environment.
+[`tests/fm-spawn-dispatch-profile.test.sh`](../tests/fm-spawn-dispatch-profile.test.sh) exercises fresh Claude and Codex commands under a synthetic pane, [`tests/fm-spawn-compact-adviser-disable.test.sh`](../tests/fm-spawn-compact-adviser-disable.test.sh) exercises relaunches, and [`tests/fm-muse-harness.test.sh`](../tests/fm-muse-harness.test.sh) pins the Muse exclusion.
+
 ## Worker launch environment (config/launch-env-allowlist)
 
 The optional local, gitignored `config/launch-env-allowlist` limits the ambient environment passed to newly launched workers, scouts, and secondmates, including relaunches.
@@ -426,7 +449,8 @@ Firstmate retains basic home, executable search, terminal, locale, temporary-dir
 [`fm-spawn.sh --help`](../bin/fm-spawn.sh) owns the exact retained names and parsing mechanics.
 Other ambient names must be listed explicitly, including custom credential-store locations, proxy settings, and certificate overrides when required by the selected tools.
 The command shell and worker may still create their own variables.
-Allowed values come from the destination pane at execution time; they are neither copied from the invoking Firstmate process nor written into the launch command.
+Values for names in this allowlist come from the destination pane at execution time; they are neither copied from the invoking Firstmate process nor written into the launch command by this filter.
+Use `config/spawn-env-forward` above when a name must carry the invoking process's value across the terminal daemon boundary.
 Listing a name does not provision it in a daemon's environment or transfer credentials to another machine.
 
 Choose the minimum additions for the authentication method actually in use:

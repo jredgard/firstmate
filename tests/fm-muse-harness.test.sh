@@ -270,6 +270,36 @@ EOF
   pass "muse spawn launches with autonomy, privacy control, and a positional brief"
 }
 
+# muse is excluded from spawn environment forwarding entirely (bin/fm-spawn.sh
+# header): a forwarded value would be shell-quoted into worker argv, which the
+# credential preflight exists to prevent. A config/spawn-env-forward listing
+# names that other harnesses would carry must add nothing to a muse launch.
+test_spawn_forwarding_excludes_muse() {
+  local rec case_dir home proj wt fakebin id out status launch
+  rec=$(make_spawn_case forward-exempt)
+  IFS='|' read -r case_dir home proj wt fakebin id <<EOF
+$rec
+EOF
+  cat > "$home/config/spawn-env-forward" <<'EOF'
+META_API_KEY
+CODEGRAPH_MOSAIQ_READ_KEY
+EOF
+  out=$(CODEGRAPH_MOSAIQ_READ_KEY=synthetic-codegraph-key \
+    run_muse_spawn "$home" "$proj" "$wt" "$fakebin" "$id" --mode no-mistakes --yolo off)
+  status=$?
+  expect_code 0 "$status" "muse spawn with a forwarding file should succeed: $out"
+  launch=$(cat "$home/launch.log")
+  assert_not_contains "$launch" 'META_API_KEY' \
+    "muse launch forwarded META_API_KEY into worker argv"
+  assert_not_contains "$launch" 'test-key' \
+    "muse launch exposed the credential value in worker argv"
+  assert_not_contains "$launch" 'CODEGRAPH_MOSAIQ_READ_KEY' \
+    "muse launch forwarded a config-listed name into worker argv"
+  assert_not_contains "$launch" 'synthetic-codegraph-key' \
+    "muse launch exposed a config-listed value in worker argv"
+  pass "muse launches take no spawn environment forwarding, config-listed names included"
+}
+
 test_spawn_maps_effort_and_model() {
   local rec case_dir home proj wt fakebin id launch
   local -a cases=(
@@ -952,6 +982,7 @@ test_detects_versioned_process_ancestor
 test_detection_is_anchored
 test_spawn_clears_inherited_foreign_harness_markers
 test_spawn_launch_shape
+test_spawn_forwarding_excludes_muse
 test_spawn_maps_effort_and_model
 test_spawn_refuses_without_credential
 test_spawn_refuses_caller_only_environment_credential

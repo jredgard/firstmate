@@ -264,6 +264,7 @@ test_relaunch_rebuilds_the_switch() {
     mkdir -p "$home/state" "$home/data" "$home/config" "$home/projects" "$dir/fake"
     touch "$home/state/.last-watcher-beat"
     [ "$setting" = absent ] || : > "$home/config/launch-env-allowlist"
+    printf 'FM_TEST_EXTRA\n' > "$home/config/spawn-env-forward"
     make_relaunch_stub "$dir"
     fm_git_worktree "$proj" "$wt" "wt-relaunch-$setting"
     fm_test_spawn_brief "$home" "$id"
@@ -288,6 +289,7 @@ test_relaunch_rebuilds_the_switch() {
 
     mkdir -p "$dir/user-home"
     out=$(env PATH="$dir/fakebin:$PATH" FM_HOME="$home" FM_FAKE_DIR="$dir/fake" \
+      CODEX_HOME="$dir/from-firstmate" FM_TEST_EXTRA=extra-from-firstmate \
       HOME="$dir/user-home" CLAUDE_CONFIG_DIR='' FM_SPAWN_NO_GUARD=1 \
       FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 \
       "$CONTROL" "$id" relaunch --note 'replacement continues the same task' 2>&1)
@@ -307,8 +309,20 @@ $launch") \
       || fail "relaunch with allowlist=$setting: the replacement launch failed to run"
     assert_equals 1 "$seen" \
       "a relaunched agent with allowlist=$setting must start with the compact adviser disabled, exactly as a fresh spawn does"
+    cat > "$dir/fakebin/codex" <<'SH'
+#!/bin/sh
+printf '%s\n' "${CODEX_HOME-unset}" "${FM_TEST_EXTRA-unset}"
+SH
+    chmod +x "$dir/fakebin/codex"
+    seen=$(env -i HOME="$dir/user-home" PATH="$dir/fakebin:$PATH" TERM=xterm \
+      TMUX=synthetic-pane /bin/sh -c "$preamble
+$launch") \
+      || fail "relaunch with allowlist=$setting: the forwarded environment probe failed"
+    assert_equals "$dir/from-firstmate
+extra-from-firstmate" "$seen" \
+      "a relaunch with allowlist=$setting must forward the invoking process's CODEX_HOME by default and its config/spawn-env-forward extras"
   done
-  pass "relaunch rebuilds the compact-adviser switch for the replacement agent in both allowlist postures"
+  pass "relaunch rebuilds the compact-adviser switch and forwards default and configured environment in both allowlist postures"
 }
 
 # A command-prefix assignment only covers the first simple command. A raw
@@ -345,9 +359,44 @@ SH
   pass "a compound raw launch-command still starts its agent with the compact-adviser switch on"
 }
 
+# Forwarded spawn environment must also survive the raw compound escape hatch:
+# fm-spawn wraps a raw launch in /bin/sh -c before prefixing the assignments, so
+# the agent after `&&` receives the values while the pane's own shell never has
+# them exported into it.
+test_raw_compound_launch_command_carries_forwarded_environment() {
+  local rec out status seen launch probe_dir
+  rec=$(make_case raw-forward claude raw-forward-a1)
+  read_case "$rec"
+  printf 'FM_TEST_RAW_FORWARD\n' > "$HOME_DIR/config/spawn-env-forward"
+
+  probe_dir="$CASE_DIR/agent-cwd"
+  mkdir -p "$probe_dir"
+  cat > "$probe_dir/probe" <<'SH'
+#!/bin/sh
+printf '%s\n' "${FM_TEST_RAW_FORWARD-unset}"
+SH
+  chmod +x "$probe_dir/probe"
+
+  out=$(FM_TEST_RAW_FORWARD=from-firstmate run_case_spawn raw-forward-a1 "$PROJ_DIR" \
+    --mode no-mistakes --yolo off "cd $probe_dir && ./probe")
+  status=$?
+  expect_code 0 "$status" "raw compound launch with forwarding should succeed: $out"
+  launch=$(cat "$LAUNCH_LOG")
+  [ -n "$launch" ] || fail "raw compound launch with forwarding sent no launch command"
+  seen=$(env -i HOME="$TMP_ROOT/pane-home" PATH="$FAKEBIN_DIR:$PATH" TERM=xterm \
+    TMUX=synthetic-pane /bin/sh -c "$launch
+printf '%s\n' \"\${FM_TEST_RAW_FORWARD-unset}\"") \
+    || fail "raw compound launch with forwarding: the emitted launch failed to run"
+  assert_equals "from-firstmate
+unset" "$seen" \
+    "a raw compound launch must deliver the forwarded value to the agent after && without exporting it into the pane shell"
+  pass "a compound raw launch-command receives forwarded environment without polluting the pane shell"
+}
+
 test_ship_allowlist_absent
 test_ship_allowlist_enabled
 test_launch_command_carries_the_switch_without_the_pane_export
 test_secondmate_launch
 test_relaunch_rebuilds_the_switch
 test_raw_compound_launch_command_carries_the_switch
+test_raw_compound_launch_command_carries_forwarded_environment

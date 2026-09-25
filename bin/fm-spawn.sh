@@ -291,6 +291,28 @@
 #   This is an exec environment boundary, not a sandbox for the pane's startup
 #   shell, credential files, same-user processes, or later shell initialization.
 #   See docs/configuration.md for provider/Git setup and supported limits.
+# Spawn environment forwarding (built-in auth names + config/spawn-env-forward):
+#   Claude launches always forward CLAUDE_CODE_USE_FOUNDRY,
+#   ANTHROPIC_FOUNDRY_RESOURCE, and ANTHROPIC_FOUNDRY_API_KEY; codex launches
+#   always forward CODEX_HOME and AZURE_OPENAI_API_KEY. These are the harness's
+#   standard Foundry/Azure-OpenAI auth names, so an environment-authenticated
+#   Firstmate launches authenticated workers out of the box. The optional local,
+#   gitignored config/spawn-env-forward file adds installation-specific names:
+#   one POSIX environment name per line; blank lines and lines beginning with #
+#   are ignored. Invalid or unreadable input refuses before launch. Each
+#   forwarded name that is set in the invoking Firstmate process is
+#   shell-quoted onto every launch command, including relaunches, so a terminal
+#   daemon need not inherit that process's environment; a raw launch command is
+#   wrapped in /bin/sh -c first, so the assignments cover a compound command
+#   without exporting the values into the pane's interactive shell.
+#   Unset names add no prefix; set empty values are forwarded as empty.
+#   muse launches are excluded from forwarding entirely, built-in and
+#   config-listed names alike: forwarding shell-quotes values into the launch
+#   command, and muse's credential preflight guarantees secrets never enter
+#   argv; its stored-credential path covers the daemon boundary instead.
+#   The file holds names only, never values, and is local to each home rather
+#   than inherited by secondmates, whose invoking process may have a different
+#   environment or run on another machine.
 # Claude permission mode (config/claude-permission-mode):
 #   One token selecting the permission flag every claude launch (ship, scout,
 #   secondmate, and relaunch) carries. Absent or `bypass` keeps today's
@@ -486,6 +508,24 @@ if [ "$LAUNCH_ENV_ENABLED" = 1 ]; then
     else error("expected environment names only") end
   ' "$CONFIG/launch-env-allowlist" 2>/dev/null); then
     echo "error: config/launch-env-allowlist must contain one environment name per line, blank lines, or # comments" >&2
+    exit 1
+  fi
+fi
+if ! SPAWN_ENV_FORWARD_ENABLED=$(fm_config_source_present "$CONFIG/spawn-env-forward"); then
+  exit 1
+fi
+SPAWN_ENV_FORWARD_NAMES=
+if [ "$SPAWN_ENV_FORWARD_ENABLED" = 1 ]; then
+  if [ ! -f "$CONFIG/spawn-env-forward" ] || [ ! -r "$CONFIG/spawn-env-forward" ]; then
+    echo "error: config/spawn-env-forward must be a readable regular file" >&2
+    exit 1
+  fi
+  if ! SPAWN_ENV_FORWARD_NAMES=$(jq -Rrs '
+    split("\n") | map(select(. != "" and (startswith("#") | not))) |
+    if all(.[]; test("^[A-Za-z_][A-Za-z0-9_]*$")) then .[]
+    else error("expected environment names only") end
+  ' "$CONFIG/spawn-env-forward" 2>/dev/null); then
+    echo "error: config/spawn-env-forward must contain one environment name per line, blank lines, or # comments" >&2
     exit 1
   fi
 fi
@@ -4720,6 +4760,39 @@ esac
 # an unset value is the single-store default and needs no prefix.
 if [ "$HARNESS" = claude ] && [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
   LAUNCH="CLAUDE_CONFIG_DIR=$(shell_quote "$CLAUDE_CONFIG_DIR") $LAUNCH"
+fi
+# Spawn environment forwarding (header above): the harness's standard auth
+# names forward whenever set, and config/spawn-env-forward adds extras. The
+# assignments are a command prefix, which binds only the first simple command,
+# so a raw launch command is wrapped in /bin/sh -c first: the values then reach
+# every command in a compound raw launch without being exported into the pane's
+# interactive shell.
+case "$HARNESS" in
+claude) SPAWN_ENV_FORWARD_DEFAULTS='CLAUDE_CODE_USE_FOUNDRY ANTHROPIC_FOUNDRY_RESOURCE ANTHROPIC_FOUNDRY_API_KEY' ;;
+codex) SPAWN_ENV_FORWARD_DEFAULTS='CODEX_HOME AZURE_OPENAI_API_KEY' ;;
+# muse takes NO forwarding, config-listed names included: every forwarded
+# value is shell-quoted into the launch command's argv, and muse's credential
+# preflight (muse_credential_present above) exists to guarantee secrets never
+# enter argv. Muse credentials cross the daemon boundary through the stored
+# auth.json or an already-present worker environment instead.
+muse)
+  SPAWN_ENV_FORWARD_DEFAULTS=
+  SPAWN_ENV_FORWARD_NAMES=
+  ;;
+*) SPAWN_ENV_FORWARD_DEFAULTS= ;;
+esac
+spawn_forward_prefix=
+spawn_forward_seen=' '
+for env_name in $SPAWN_ENV_FORWARD_DEFAULTS $SPAWN_ENV_FORWARD_NAMES; do
+  case "$spawn_forward_seen" in *" $env_name "*) continue ;; esac
+  spawn_forward_seen="$spawn_forward_seen$env_name "
+  if [ "${!env_name+x}" = x ]; then
+    spawn_forward_prefix="$spawn_forward_prefix$env_name=$(shell_quote "${!env_name}") "
+  fi
+done
+if [ -n "$spawn_forward_prefix" ]; then
+  [ "$RAW_LAUNCH" -eq 0 ] || LAUNCH="/bin/sh -c $(shell_quote "$LAUNCH")"
+  LAUNCH="$spawn_forward_prefix$LAUNCH"
 fi
 if [ "$KIND" = secondmate ]; then
   sq_home=$(shell_quote "$PROJ_ABS")
