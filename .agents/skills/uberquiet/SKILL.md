@@ -16,11 +16,12 @@ The standing mandate is the captain's 2026-09-27 away entry, quoted verbatim: "p
 
 ## Entry
 
-When `/uberquiet` is invoked, create a private temporary words file before any other work.
+If `off` is the only word typed after `/uberquiet`, treat it as the explicit exit request described under "Announcement and return" and perform none of the entry steps below.
+Otherwise, when `/uberquiet` is invoked, create a private temporary words file before any other work.
 Write the standing mandate above into the file exactly as quoted, without quotation marks, attribution, or an extra trailing newline.
 Append any words typed after `/uberquiet` verbatim after one newline, in the order given; do not include the command itself.
+Export `FM_AFK_MODE=quiet` before the `enter` call and keep it set through `bin/fm-afk-launch.sh start` or `start-native`, exactly as the `quiet` skill requires.
 Run `bin/fm-afk-launch.sh enter --words-file <path>` in the same turn, then remove the temporary file and complete the `quiet` skill's entry steps.
-Set `FM_AFK_MODE=quiet` in the shell invoking `bin/fm-afk-launch.sh start` or `start-native`, exactly as the `quiet` skill requires.
 The recorded words are the whole mandate; do not translate them into policy fields or expand their authority.
 
 ## Announcement and return
