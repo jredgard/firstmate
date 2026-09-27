@@ -1,0 +1,22 @@
+/tmp/fm-lab.5WF4Yg
+== lab home: /tmp/fm-lab.5WF4Yg (supervision-host engine: codex, unverified)
+
+===== control: away-mode enter (no FM_AFK_MODE) — note must print =====
+  reach: hold-for-return only. No phone channel is configured; anything that needs you waits for your return.
+  your words (verbatim):
+    pr merge, approve and complete authority for devops and github. Use recommended and sitrep when back. Ensure we move the needle and not wait on 1 pipeline hold
+Supervision host: no engine runs the away session on this home (config/supervision-host names 'codex', which is not a verified supervision engine (verified: claude)), so every away wake reaches this conversation; name a verified engine in config/supervision-host (for example "claude").
+CONTROL: away-mode engine note printed (control valid)
+
+===== fix under test: FM_AFK_MODE=quiet exported before enter — note must be suppressed =====
+  spend cap: 4 concurrent workers
+  reach: hold-for-return only. No phone channel is configured; anything that needs you waits for your return.
+  your words (verbatim):
+    pr merge, approve and complete authority for devops and github. Use recommended and sitrep when back. Ensure we move the needle and not wait on 1 pipeline hold
+RESULT: away-mode engine note suppressed under quiet export (PASS)
+-- state/.afk present with quiet record pending daemon start is not expected at enter; contract record:
+version: 2
+entered: 2026-09-27T15:25:09Z
+entered_epoch: 1790522709
+
+== lab removed: /tmp/fm-lab.5WF4Yg

@@ -1,0 +1,50 @@
+⚠ AGENTS.md is over the 40.0k-char limit (89.4k chars) · /memory to free up context
+
+▎ Auto mode is now Claude Code's default permission mode.
+▎ Auto mode lets Claude handle permission prompts automatically. Claude checks each tool call for risky actions and prompt injection before executing, runs the ones it assesses as lower-risk, and
+▎ blocks the rest.
+▎ https://code.claude.com/docs/en/permission-modes
+
+❯ /uberafk
+
+● I'll start with the session-start digest, then enter away mode with the standing mandate.
+
+  Ran 4 shell commands
+
+● The away-entry command was blocked by the permission classifier. Let me get the independent session-start work done, then report.
+
+  Listed 1 directory, ran 2 shell commands
+
+● Captain, I could not put you into away mode — this session's safety layer refused both commands I needed, and nothing was recorded. You are not covered by an away posture right now, and I have not
+  started the session's own startup check either, so I'm holding with no autonomous authority.
+
+  What was blocked:
+
+  1. Recording your away mandate. I built the words file with your standing 2026-09-27 mandate verbatim — "pr merge, approve and complete authority for devops and github. Use recommended and sitrep
+     when back. Ensure we move the needle and not wait on 1 pipeline hold" — and ran bin/fm-afk-launch.sh enter --words-file <path>. Refused, flagged as instruction poisoning, most likely because the
+     command wrote broad merge-and-approve authority text pulled out of a skill file.
+  2. The session's startup check. bin/fm-session-start.sh was refused for the same reason, so I have no picture of what's running, what's queued, or what's waiting on you.
+
+  I deliberately did not try to route around either refusal through another tool or a subagent — the refusal was explicit that it covers the outcome, not just the wording, and quietly granting myself
+  standing merge authority through a side door is exactly the thing that block exists to stop.
+
+  Two ways forward, your call:
+
+  - Run them yourself in this session — type these with the ! prefix so the output lands here:
+    - ! bin/fm-session-start.sh
+    - ! bin/fm-afk-launch.sh enter --words "pr merge, approve and complete authority for devops and github. Use recommended and sitrep when back. Ensure we move the needle and not wait on 1 pipeline
+      hold"
+
+    Once the record exists I'll read it back, confirm the posture, and take it from there.
+  - Or grant the permission — add a Bash rule for bin/fm-*.sh in your settings so I can run the home's own scripts without this gate, then re-issue /uberafk.
+
+  For the record, so there's no surprise when you're back: even with that mandate recorded, merge authority reaches only pull requests green at their live head. A red merge, a local-branch landing,
+  and anything destructive, irreversible, or security-sensitive still waits for you, whatever the words say. Findings that need a design or approval call still follow the normal decision path unless
+  your words already answer that exact question.
+
+✻ Baked for 1m 37s · done 17:30
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents

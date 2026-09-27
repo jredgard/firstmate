@@ -1,0 +1,30 @@
+  That authority only covers a pull request that is green at its live head. A red one is never something you can pre-authorize, so it waits for you. The same goes for anything destructive, irreversible, or
+  security-sensitive, and for landing work straight onto your local branch. Where a worker asks me for a decision, I'll answer it myself only when your words already answer that exact question — otherwise it holds for
+  your return.
+  There's no phone channel set up, so "waits for your return" means exactly that: it sits here until you're back. No expected return time is recorded, and the spend cap is four workers at once.
+  One thing you should know
+  This session's home is a fresh, empty one — no projects registered, no queued work, and none of your recorded preferences present. So right now there is nothing for the mandate to act on. If you expected this session
+  to be sitting on your real fleet, it isn't, and that's worth a look before you step away.
+  I'll batch routine updates and surface only decisions, failures, credentials, or work ready for your review. Ordinary chat will not exit this — say /quiet off when you want normal per-message responses back, and you'll
+  get the sitrep then.
+✻ Churned for 1m 59s · done 18:00
+❯ /uberquiet off
+● Captain, exiting quiet mode now.
+  Ran 1 shell command
+● Background command "Launch the quiet-mode supervision daemon in the background" completed (exit code 0)
+  Ran 1 shell command
+● Captain, quiet mode is off and normal per-message responses are back. Your mandate expired when the record was filed away at return, as designed.
+  Sitrep — the away window, 15:59 to 16:02 UTC (3 minutes)
+  Supervision ran through the whole window with no gap — nothing went unwatched.
+  Your instructions were held in full: merge, approve and complete authority for the devops and GitHub work, take the recommended option, keep things moving rather than stalling behind a single hold. Nothing was acted on
+  under them, because no event came up that they named.
+  Nothing is waiting on you. Nothing was tried and failed. Nothing landed that needs cleaning up. No work was running at return, and no decisions or failures were surfaced or held back.
+  The checks I couldn't confirm at entry have since finished clean: your GitHub sign-in is good, and nothing had drifted.
+  The reason it's all empty
+  As I flagged going in, this session's home is a fresh, empty one — no projects registered, no queued work, no recorded preferences. So there was genuinely nothing for the mandate to bite on. If you meant to put your
+  real fleet into quiet mode, this wasn't it, and that's the one thing worth acting on before you step away again.
+✻ Churned for 29s · done 18:03
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ why is this home empty?
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents

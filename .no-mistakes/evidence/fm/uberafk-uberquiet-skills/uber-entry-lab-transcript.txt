@@ -1,0 +1,80 @@
+/tmp/fm-lab.B31oZw
+== lab home: /tmp/fm-lab.B31oZw
+== words file bytes:
+0000240   f   o   c   u   s       o   n       t   h   e       r   e   l
+0000260   e   a   s   e       b   r   a   n   c   h
+0000273
+
+===== S2: /uberafk documented entry (away mode, no FM_AFK_MODE) =====
+Away posture recorded at 2026-09-27T15:24:25Z: hold-for-return only. No phone channel is configured; anything that needs you waits for your return. Your away instructions are recorded verbatim; the away session will carry them out where it can, and anything it is unsure of, or that needs you, waits for your return. Destructive, irreversible, and security-sensitive actions are never pre-authorizable, whatever the words say. Expected return: not given. Spend cap: 4 concurrent workers.
+Away posture (recorded):
+  entered: 2026-09-27T15:24:25Z
+  expected return: not given
+  spend cap: 4 concurrent workers
+  reach: hold-for-return only. No phone channel is configured; anything that needs you waits for your return.
+  your words (verbatim):
+    pr merge, approve and complete authority for devops and github. Use recommended and sitrep when back. Ensure we move the needle and not wait on 1 pipeline hold
+    focus on the release branch
+enter_exit=0
+-- state/.afk-contract:
+version: 2
+entered: 2026-09-27T15:24:25Z
+entered_epoch: 1790522665
+expected_return: -
+reach_channels: none
+reach_announced: No phone channel is configured; anything that needs you waits for your return.
+spend_max_concurrent_workers: 4
+confirmed: 2026-09-27T15:24:25Z
+confirmed_epoch: 1790522665
+words: |-
+  pr merge, approve and complete authority for devops and github. Use recommended and sitrep when back. Ensure we move the needle and not wait on 1 pipeline hold
+  focus on the release branch
+-- record words verbatim check:
+Traceback (most recent call last):
+  File "<stdin>", line 3, in <module>
+  File "/usr/lib/python3.14/json/__init__.py", line 298, in load
+    return loads(fp.read(),
+        cls=cls, object_hook=object_hook,
+        parse_float=parse_float, parse_int=parse_int,
+        parse_constant=parse_constant, object_pairs_hook=object_pairs_hook, **kw)
+  File "/usr/lib/python3.14/json/__init__.py", line 352, in loads
+    return _default_decoder.decode(s)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "/usr/lib/python3.14/json/decoder.py", line 345, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/json/decoder.py", line 363, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+===== exit away posture (stop) =====
+fm-afk-launch: away-posture record archived at /tmp/fm-lab.B31oZw/state/afk-contracts/1790522665.afk-contract
+fm-afk-launch: away mode stopped; no daemon terminal was running, .afk cleared, and the posture record archived
+stop_exit=0
+1790522665.afk-contract
+
+===== S3: /uberquiet documented entry: FM_AFK_MODE=quiet exported before enter =====
+Away posture recorded at 2026-09-27T15:24:26Z: hold-for-return only. No phone channel is configured; anything that needs you waits for your return. Your away instructions are recorded verbatim; the away session will carry them out where it can, and anything it is unsure of, or that needs you, waits for your return. Destructive, irreversible, and security-sensitive actions are never pre-authorizable, whatever the words say. Expected return: not given. Spend cap: 4 concurrent workers.
+Away posture (recorded):
+  entered: 2026-09-27T15:24:26Z
+  expected return: not given
+  spend cap: 4 concurrent workers
+  reach: hold-for-return only. No phone channel is configured; anything that needs you waits for your return.
+  your words (verbatim):
+    pr merge, approve and complete authority for devops and github. Use recommended and sitrep when back. Ensure we move the needle and not wait on 1 pipeline hold
+quiet_enter_exit=0
+RESULT: away-mode engine note suppressed under quiet export (PASS)
+
+===== S3 control: same enter WITHOUT FM_AFK_MODE (away) must print the note =====
+Away posture recorded at 2026-09-27T15:24:26Z: hold-for-return only. No phone channel is configured; anything that needs you waits for your return. Your away instructions are recorded verbatim; the away session will carry them out where it can, and anything it is unsure of, or that needs you, waits for your return. Destructive, irreversible, and security-sensitive actions are never pre-authorizable, whatever the words say. Expected return: not given. Spend cap: 4 concurrent workers.
+Away posture (recorded):
+  entered: 2026-09-27T15:24:26Z
+  expected return: not given
+  spend cap: 4 concurrent workers
+  reach: hold-for-return only. No phone channel is configured; anything that needs you waits for your return.
+  your words (verbatim):
+    pr merge, approve and complete authority for devops and github. Use recommended and sitrep when back. Ensure we move the needle and not wait on 1 pipeline hold
+away_enter_exit=0
+CONTROL: note missing in away mode (control invalid)
+
+== lab removed: /tmp/fm-lab.B31oZw

@@ -1,0 +1,50 @@
+
+ ▐▛███▛█   Claude Code v2.1.283
+▝▜██████▀  Opus 5 with high effort · API Usage Billing
+ ▝▝   ▝▝   ~/.no-mistakes/worktrees/551ff26a6b1c/01M3HPKDA3DKMGT51F4W5P9ZED
+
+⚠ AGENTS.md is over the 40.0k-char limit (89.4k chars) · /memory to free up context
+
+▎ Auto mode is now Claude Code's default permission mode.
+▎ Auto mode lets Claude handle permission prompts automatically. Claude checks each tool call for risky actions and prompt injection before executing, runs the ones it assesses as lower-risk, and
+▎ blocks the rest.
+▎ https://code.claude.com/docs/en/permission-modes
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  /uberafk                                        Enter the afk posture when the captain invokes /uberafk, recording the captain's standing 2026-09-27 PR mandate followed by any words supplied with
+                                                  this invocation. Use the afk skill for the lifecycle and return. (project)
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ /uberafk
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle)

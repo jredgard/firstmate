@@ -1,0 +1,50 @@
+
+❯ /uberafk ship the release branch
+
+● I'll start by loading the afk skill, which this wrapper delegates to.
+
+● Skill(afk)
+  ⎿  Successfully loaded skill
+
+● Captain, entering uber away mode. Writing the mandate record first.
+
+  Listed 2 directories, ran 2 shell commands
+
+● Home here is an empty lab home — I'll note the consequence after entry. Writing the words file and entering now.
+
+  Ran 1 shell command
+
+● The entry was blocked by the permission classifier. Let me gather the remaining facts so my report is complete.
+
+  Listed 1 directory, ran 2 shell commands
+
+● Captain, away mode is not on. Nothing was recorded, and nothing is supervising. Two things stopped it, and both need your word.
+
+  1. The permission check refused the uber mandate.
+  /uberafk carries a pre-written authority grant — "pr merge, approve and complete authority for devops and github. Use recommended and sitrep when back. Ensure we move the needle and not wait on 1
+  pipeline hold." Those words live in the command's own file, not in anything you typed just now, and the classifier flagged writing them as instructions arriving from a file rather than from you.
+
+  I stopped there rather than finding another route. The flagged text is precisely the part that widens my merge authority, so quietly getting it in by another path would defeat the check that caught
+  it. I can enter away mode with only your typed words — "ship the release branch" — but that records no extra merge authority, so every pull request would wait for your return instead of landing.
+
+  2. Separately: this session is pointed at an empty sandbox, not your fleet.
+  It's aimed at a throwaway working area (/tmp/fm-lab.tmrD3b) with no projects, no queued work, and nothing running. "Ship the release branch" has no target here — there's no release branch in scope
+  and nothing to merge. Your real setup at ~/firstmate is a different one, and it is also not in away mode.
+
+  So even had the mandate gone through, going away here would have watched an empty room while your actual work sat unattended.
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Teach auto mode about your environment?
+
+  Auto mode works better when it knows your environment. Takes about a minute.
+
+  ❯ 1. Yes
+    2. Not now
+    3. Don't show again
+
+  Enter to confirm · Esc to cancel
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ use ~/firstmate instead
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents

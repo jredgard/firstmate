@@ -1,0 +1,50 @@
+ ▝▝   ▝▝   ~/.no-mistakes/worktrees/551ff26a6b1c/01M3HPKDA3DKMGT51F4W5P9ZED
+
+⚠ AGENTS.md is over the 40.0k-char limit (89.4k chars) · /memory to free up context
+
+❯ /uberafk ship the release branch
+
+● Aye, captain — entering away mode with the uber mandate.
+
+  Ran 4 shell commands
+
+● Now loading the afk skill for the entry steps it owns.
+
+● Skill(afk)
+  ⎿  Successfully loaded skill
+
+  Listed 2 directories, ran 4 shell commands
+
+● Away record stands. Running the session-start digest now so supervision picks up the posture.
+
+  Ran 2 shell commands
+
+● Captain, you're away as of 15:47 UTC, and the record is written with your words kept verbatim.
+
+  Reach: hold-for-return only — no phone channel is configured, so anything that needs you waits until you're back. No expected return time given. Cap of four workers running at once.
+
+  How I read your instructions, sentence by sentence:
+
+  You've handed me merge, approve and complete authority for the devops and GitHub work, so I'll take those pull requests through to merged rather than parking each one for your word. That authority
+  reaches only pull requests that are green at their live head — a red one never merges while you're away, whatever the mandate says, and I can't force one through.
+
+  Where you've said "recommended", I'll take the recommended option at a choice point instead of holding it, and you'll get a full sitrep the moment you're back.
+
+  "Move the needle and not wait on 1 pipeline hold" I read as: don't let everything idle behind one stuck validation run. I'll keep the other work advancing and route around a blocked item rather than
+  standing still on it.
+
+  What I can't act on, and the bigger problem: "ship the release branch" has nothing to point at here. There's no project registered in this workspace, no queued work, and no workers running — the
+  board is completely empty, and the local records that would name your projects and preferences don't exist yet. So that sentence waits for your return unless you meant a different workspace. GitHub
+  access itself is healthy, so it's a registration gap, not a credentials problem.
+
+  Boundaries that hold regardless: anything destructive, irreversible, or security-sensitive is never pre-authorizable — it waits for you. A decision your words don't already answer waits too; the
+  mandate covers only what it actually says, and it expires the moment you're back.
+
+  Fair winds — I'll hold the fleet and have the sitrep ready.
+
+✻ Cooked for 2m 8s · done 17:49
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ the release branch is in the firstmate repo
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents

@@ -1,0 +1,29 @@
+❯ /uberafk back around 1800
+  Ran 5 shell commands
+● Captain, away mode is on and supervision is running. No read-back needed from you — this is informational.
+  Your words, as I read them
+  The standing part: merge, approve and completion authority for the devops and GitHub work; take the recommended option when a choice comes up rather than parking it; keep progress moving so one piece of work sitting on
+  a held validation run doesn't stall everything behind it; and give you a full situation report when you're back.
+  Today's part: you expect to be back around 1800. I've kept that as your words rather than setting a clock on it, so nothing changes if it slips — no formal return time is on record, and nothing times out.
+  What I'll act on, and what waits
+  I'll merge and approve the devops and GitHub work, pick the recommended option where one's on offer, and keep separate work moving in parallel.
+  That merge authority only covers a pull request green at its live head. A red one waits for you — that's not something anyone can pre-authorize. So does anything destructive, irreversible, or security-sensitive, and
+  landing work straight onto your local branch. Where a worker asks me to decide something, I'll answer only when your words already answer that exact question; otherwise it holds.
+  There's no phone channel, so anything that needs you sits here until you're back. The cap is four workers running at once.
+  Still worth knowing
+  This session's home is still the fresh, empty one — no projects registered, no queued work, no recorded preferences. So as things stand there's nothing here for your instructions to act on, and you'll come back to an
+  empty report. If you wanted your real fleet watched over the next couple of hours, this session isn't watching it.
+✻ Worked for 48s · done 18:04 · 1 shell still running
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ /uberafk off
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on · 1 shell · ← for agents · ↓ to manage
+
+=== lab state at capture ===
+-- state/.afk:
+away
+1790525057
+-- state/.afk-contract words:
+words: |-
+  pr merge, approve and complete authority for devops and github. Use recommended and sitrep when back. Ensure we move the needle and not wait on 1 pipeline hold
+  back around 1800
