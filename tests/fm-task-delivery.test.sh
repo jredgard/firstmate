@@ -1163,8 +1163,10 @@ test_forge_gerrit_changes_what_no_mistakes_means() {
     || fail "the brief did not record the machine-readable forge in its delivery contract"
 
   # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
-  assert_grep 'Pass `--skip push,pr,ci` on every `no-mistakes axi run` for this task' "$brief" \
+  assert_grep 'Pass `--skip push,pr,ci` when starting each new `no-mistakes axi run` for this task' "$brief" \
     "the worker was not given the skip vocabulary the forge requires"
+  assert_grep 'Reattach to an active run without flags' "$brief" \
+    "the worker was not told how to reattach without starting an unskipped run"
   assert_grep 'skip nothing else' "$brief" "nothing stopped the worker skipping the review itself"
   assert_grep 'branch_sync.next_action' "$brief" \
     "the worker was not told where to read whether custody must be recovered"
@@ -1195,9 +1197,8 @@ test_forge_gerrit_changes_what_no_mistakes_means() {
   assert_grep 'Run `no-mistakes doctor`' "$brief" \
     "the gerrit worker lost the pipeline initialization step no-mistakes still needs"
 
-  # The forge changes the contract's head and tail only: how the pipeline is
-  # driven, what --intent may carry, and the two firstmate-specific rules are the
-  # same text a GitHub-forge worker receives.
+  # The forge changes publication and custody wording; the pipeline-driving
+  # instructions and two firstmate-specific rules remain shared.
   assert_grep 'ask-user findings are never yours to answer: escalate to firstmate' "$brief" \
     "the gerrit worker lost the ask-user escalation rule"
   # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
@@ -1212,17 +1213,27 @@ test_forge_gerrit_changes_what_no_mistakes_means() {
        emit { print }
        emit && /hard rule violation\.$/ { exit }' "$plain" > "$TMP_ROOT/forge-dod/plain-middle"
   [ -s "$TMP_ROOT/forge-dod/gerrit-middle" ] || fail "the gerrit brief carries no pipeline-driving section to compare"
-  # Only the two statements about a green PR differ: the ci step is skipped on
-  # this forge, so there is no checks-passed return to wait for.
+  # The ci step is skipped on this forge, so there is no checks-passed return
+  # to wait for. Skipped push also leaves any fix commits in the gate.
   grep -q "reports the green PR" "$TMP_ROOT/forge-dod/plain-middle" \
     || fail "the default contract lost the green-PR return statement the comparison removes"
   assert_no_grep "checks-passed" "$TMP_ROOT/forge-dod/gerrit-middle" \
     "the gerrit worker was told to wait for a checks-passed return its skipped ci step never gives"
+  assert_no_grep 'git push origin <branch>' "$TMP_ROOT/forge-dod/gerrit-middle" \
+    "the gerrit worker was told to push instead of publishing through Gerrit"
+  assert_grep 'When the run reaches a passing outcome, follow the custody recovery steps below before publishing' "$TMP_ROOT/forge-dod/gerrit-middle" \
+    "the gerrit worker was not told to recover gate fixes before publishing"
+  # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
+  assert_grep 'Use `no-mistakes axi sync` only when `branch_sync.next_action` directs custody recovery' "$TMP_ROOT/forge-dod/gerrit-middle" \
+    "the gerrit worker was told to recover custody at the wrong time"
+  # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
+  sed '/^When the run reaches a passing outcome,/d; /^For follow-up commits, recover custody first,/d; /^Use `no-mistakes axi sync` only when `branch_sync.next_action`/d' \
+    "$TMP_ROOT/forge-dod/gerrit-middle" > "$TMP_ROOT/forge-dod/gerrit-middle-common"
   # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
   grep -v "reports the green PR" "$TMP_ROOT/forge-dod/plain-middle" \
-    | sed 's/; once checks are green it returns `checks-passed` immediately, and if it refuses/; if it refuses/' \
+    | sed '/^Once the run reaches checks-passed or completed,/d; /^For follow-up commits such as verifier-feedback/d; /^Use `no-mistakes axi sync` only for custody recovery/d; s/; once checks are green it returns `checks-passed` immediately, and if it refuses/; if it refuses/' \
     > "$TMP_ROOT/forge-dod/plain-middle-no-pr"
-  cmp -s "$TMP_ROOT/forge-dod/gerrit-middle" "$TMP_ROOT/forge-dod/plain-middle-no-pr" \
+  cmp -s "$TMP_ROOT/forge-dod/gerrit-middle-common" "$TMP_ROOT/forge-dod/plain-middle-no-pr" \
     || fail "the forge changed the forge-independent half of the pipeline contract"
   pass "forge=gerrit: no-mistakes runs with its forge steps skipped, recovers its fixes, then publishes one change"
 }
@@ -1457,7 +1468,7 @@ STUB
   grep -qx "Delivery contract: mode=no-mistakes forge=gerrit shape=squash" "$payload" \
     || fail "the promoted worker did not receive the forge in its delivery contract"
   # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
-  assert_grep 'Pass `--skip push,pr,ci` on every `no-mistakes axi run` for this task' "$payload" \
+  assert_grep 'Pass `--skip push,pr,ci` when starting each new `no-mistakes axi run` for this task' "$payload" \
     "the promoted worker was not given the skip vocabulary the forge requires"
   assert_grep 'You may not publish until you have closed that gap' "$payload" \
     "the promoted worker was not required to recover custody before publishing"

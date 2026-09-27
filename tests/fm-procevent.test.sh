@@ -3770,11 +3770,16 @@ ORPHAN_PID=$(cat "$HORPHAN/state/procevent/orphan-src.runner")
 KEEP_PID=$(cat "$HKEEP/state/procevent/keep-src.runner")
 ORPHAN_DESCENDANT=$(cat "$TMP_ROOT/orphan-dead.descendant")
 
-# The reproduction condition itself: the listener is already an orphan in the
-# kernel's sense before anything is asserted about reaping it.
+# The reconcile command has returned, so the live listener is reparented to
+# init or a subreaper. Agent workspaces can use a user systemd as that reaper.
 orphan_ppid=$(ps -o ppid= -p "$ORPHAN_PID" 2>/dev/null | tr -d '[:space:]')
-[ "$orphan_ppid" = 1 ] \
-  || fail "the listener under test was not reparented away from its session (ppid $orphan_ppid)"
+case "$orphan_ppid" in
+  ''|0|*[!0-9]*) fail "the listener under test has no live reaper (ppid $orphan_ppid)" ;;
+esac
+[ "$orphan_ppid" != "$$" ] \
+  || fail "the listener under test is still parented to the test session"
+[ "$(ps -o pid= -p "$orphan_ppid" 2>/dev/null | tr -d '[:space:]')" = "$orphan_ppid" ] \
+  || fail "the listener under test has no live reaper (ppid $orphan_ppid)"
 kill -0 -"$ORPHAN_PID" 2>/dev/null \
   || fail "the listener's process group was not running"
 kill -0 "$ORPHAN_DESCENDANT" 2>/dev/null \
@@ -4617,8 +4622,19 @@ done
 # meets it still held, then release it partway through the confirm window.
 setsid sleep 60 &
 drain_holder=$!
-drain_holder_identity=$(bash -c '. "$1/bin/fm-wake-lib.sh"; fm_pid_identity "$2"' _ "$ROOT" "$drain_holder") \
-  || fail "could not read the draining holder's identity"
+# The child can still be in setsid's pre-exec window here. Reading /proc before
+# sleep starts can return an empty cmdline or pin the temporary command instead.
+drain_holder_identity=
+for _ in $(seq 1 100); do
+  drain_holder_command=$(ps -p "$drain_holder" -o comm= 2>/dev/null | awk '{ print $1 }')
+  if [ "${drain_holder_command##*/}" = sleep ]; then
+    drain_holder_identity=$(bash -c '. "$1/bin/fm-wake-lib.sh"; fm_pid_identity "$2"' _ "$ROOT" "$drain_holder" 2>/dev/null) || drain_holder_identity=
+    [ -z "$drain_holder_identity" ] || break
+  fi
+  kill -0 "$drain_holder" 2>/dev/null || fail "the draining holder exited before its identity was ready"
+  sleep 0.1
+done
+[ -n "$drain_holder_identity" ] || fail "could not read the draining holder's identity"
 awk -v pid="$drain_holder" -v ident="$drain_holder_identity" \
   'NR == 2 { print pid; next } NR == 4 { print ident; next } { print }' \
   "$DRAIN/generation-one.claim" > "$drain_claim"

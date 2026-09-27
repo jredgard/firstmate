@@ -277,14 +277,22 @@ EOF
 
 # The forge-independent middle of the no-mistakes contract: how a worker drives
 # the pipeline, what `--intent` may carry, and the two firstmate-specific rules.
-# Written once; only the two sentences about a green PR depend on the forge,
-# because on gerrit the ci step is skipped and there is no PR to report.
+# Written once; publication and branch custody differ on Gerrit because its
+# push, PR, and CI steps are skipped and fixes stay in the gate until recovered.
 fm_nm_driving_block() {  # <forge>
   local pr_return_line='' pr_reattach_clause=';'
-  if [ "$1" != gerrit ]; then
+  local custody_line followup_line sync_line
+  if [ "$1" = gerrit ]; then
+    custody_line='When the run reaches a passing outcome, follow the custody recovery steps below before publishing.'
+    followup_line='For follow-up commits, recover custody first, commit on this branch, and run the review pass again before publishing.'
+    sync_line="Use \`no-mistakes axi sync\` only when \`branch_sync.next_action\` directs custody recovery, using the exact command it prints."
+  else
     pr_return_line="Only a drive call's return reports the green PR: \`no-mistakes axi status\` shows progress but never reports \`checks-passed\` while the ci step is still monitoring the PR for merge, so never wait on a status poll for the next gate or outcome.
 "
     pr_reattach_clause="; once checks are green it returns \`checks-passed\` immediately, and"
+    custody_line='Once the run reaches checks-passed or completed, branch custody is yours.'
+    followup_line="For follow-up commits such as verifier-feedback fixes or cosmetic rounds, use plain \`git pull --ff-only\` and \`git push origin <branch>\`."
+    sync_line="Use \`no-mistakes axi sync\` only for custody recovery during an active run."
   fi
   cat <<EOF
 You drive no-mistakes by responding to its gates, not by implementing fixes.
@@ -293,9 +301,9 @@ When starting no-mistakes, make \`--intent\` preserve all relevant content from 
 For a legacy brief with no \`## Captain's intent\` subsection, lines marked \`[captain] \` are the captain's words - keep their substance, excluding that metadata prefix, and never add speaker labels or direct address.
 Keep the assembled \`--intent\` under 900 characters by compressing phrasing, never by dropping requirements: Azure DevOps caps the entire PR description at 4000 characters, and after the What Changed, Risk, and attestation sections an intent beyond ~900 characters evicts the pipeline's visible verification report from the PR body (measured on Mosaiq.Factory PR 54336: a 1373-character intent left 313 of the ~800 the report needs).
 Do not hand-edit, commit, or fix findings yourself while a run is active - the pipeline applies every fix.
-Once the run reaches checks-passed or completed, branch custody is yours.
-For follow-up commits such as verifier-feedback fixes or cosmetic rounds, use plain \`git pull --ff-only\` and \`git push origin <branch>\`.
-Use \`no-mistakes axi sync\` only for custody recovery during an active run.
+${custody_line}
+${followup_line}
+${sync_line}
 
 One drive call blocks until the next gate or outcome, which routinely outlives what your harness lets a single command run: Claude Code kills a command at ten minutes maximum, while one fix round is capped around thirty minutes and up to three rounds chain.
 So background the drive call instead of sitting in one blocking hold your harness will kill, and read its return when it finishes.
@@ -361,7 +369,8 @@ EOF
 Delivery contract: mode=no-mistakes forge=gerrit shape=squash
 Ship branch: $branch
 This project's review server is Gerrit: it has no pull requests and no forge CI the pipeline can watch, so **no-mistakes runs here as a review pass that ends at a ready branch**, and you then publish that branch as one change.
-Pass \`--skip push,pr,ci\` on every \`no-mistakes axi run\` for this task, and skip nothing else: \`review\`, \`test\`, \`document\`, and \`lint\` are the whole point of the run.
+Pass \`--skip push,pr,ci\` when starting each new \`no-mistakes axi run\` for this task, and skip nothing else: \`review\`, \`test\`, \`document\`, and \`lint\` are the whole point of the run.
+Reattach to an active run without flags as described below.
 Those three are the only steps that reach a forge, and skipping them is a supported outcome, not a degraded one.
 The task is complete only when committed on your branch.
 When you believe it is complete, append \`done [at=<epoch>]: {summary}\` to the status file and stop.
