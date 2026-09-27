@@ -47,17 +47,18 @@ exits it.
 Unlike `/afk`, ordinary chat is never the exit signal - that is the entire
 point of this mode (AGENTS.md section 8's away-mode stub, quiet branch).
 
-- Only an explicit `/quiet off` (or the captain plainly asking to leave quiet
-  mode / resume normal supervision) exits it: run `bin/fm-afk-return.sh`
+- Only an explicit `/quiet off` or `/uberquiet off` (or the captain plainly
+  asking to leave quiet mode / resume normal supervision) exits it: run
+  `bin/fm-afk-return.sh`
   unchanged, exactly the procedure `/afk`'s "How to exit afk" section
   documents for its own return path (correct-ordered daemon shutdown,
   durable wake presentation and acknowledgement, escalation/wedge evidence,
   and the return-catch-up gate).
   That script does not read or care about the flag's mode, so it needs no
   quiet-specific variant.
-- A marked daemon escalation, or a message beginning `/quiet` while already
-  in quiet mode (refresh, not exit) -> stay in quiet mode and process it, the
-  same two carve-outs `/afk` documents for away mode.
+- A marked daemon escalation, or a message beginning `/quiet` or `/uberquiet`
+  while already in quiet mode (refresh, not exit) -> stay in quiet mode and
+  process it, the same two carve-outs `/afk` documents for away mode.
 - Every other message while in quiet mode is simply answered as ordinary
   work; the flag and daemon are left untouched.
 
