@@ -27,4 +27,5 @@ The recorded words are the whole mandate; do not translate them into policy fiel
 Read back the recorded words and state that PR authority applies only to PRs green at their live head.
 Red merges and destructive, irreversible, or security-sensitive actions are never pre-authorizable.
 Ask-user findings still follow `ask-user-authority` unless the recorded mandate pre-answers the exact decision.
+These boundaries are owned authoritatively by the `afk` skill's "Orthogonal to approval authority" section, which wins on any divergence from the restatement here.
 The mandate expires when the away record is archived at return; use the `afk` skill's return procedure and give the requested sitrep.
