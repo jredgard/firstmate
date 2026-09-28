@@ -1,0 +1,10 @@
+## Adversarial check: the ADO arm of the generated no-mistakes DoD brief must carry no gh-axi draft check
+
+$ grep -n "Azure DevOps PR" dod-brief-no-mistakes.md | grep gh-axi
+(no output - ADO arm is clean)
+
+$ grep -n "on a GitHub PR" dod-brief-no-mistakes.md
+35:After /no-mistakes reports CI green (the CI-ready return point - do not wait for it to keep monitoring in the background until merge): on a GitHub PR, read the PR back from the forge and confirm it is not a draft (`gh-axi pr view <number>` must print `draft: no`, where <number> is the PR number from your PR URL); if it is a draft, mark it ready with `gh-axi pr ready <number>` - a draft cannot be merged, so a done report on one leaves the merge unasked.
+
+## 900-character intent cap line present in the same generated brief
+13:Keep the assembled `--intent` under 900 characters by compressing phrasing, never by dropping requirements: Azure Dev

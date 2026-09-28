@@ -1,0 +1,5 @@
+ok - claude 2.1.284 (Claude Code): the pin check accepts a signed-in root and refuses an empty one despite an ambient API key
+skip-runner: pi is not installed, so its pin check was not exercised
+skip-runner: pi-signed is not installed, so its pin check was not exercised
+# worker account live guard checked: claude
+EXIT:0
