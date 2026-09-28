@@ -102,6 +102,7 @@ SUPERVISOR_TARGET="$SESSION:$PANE_ID"
 # fixture, or the command can remain typed but unsubmitted in the shell buffer.
 PANE_READY=false
 READY_SAMPLES=0
+WIZARD_DISMISSED=false
 for _ in $(seq 1 100); do
   PROCESS_INFO=$(fm_backend_herdr_cli "$SESSION" pane process-info --pane "$PANE_ID" 2>/dev/null || true)
   if printf '%s' "$PROCESS_INFO" | jq -e '
@@ -116,6 +117,16 @@ for _ in $(seq 1 100); do
     fi
   else
     READY_SAMPLES=0
+    # On a machine with no ~/.zshrc, every fresh pane's zsh opens the
+    # zsh-newuser-install wizard as a nested foreground zsh; its menu reads
+    # every keystroke, so the fixture launch line below would be eaten and the
+    # shell-owned single-pid foreground above never appears. Choose the
+    # wizard's own "(q)  Quit and do nothing." exit once, then keep sampling.
+    if [ "$WIZARD_DISMISSED" = false ] \
+       && fm_backend_herdr_capture "$SUPERVISOR_TARGET" 20 2>/dev/null | grep -q 'Choice \[ynq\]'; then
+      fm_backend_herdr_send_literal "$SUPERVISOR_TARGET" "q"
+      WIZARD_DISMISSED=true
+    fi
   fi
   sleep 0.1
 done
@@ -521,6 +532,18 @@ test_scenario_d_max_defer() {
   fi
   kill -0 "$DAEMON_PID" 2>/dev/null || fail "Scenario D: the daemon process died instead of alarming and continuing"
   grep -F 'stuck-in-the-box' "$STATE_DIR/daemon.err" >/dev/null 2>&1 && : # not fatal either way
+  # The wedge marker's evidence must come from the herdr ANSI viewport capture
+  # (fm_backend_herdr_visible_capture_ansi), not the plain-capture fallback:
+  # a plain capture strips the ANSI bytes the marker's hex section exists to
+  # preserve for rendered-state diagnosis.
+  grep -Fq 'Offending pane capture (ansi, ANSI stripped, bounded):' "$STATE_DIR/.subsuper-inject-wedged" \
+    || fail "Scenario D: the wedge marker did not record an ANSI-style pane capture: $(grep -F 'Offending pane capture (' "$STATE_DIR/.subsuper-inject-wedged" || echo '<no capture line>')"
+  local wedge_hex
+  wedge_hex=$(awk '/^Offending pane capture bytes \(ANSI-preserving hex, bounded\):$/ { getline; print; exit }' "$STATE_DIR/.subsuper-inject-wedged")
+  case "$wedge_hex" in
+    '' | '<capture unavailable>' | '<empty capture>')
+      fail "Scenario D: the wedge marker's ANSI-preserving hex section is missing or empty: ${wedge_hex:-<blank>}" ;;
+  esac
 
   stop_daemon
   # Clean up the stuck composer text for a tidy teardown (best-effort).
