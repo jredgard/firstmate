@@ -3458,7 +3458,7 @@ test_ado_completion_options_are_home_opt_ins() {
   add_ado_merge_mocks "$dir"
   touch "$dir/home/config/ado-delete-source-branch" "$dir/home/config/ado-transition-work-items"
   FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
-    FM_ADO_DELETE_SOURCE_BRANCH= FM_ADO_TRANSITION_WORK_ITEMS= \
+    FM_ADO_DELETE_SOURCE_BRANCH='' FM_ADO_TRANSITION_WORK_ITEMS='' \
     run_pr_merge "$dir" task-x1 "$url" </dev/null > "$dir/stdout" 2> "$dir/stderr" \
     || fail "empty-env-disabled Azure DevOps completion options failed: $(cat "$dir/stderr")"
   [ -e "$dir/ado-complete" ] || fail "a set-but-empty env override did not disable configured completion options"
