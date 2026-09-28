@@ -558,8 +558,7 @@ ado_verify_mergeable() {
   # never by its localizable display name. Every other blocking evaluation
   # fails closed unless the one named exception was explicitly requested in an
   # attended session.
-  # Merge-strategy type id verified in policy evaluations on 2026-09-28 for
-  # https://dev.azure.com/tuvsud01/6fb160eb-afb8-45de-b047-5167a8123275/_apis/git/repositories/a6150ff1-aa83-4a10-83a0-9940de0ef08c/pullRequests/56881
+  # Verified 2026-09-28 against live policy evaluations.
   if ! policies=$(fm_pr_ado_request GET \
     "https://dev.azure.com/${PR_PATH%%/*}/$project_id/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/$project_id/$PR_NUMBER&api-version=7.1-preview.1" 2>/dev/null); then
     echo "error: could not read Azure DevOps policies for $URL" >&2
