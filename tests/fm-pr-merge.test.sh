@@ -3277,7 +3277,7 @@ case "$method:$url" in
 esac
 SH
   chmod +x "$dir/fakebin/az" "$dir/fakebin/curl"
-  printf '%s\n' '{"value":[{"status":"approved","configuration":{"type":{"displayName":"Build"}}},{"status":"rejected","configuration":{"isBlocking":true,"type":{"id":"fa4e907d-c16b-4a4c-9dfa-4906e5d171dd","displayName":"Require a merge strategy"}}}]}' \
+  printf '%s\n' '{"value":[{"status":"approved","configuration":{"type":{"displayName":"Build"}}},{"status":"rejected","configuration":{"isBlocking":true,"type":{"id":"fa4e907d-c16b-4a4c-9dfa-4916e5d171ab","displayName":"Require a merge strategy"}}}]}' \
     > "$dir/ado-policies.json"
 }
 
@@ -3387,7 +3387,7 @@ test_ado_policy_gate_matches_ado_completion_semantics() {
 
   dir=$(make_case ado-merge-strategy-type-id)
   add_ado_merge_mocks "$dir"
-  printf '%s\n' '{"value":[{"status":"rejected","configuration":{"isBlocking":true,"type":{"id":"FA4E907D-C16B-4A4C-9DFA-4906E5D171DD","displayName":"Squashzusammenführung erforderlich"}}}]}' \
+  printf '%s\n' '{"value":[{"status":"rejected","configuration":{"isBlocking":true,"type":{"id":"FA4E907D-C16B-4A4C-9DFA-4916E5D171AB","displayName":"Squashzusammenführung erforderlich"}}}]}' \
     > "$dir/ado-policies.json"
   FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
     run_pr_merge "$dir" task-x1 "$url" </dev/null > "$dir/stdout" 2> "$dir/stderr" \
@@ -3396,7 +3396,7 @@ test_ado_policy_gate_matches_ado_completion_semantics() {
 
   dir=$(make_case ado-merge-strategy-name-only)
   add_ado_merge_mocks "$dir"
-  printf '%s\n' '{"value":[{"status":"rejected","configuration":{"isBlocking":true,"type":{"id":"00000000-0000-0000-0000-000000000000","displayName":"Require a merge strategy"}}}]}' \
+  printf '%s\n' '{"value":[{"status":"rejected","configuration":{"isBlocking":true,"type":{"id":"fa4e907d-c16b-4a4c-9dfa-4906e5d171dd","displayName":"Require a merge strategy"}}}]}' \
     > "$dir/ado-policies.json"
   set +e
   FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
