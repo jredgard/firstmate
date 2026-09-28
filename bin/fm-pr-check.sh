@@ -8,9 +8,9 @@
 # live only in a private sidecar and are never interpolated into shell source.
 # GitHub, GitLab, Gerrit, and canonical dev.azure.com PR URLs are accepted.
 # Azure DevOps requires an authenticated REST read and records its live head.
-# A GitHub pull request the forge reports as a draft is refused, naming the draft
-# state and recording and arming nothing: a draft cannot be merged, so a poll armed on it
-# would wait for an event that cannot occur while nobody is asked to act.
+# A GitHub or Azure DevOps pull request the forge reports as a draft is refused,
+# naming the draft state and recording and arming nothing: a draft cannot be merged,
+# so a poll armed on it would wait for an event that cannot occur while nobody is asked to act.
 # Mark the pull request ready for review, then arm again; a lane that keeps a
 # draft on purpose declares a wait instead of reporting done. An unreadable
 # draft state does not refuse, matching how the head read below is optional.
