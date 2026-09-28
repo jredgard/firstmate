@@ -1,0 +1,111 @@
+Regression reproduction for the Azure DevOps merge-strategy policy type-id fix
+base commit 1165dba (buggy) vs target commit 7271b42 (fixed).
+Each case runs the real bin/fm-pr-merge.sh CLI end-to-end against the test
+suite's fixture ADO API (fake az/curl on PATH); the PR is green (active,
+mergeStatus succeeded, non-draft) and one blocking merge-strategy policy
+evaluation reports rejected, as on the customer PRs.
+
+===============================================================================
+CASE 1 - BASE script, real ADO type id fa4e907d-c16b-4a4c-9dfa-4916e5d171ab:
+         expected: the reported bug - refusal 'Require a merge strategy=rejected'
+===============================================================================
+--- policy evaluations served by the fixture ADO API:
+    {"value":[{"status":"approved","configuration":{"type":{"displayName":"Build"}}},{"status":"rejected","configuration":{"isBlocking":true,"type":{"id":"fa4e907d-c16b-4a4c-9dfa-4916e5d171ab","displayName":"Require a merge strategy"}}}]}
+--- exit code: 1
+--- stdout:
+    armed: state/task-x1.check.sh
+--- stderr:
+    ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    ●  WATCHER DOWN - SUPERVISION IS OFF
+    ●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+    ●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+    ●  This is a supervision warning only; the guarded operation WILL still run.
+    ●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+    ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    error: refusing to complete https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42: policies not approved: Require a merge strategy=rejected
+--- completion PATCH: did not run
+--- ADO API requests made by the CLI:
+    GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+    GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+    GET https://dev.azure.com/acme/11111111-1111-1111-1111-111111111111/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/11111111-1111-1111-1111-111111111111/42&api-version=7.1-preview.1 
+
+===============================================================================
+CASE 2 - FIXED script, same green PR and same rejected merge-strategy policy:
+         expected: squash completion instead of refusal
+===============================================================================
+--- policy evaluations served by the fixture ADO API:
+    {"value":[{"status":"approved","configuration":{"type":{"displayName":"Build"}}},{"status":"rejected","configuration":{"isBlocking":true,"type":{"id":"fa4e907d-c16b-4a4c-9dfa-4916e5d171ab","displayName":"Require a merge strategy"}}}]}
+--- exit code: 0
+--- stdout:
+    armed: state/task-x1.check.sh
+    verified: https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 is completed at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+--- stderr:
+    ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    ●  WATCHER DOWN - SUPERVISION IS OFF
+    ●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+    ●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+    ●  This is a supervision warning only; the guarded operation WILL still run.
+    ●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+    ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    verified: https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 is active, mergeable, and policy approved at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+--- completion PATCH: RAN
+--- ADO API requests made by the CLI:
+    GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+    GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+    GET https://dev.azure.com/acme/11111111-1111-1111-1111-111111111111/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/11111111-1111-1111-1111-111111111111/42&api-version=7.1-preview.1 
+    PUT https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42/reviewers/22222222-2222-2222-2222-222222222222?api-version=7.1 {"vote":10}
+    PATCH https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 {"status":"completed","lastMergeSourceCommit":{"commitId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"completionOptions":{"mergeStrategy":"squash","deleteSourceBranch":false,"transitionWorkItems":false}}
+    GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+
+===============================================================================
+CASE 3 - FIXED script, real id UPPERCASE with localized display name:
+         expected: completion (match is by type id, case-insensitive)
+===============================================================================
+--- policy evaluations served by the fixture ADO API:
+    {"value":[{"status":"rejected","configuration":{"isBlocking":true,"type":{"id":"FA4E907D-C16B-4A4C-9DFA-4916E5D171AB","displayName":"Squashzusammenführung erforderlich"}}}]}
+--- exit code: 0
+--- stdout:
+    armed: state/task-x1.check.sh
+    verified: https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 is completed at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+--- stderr:
+    ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    ●  WATCHER DOWN - SUPERVISION IS OFF
+    ●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+    ●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+    ●  This is a supervision warning only; the guarded operation WILL still run.
+    ●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+    ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    verified: https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 is active, mergeable, and policy approved at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+--- completion PATCH: RAN
+--- ADO API requests made by the CLI:
+    GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+    GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+    GET https://dev.azure.com/acme/11111111-1111-1111-1111-111111111111/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/11111111-1111-1111-1111-111111111111/42&api-version=7.1-preview.1 
+    PUT https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42/reviewers/22222222-2222-2222-2222-222222222222?api-version=7.1 {"vote":10}
+    PATCH https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 {"status":"completed","lastMergeSourceCommit":{"commitId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"completionOptions":{"mergeStrategy":"squash","deleteSourceBranch":false,"transitionWorkItems":false}}
+    GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+
+===============================================================================
+CASE 4 - ADVERSARIAL, FIXED script: old wrong id fa4e907d-c16b-4a4c-9dfa-4906e5d171dd
+         with display name 'Require a merge strategy': expected: still refused
+         (the exemption matches the type id only, never the localizable name)
+===============================================================================
+--- policy evaluations served by the fixture ADO API:
+    {"value":[{"status":"rejected","configuration":{"isBlocking":true,"type":{"id":"fa4e907d-c16b-4a4c-9dfa-4906e5d171dd","displayName":"Require a merge strategy"}}}]}
+--- exit code: 1
+--- stdout:
+    armed: state/task-x1.check.sh
+--- stderr:
+    ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    ●  WATCHER DOWN - SUPERVISION IS OFF
+    ●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+    ●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+    ●  This is a supervision warning only; the guarded operation WILL still run.
+    ●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+    ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    error: refusing to complete https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42: policies not approved: Require a merge strategy=rejected
+--- completion PATCH: did not run
+--- ADO API requests made by the CLI:
+    GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+    GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+    GET https://dev.azure.com/acme/11111111-1111-1111-1111-111111111111/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/11111111-1111-1111-1111-111111111111/42&api-version=7.1-preview.1 
