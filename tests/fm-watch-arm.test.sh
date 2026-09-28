@@ -1020,19 +1020,9 @@ wait_for_pid_gone() {  # <pid> <polls>
   return 1
 }
 
-# The teardown cases assert that the watcher exits, not a deadline: the gone
-# check runs at the top of each cycle, so the worst case is the rest of a full
-# cycle's short-lived helper processes plus the FM_POLL=1 sleep - the same kind
-# of work a contended host slows far more than this suite's sleeping poll
-# loops (a loaded portable serial shard outran the previous 30-poll / ~3s
-# ceiling on 2026-09-28). Per the CONTRIBUTING.md fixture-budget rule this
-# ceiling outlasts that loaded cost; a passing case still returns on the first
-# poll that finds the pid gone.
-TEARDOWN_EXIT_POLLS=300
-
 # A running watcher whose state directory is deleted (a torn-down temporary
-# home) must exit within one poll cadence with a logged reason, not run on as
-# an orphan (upstream #4760).
+# home) must exit within one poll with a logged reason, not run on as an orphan
+# (upstream #4760). FM_POLL=1 here, so 30 polls of 0.1s outlast one poll.
 test_watcher_exits_when_its_state_directory_is_removed() {
   local dir home state fakebin armout
   dir=$(make_case state-dir-removed)
@@ -1044,7 +1034,7 @@ test_watcher_exits_when_its_state_directory_is_removed() {
   start_owned_watcher "$home" "$state" "$fakebin" "$armout"
 
   rm -rf "$state"
-  wait_for_pid_gone "$WATCH_PID" "$TEARDOWN_EXIT_POLLS" \
+  wait_for_pid_gone "$WATCH_PID" 30 \
     || { kill -TERM "$WATCH_PID" 2>/dev/null; fail "watcher pid $WATCH_PID outlived its deleted state directory"; }
   wait_for_exit "$ARM_PID" 100 >/dev/null 2>&1 || true
   grep -qF 'watcher: exiting - state directory' "$armout" \
@@ -1067,7 +1057,7 @@ test_watcher_exits_when_its_home_is_removed() {
   start_owned_watcher "$home" "$state" "$fakebin" "$armout"
 
   rm -rf "$home"
-  wait_for_pid_gone "$WATCH_PID" "$TEARDOWN_EXIT_POLLS" \
+  wait_for_pid_gone "$WATCH_PID" 30 \
     || { kill -TERM "$WATCH_PID" 2>/dev/null; fail "watcher pid $WATCH_PID outlived its deleted home"; }
   wait_for_exit "$ARM_PID" 100 >/dev/null 2>&1 || true
   grep -qF 'watcher: exiting - home no longer exists' "$armout" \
