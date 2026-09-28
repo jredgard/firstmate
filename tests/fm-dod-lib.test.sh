@@ -382,6 +382,25 @@ test_pr_based_dod_draft_check_uses_gh_axi() {
   pass "PR-based DoD draft check uses gh-axi"
 }
 
+# gh-axi is a GitHub CLI wrapper and cannot read a dev.azure.com PR, so the
+# CI-green custody window must scope its draft check to GitHub and keep the
+# Azure DevOps arm on fm-pr-report-compact.
+test_nm_dod_draft_check_is_scoped_to_github() {
+  local out
+  out="$TMP_ROOT/dod-nm-forge-scope.md"
+  fm_dod_block no-mistakes dod-scope-task > "$out"
+  # shellcheck disable=SC2016  # single quotes are deliberate: the backticks must stay literal
+  assert_grep 'on a GitHub PR, read the PR back from the forge and confirm it is not a draft (`gh-axi pr view <number>`' "$out" \
+    "no-mistakes DoD must scope the gh-axi draft check to a GitHub PR"
+  # shellcheck disable=SC2016  # single quotes are deliberate: the backticks must stay literal
+  assert_grep 'On an Azure DevOps PR, run `fm-pr-report-compact <org-url> <pr-id>` once' "$out" \
+    "no-mistakes DoD must keep the Azure DevOps arm on fm-pr-report-compact"
+  if grep -F 'Azure DevOps PR' "$out" | grep -Fq 'gh-axi'; then
+    fail "no-mistakes DoD hands an Azure DevOps PR a gh-axi draft check"
+  fi
+  pass "no-mistakes DoD scopes the CI-green draft check per forge"
+}
+
 test_scout_done_is_not_gated
 test_unpushed_ship_done_is_refused
 test_no_mistakes_prevalidation_done_is_not_gated
@@ -400,5 +419,6 @@ test_standalone_local_only_needs_project_ref
 test_non_done_lines_are_not_gated
 test_fenced_and_indented_captain_lines_are_not_intent
 test_pr_based_dod_draft_check_uses_gh_axi
+test_nm_dod_draft_check_is_scoped_to_github
 
 echo "all fm-dod-lib tests passed"

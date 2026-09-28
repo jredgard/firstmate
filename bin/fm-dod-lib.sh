@@ -439,8 +439,7 @@ EOF
       fm_nm_driving_block "$forge"
       cat <<EOF
 
-After /no-mistakes reports CI green (the CI-ready return point - do not wait for it to keep monitoring in the background until merge), read the PR back from the forge and confirm it is not a draft (\`gh-axi pr view <number>\` must print \`draft: no\`, where <number> is the PR number from your PR URL); if it is a draft, mark it ready with \`gh-axi pr ready <number>\`.
-A draft cannot be merged, so a done report on one leaves the merge unasked.
+After /no-mistakes reports CI green (the CI-ready return point - do not wait for it to keep monitoring in the background until merge): on a GitHub PR, read the PR back from the forge and confirm it is not a draft (\`gh-axi pr view <number>\` must print \`draft: no\`, where <number> is the PR number from your PR URL); if it is a draft, mark it ready with \`gh-axi pr ready <number>\` - a draft cannot be merged, so a done report on one leaves the merge unasked.
 On an Azure DevOps PR, run \`fm-pr-report-compact <org-url> <pr-id>\` once: Azure DevOps hard-truncates PR descriptions at 4000 characters and refuses edits after merge, so this is the only window to keep the full verification report readable.
 The tool posts a closed review-summary comment, with any residual findings in full, on every gated PR, verifies the Build policy, normalizes the visible step board to final passed values, trims prose when needed, and never alters the attestation.
 Then append \`done [at=<epoch>]: PR {url} checks green\` and stop. You are finished.
