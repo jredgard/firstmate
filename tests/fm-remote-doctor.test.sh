@@ -28,14 +28,16 @@ HOLDER_PIDS=()
 trap 'if [ -n "$DOCTOR_WORKER_PID" ]; then kill "$DOCTOR_WORKER_PID" 2>/dev/null || true; fi; if [ "${#HOLDER_PIDS[@]}" -gt 0 ]; then kill "${HOLDER_PIDS[@]}" 2>/dev/null || true; fi; fm_test_cleanup || true' EXIT
 GUARD="$ROOT/bin/fm-remote-herdr-guard.sh"
 
-# A fixture must be able to present a host with NO herdr, so the doctor never
-# sees the runner's own PATH. Only the two required tools are re-exposed, by
-# symlink, alongside the system directories the doctor's own helpers need.
+# A fixture must be able to present a host with no herdr or harness, so the
+# doctor never sees the runner's own tools. Re-expose git and jq alongside a
+# curated system PATH with host harnesses hidden.
 TOOLS="$TMP_ROOT/tools"
 mkdir -p "$TOOLS"
 ln -sf "$(command -v git)" "$TOOLS/git"
 ln -sf "$(command -v jq)" "$TOOLS/jq"
-BASE_PATH="$TOOLS:/usr/bin:/bin:/usr/sbin:/sbin"
+SYSTEM_PATH=$(fm_test_base_path_sans '/usr/bin:/bin:/usr/sbin:/sbin' \
+  claude codex opencode pi pi-signed grok kimi)
+BASE_PATH="$TOOLS:$SYSTEM_PATH"
 
 # Real socket-owner holders for the Darwin birth check: jq blocked on a fifo
 # this test keeps open, with exactly the marker environment each birth needs.
@@ -886,4 +888,3 @@ assert_contains "$DOCTOR_OUT" 'check entrypoint-link=human:' "an operator-owned 
   || fail "--fix overwrote a file it did not create"
 unset FM_ROOT_OVERRIDE
 pass "the entrypoint symlink is recreated when absent and never overwritten when operator-owned"
-

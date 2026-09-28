@@ -61,6 +61,10 @@ TARGET="$SESSION:$WINDOW"
 
 tmux new-session -d -s "$SESSION" -x 200 -y 50 \
   || fail "real tmux: new-session failed"
+# The injected commands below use Bash syntax; keep the private fixture's
+# window shell independent of the host user's login shell.
+tmux set-option -t "$SESSION" default-shell "$(command -v bash)" \
+  || fail "real tmux: could not select the fixture shell"
 fm_backend_tmux_create_task "$SESSION" "$WINDOW" "$HOME" \
   || fail "fm_backend_tmux_create_task failed to create the task window"
 tmux list-windows -t "$SESSION" -F '#{window_name}' | grep -qx "$WINDOW" \
@@ -92,7 +96,10 @@ done
 [ "$SHELL_READY" = true ] || fail "the tmux task shell did not become ready"
 
 tmux send-keys -t "$TARGET" "cd /tmp && PS1='smoke\$ ' && clear && printf 'setup-%s\\n' ready" Enter
-wait_for_capture_text "$TARGET" "setup-ready" || fail "the tmux task shell did not complete setup"
+if ! wait_for_capture_text "$TARGET" "setup-ready"; then
+  out=$(fm_backend_tmux_capture "$TARGET" 80 2>&1 || true)
+  fail "the tmux task shell did not complete setup: $out"
+fi
 
 fm_backend_tmux_send_text_line "$TARGET" "printf 'captain-on-deck-%s\\n' line" \
   || fail "fm_backend_tmux_send_text_line failed"
