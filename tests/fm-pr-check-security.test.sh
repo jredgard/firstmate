@@ -928,8 +928,21 @@ printf '%s\n' fixture-token
 SH
   cat > "$dir/fakebin/curl" <<'SH'
 #!/usr/bin/env bash
+url=${*: -1} auth= max_time=
 printf '%s\n' "$*" >> "$FM_TEST_ADO_DIR/ado.log"
-case "${*: -1}" in
+case "$*" in *fixture-token*) exit 2 ;; esac
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --max-time) max_time=$2; shift 2 ;;
+    --header)
+      case "$2" in @*) auth=$(cat "${2#@}" 2>/dev/null) ;; esac
+      shift 2 ;;
+    *) shift ;;
+  esac
+done
+[ "$auth" = 'Authorization: Bearer fixture-token' ] || exit 2
+case "$max_time" in ''|0|*[!0-9]*) exit 2 ;; esac
+case "$url" in
   *'/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1')
     status=active
     [ ! -e "$FM_TEST_ADO_DIR/completed" ] || status=completed
@@ -965,6 +978,20 @@ test_ado_registration_and_poll() {
   cat "$dir/tampered-poll" > "$state/task-a.pr-poll"
   out=$(FM_TEST_ADO_DIR="$dir" run_poll "$dir")
   [ -z "$out" ] || fail "tampered Azure DevOps poll emitted a merged wake"
+  dir=$(make_case ado-hung-token)
+  add_ado_mocks "$dir"
+  write_task_meta "$dir"
+  FM_TEST_ADO_DIR="$dir" run_check_entry "$dir" task-a "$url" > "$dir/stdout" 2> "$dir/stderr" \
+    || fail "hung-token case could not arm its Azure DevOps poll: $(cat "$dir/stderr")"
+  cat > "$dir/fakebin/az" <<'SH'
+#!/usr/bin/env bash
+sleep 30
+printf '%s\n' fixture-token
+SH
+  chmod +x "$dir/fakebin/az"
+  touch "$dir/completed"
+  out=$(FM_PR_ADO_TIMEOUT=1 FM_TEST_ADO_DIR="$dir" run_poll "$dir")
+  [ -z "$out" ] || fail "a hung Azure DevOps token acquisition still emitted a merged wake"
   dir=$(make_case ado-draft)
   add_ado_mocks "$dir"
   write_task_meta "$dir"

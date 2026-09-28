@@ -3222,14 +3222,21 @@ printf '%s\n' fixture-token
 SH
   cat > "$dir/fakebin/curl" <<'SH'
 #!/usr/bin/env bash
-method= url=${*: -1} body=
+method= url=${*: -1} body= auth= max_time=
+case "$*" in *fixture-token*) exit 2 ;; esac
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --request) method=$2; shift 2 ;;
     --data) body=$2; shift 2 ;;
+    --max-time) max_time=$2; shift 2 ;;
+    --header)
+      case "$2" in @*) auth=$(cat "${2#@}" 2>/dev/null) ;; esac
+      shift 2 ;;
     *) shift ;;
   esac
 done
+[ "$auth" = 'Authorization: Bearer fixture-token' ] || exit 2
+case "$max_time" in ''|0|*[!0-9]*) exit 2 ;; esac
 printf '%s %s %s\n' "$method" "$url" "$body" >> "$FM_TEST_ADO_DIR/ado.log"
 case "$method:$url" in
   GET:*'/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1')
@@ -3446,13 +3453,45 @@ test_ado_completion_options_are_home_opt_ins() {
     run_pr_merge "$dir" task-x1 "$url" </dev/null > "$dir/stdout" 2> "$dir/stderr" \
     || fail "env-disabled Azure DevOps completion options failed: $(cat "$dir/stderr")"
   [ -e "$dir/ado-complete" ] || fail "env override did not disable configured completion options"
+
+  dir=$(make_case ado-empty-env-overrides-config-options)
+  add_ado_merge_mocks "$dir"
+  touch "$dir/home/config/ado-delete-source-branch" "$dir/home/config/ado-transition-work-items"
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    FM_ADO_DELETE_SOURCE_BRANCH= FM_ADO_TRANSITION_WORK_ITEMS= \
+    run_pr_merge "$dir" task-x1 "$url" </dev/null > "$dir/stdout" 2> "$dir/stderr" \
+    || fail "empty-env-disabled Azure DevOps completion options failed: $(cat "$dir/stderr")"
+  [ -e "$dir/ado-complete" ] || fail "a set-but-empty env override did not disable configured completion options"
   pass "Azure DevOps completion options default off and honor env and config opt-ins"
+}
+
+test_ado_requests_are_bounded_and_keep_tokens_off_argv() {
+  local dir url rc
+  url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
+
+  dir=$(make_case ado-hung-token)
+  add_ado_merge_mocks "$dir"
+  cat > "$dir/fakebin/az" <<'SH'
+#!/usr/bin/env bash
+sleep 30
+printf '%s\n' fixture-token
+SH
+  chmod +x "$dir/fakebin/az"
+  set +e
+  FM_PR_ADO_TIMEOUT=1 FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    run_pr_merge "$dir" task-x1 "$url" </dev/null > "$dir/stdout" 2> "$dir/stderr"
+  rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "a hung Azure DevOps token acquisition merged anyway"
+  [ ! -e "$dir/ado-complete" ] || fail "a hung Azure DevOps token acquisition still completed the PR"
+  pass "Azure DevOps requests are bounded and deliver the token off argv"
 }
 
 test_gitlab_head_override_args_refuse_before_recording
 test_ado_headless_merge_and_refusals
 test_ado_policy_gate_matches_ado_completion_semantics
 test_ado_completion_options_are_home_opt_ins
+test_ado_requests_are_bounded_and_keep_tokens_off_argv
 test_secondmate_merge_reports_upward_once
 test_secondmate_merge_reports_on_the_local_route
 test_gitlab_merge_reports_upward

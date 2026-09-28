@@ -1209,14 +1209,14 @@ gitlab_confirm_merged() {
   [ "$state" = merged ]
 }
 
-# One squash-completion option, off by default for GitHub parity: the given
-# environment value set to exactly "true" enables it, any other set value
-# disables it, and an unset value falls back to presence of the named local
-# config flag file.
+# One squash-completion option, off by default for GitHub parity: the named
+# environment variable set to exactly "true" enables it, any other set value,
+# even empty, disables it, and only an unset variable falls back to presence
+# of the named local config flag file.
 ado_completion_option() {
-  local env_value=$1 flag_file="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}/$2"
-  if [ -n "$env_value" ]; then
-    if [ "$env_value" = true ]; then echo true; else echo false; fi
+  local env_name=$1 flag_file="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}/$2"
+  if [ -n "${!env_name+set}" ]; then
+    if [ "${!env_name}" = true ]; then echo true; else echo false; fi
   elif [ -e "$flag_file" ]; then
     echo true
   else
@@ -1282,8 +1282,8 @@ case "$PROVIDER" in
       echo "error: Azure DevOps reviewer approval failed for $URL; nothing was completed" >&2
       exit 1
     fi
-    ado_delete_source=$(ado_completion_option "${FM_ADO_DELETE_SOURCE_BRANCH:-}" ado-delete-source-branch)
-    ado_transition_items=$(ado_completion_option "${FM_ADO_TRANSITION_WORK_ITEMS:-}" ado-transition-work-items)
+    ado_delete_source=$(ado_completion_option FM_ADO_DELETE_SOURCE_BRANCH ado-delete-source-branch)
+    ado_transition_items=$(ado_completion_option FM_ADO_TRANSITION_WORK_ITEMS ado-transition-work-items)
     ado_body=$(jq -nc --arg head "$FM_PR_MERGE_HEAD" \
       --argjson delete_source "$ado_delete_source" --argjson transition_items "$ado_transition_items" \
       '{status:"completed",lastMergeSourceCommit:{commitId:$head},completionOptions:{mergeStrategy:"squash",deleteSourceBranch:$delete_source,transitionWorkItems:$transition_items}}') || exit 1

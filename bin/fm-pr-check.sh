@@ -92,6 +92,10 @@ if [ "$PROVIDER" = ado ]; then
       exit 1
     fi
   done
+  if ! command -v timeout >/dev/null 2>&1 && ! command -v gtimeout >/dev/null 2>&1; then
+    echo "error: watching an Azure DevOps pull request requires timeout or gtimeout on PATH" >&2
+    exit 1
+  fi
 fi
 
 # The draft state is read before anything is recorded or armed. Only a positive
