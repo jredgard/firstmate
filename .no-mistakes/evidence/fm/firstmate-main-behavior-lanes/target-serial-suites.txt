@@ -1,0 +1,11 @@
+ok - forge=gerrit: yolo is refused with its reason, never silently dropped
+ok - forge=gerrit: no-mistakes runs with its forge steps skipped, recovers its fixes, then publishes one change
+ok - forge=gerrit: direct-PR publishes one squashed change and a stack is refused with its reason
+FM_TEST_END 2026-09-28T06:14:28Z tests/fm-task-delivery.test.sh exit=0 duration_ms=16687 gate_skip=false
+FM_TEST_END 2026-09-28T06:14:37Z tests/fm-session-lock-ancestry.test.sh exit=0 duration_ms=8854 gate_skip=false
+FM_TEST_END 2026-09-28T06:18:35Z tests/fm-procevent.test.sh exit=0 duration_ms=237579 gate_skip=false
+FM_TEST_SUMMARY total=3 failed=0 skipped_gate=0 duration_ms=263273
+FM_TEST_END 2026-09-28T06:13:24Z tests/fm-on.test.sh exit=0 duration_ms=9093 gate_skip=false
+FM_TEST_END 2026-09-28T06:13:25Z tests/fm-remote-doctor.test.sh exit=0 duration_ms=10705 gate_skip=false
+FM_TEST_END 2026-09-28T06:13:26Z tests/fm-backend-tmux-smoke.test.sh exit=0 duration_ms=144 gate_skip=false
+FM_TEST_SUMMARY total=5 failed=0 skipped_gate=0 duration_ms=52936
