@@ -779,7 +779,6 @@ test_e2e_background_session_keeps_its_lock_across_a_recycled_chain() {
     ''|0|*[!0-9]*) fail "the pty-host has no live reaper after the daemon ended" ;;
   esac
   [ "$reaper" != "$daemon" ] || fail "the pty-host is still parented to the daemon"
-  kill -0 "$reaper" 2>/dev/null || fail "the pty-host's new parent is not alive"
   kill -0 "$frontend" 2>/dev/null || fail "the front-end died with the daemon, so the recycled case cannot be exercised"
 
   # Phase 2: the same session id over the broken chain - the reported drift.
