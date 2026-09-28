@@ -13,7 +13,7 @@ Start with the directory layout, then use the setting reference for the behavior
 | Backlog, preferences, and memory | [Backlog backend](#backlog-backend-taskstoml--configbacklog-backend), [captain preferences](#captain-preferences-datacaptainmd--datacaptain-sharedmd), and [startup memory budget](#startup-memory-budget-configstartup-memory-budget) |
 | Supervision and presentation | [Pi supervision branch](#pi-supervision-branch), [supervision host](#supervision-host-configsupervision-host), and [Calm preference](#calm-preference-configcalm) |
 | Persistent secondmates | [Secondmate routes](#secondmate-routes-datasecondmatesmd) |
-| Azure DevOps PR approval | [Azure DevOps reviewer identity](#azure-devops-reviewer-identity-configado-reviewer-id--fm_ado_reviewer_id) |
+| Azure DevOps PR approval | [Azure DevOps reviewer identity](#azure-devops-reviewer-identity-configado-reviewer-id--fm_ado_reviewer_id) and [completion options](#azure-devops-completion-options-configado-delete-source-branch--configado-transition-work-items) |
 | Per-run overrides and tuning | [Environment variables](#environment-variables) |
 
 ## FM_HOME
@@ -602,6 +602,12 @@ For a home that completes Azure DevOps pull requests, put its reviewer identity 
 `FM_ADO_REVIEWER_ID` overrides that file for one invocation.
 The merge script refuses completion when neither is set, so an away session needs this configuration before it starts.
 Azure CLI must already be signed in to obtain a token for resource `499b84ac-1321-427f-aa17-267ca6975798`.
+
+## Azure DevOps completion options (config/ado-delete-source-branch / config/ado-transition-work-items)
+
+An Azure DevOps completion deletes the source branch or transitions linked work items only when the home opts in; both default off because the GitHub path never deletes a branch or touches a work item unattended.
+Creating the local `config/ado-delete-source-branch` or `config/ado-transition-work-items` flag file opts the home into the matching completion option.
+`FM_ADO_DELETE_SOURCE_BRANCH` and `FM_ADO_TRANSITION_WORK_ITEMS` override the matching file for one invocation: exactly `true` enables the option, and any other set value disables it.
 
 ## Gate defaults (.no-mistakes.yaml)
 

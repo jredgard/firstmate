@@ -72,12 +72,18 @@
 # absent stops the merge before any state is recorded.
 # Azure DevOps requires FM_ADO_REVIEWER_ID or the one-line local
 # config/ado-reviewer-id file. It refuses a missing or malformed identity,
-# then checks active, succeeded mergeStatus, non-draft, and approved policy
-# evaluations live. A rejected "Require a merge strategy" policy is fulfilled
-# by the squash completion. The configured reviewer votes +10, and the PATCH
-# binds the verified source commit with squash, source-branch deletion, and
-# work-item transition; a completed-status readback is required for a landed
-# result. No prompt or extra forge arguments are accepted on that path.
+# then checks active, succeeded mergeStatus, and non-draft live, and that
+# every blocking policy evaluation is approved or notApplicable; a
+# non-blocking evaluation never refuses, and the blocking merge-strategy
+# policy - matched by its type id fa4e907d-c16b-4a4c-9dfa-4906e5d171dd, never
+# by its localizable display name - is fulfilled by the squash completion
+# itself. The configured reviewer votes +10, and the PATCH binds the verified
+# source commit with squash; source-branch deletion and work-item transition
+# stay off for GitHub parity unless FM_ADO_DELETE_SOURCE_BRANCH or
+# FM_ADO_TRANSITION_WORK_ITEMS is exactly "true", or is unset while the local
+# config/ado-delete-source-branch or config/ado-transition-work-items flag
+# file exists. A completed-status readback is required for a landed result.
+# No prompt or extra forge arguments are accepted on that path.
 #
 # Before any forge merge, the task's existing per-task control lock
 # serializes the captain-hold check through the forge command. A still-held or
@@ -546,9 +552,12 @@ ado_verify_mergeable() {
       "$URL" "$status" "$merge_status" "$draft" "$head" "$project_id" >&2
     return 1
   fi
-  # The merge-strategy policy is fulfilled by the squash completion itself.
-  # All other nonapproved policies fail closed unless the one named exception
-  # was explicitly requested in an attended session.
+  # An evaluation passes when ADO itself would complete past it: approved,
+  # notApplicable, or non-blocking. The blocking merge-strategy policy is
+  # fulfilled by the squash completion itself and is matched by its type id,
+  # never by its localizable display name. Every other blocking evaluation
+  # fails closed unless the one named exception was explicitly requested in an
+  # attended session.
   if ! policies=$(fm_pr_ado_request GET \
     "https://dev.azure.com/${PR_PATH%%/*}/$project_id/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/$project_id/$PR_NUMBER&api-version=7.1-preview.1" 2>/dev/null); then
     echo "error: could not read Azure DevOps policies for $URL" >&2
@@ -558,8 +567,10 @@ ado_verify_mergeable() {
       if type == "object" and (.value | type) == "array" and
          all(.value[]; (.status | type) == "string" and
              (.configuration.type.displayName | type) == "string" and .configuration.type.displayName != "")
-      then [.value[] | select(.status != "approved")
-            | select(.configuration.type.displayName != "Require a merge strategy")
+      then [.value[] | select(.status != "approved" and .status != "notApplicable")
+            | select(.configuration.isBlocking != false)
+            | select((.configuration.type.id // "" | ascii_downcase)
+                != "fa4e907d-c16b-4a4c-9dfa-4906e5d171dd")
             | select(.configuration.type.displayName != $allowed)
             | .configuration.type.displayName + "=" + .status] | join(", ")
       else error("invalid policy evaluations") end' 2>/dev/null); then
@@ -1198,6 +1209,21 @@ gitlab_confirm_merged() {
   [ "$state" = merged ]
 }
 
+# One squash-completion option, off by default for GitHub parity: the given
+# environment value set to exactly "true" enables it, any other set value
+# disables it, and an unset value falls back to presence of the named local
+# config flag file.
+ado_completion_option() {
+  local env_value=$1 flag_file="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}/$2"
+  if [ -n "$env_value" ]; then
+    if [ "$env_value" = true ]; then echo true; else echo false; fi
+  elif [ -e "$flag_file" ]; then
+    echo true
+  else
+    echo false
+  fi
+}
+
 # ADO may finish its accepted completion asynchronously. Keep the authority
 # receipt and poll armed until a bounded readback proves completed.
 ado_confirm_completed() {
@@ -1256,8 +1282,11 @@ case "$PROVIDER" in
       echo "error: Azure DevOps reviewer approval failed for $URL; nothing was completed" >&2
       exit 1
     fi
+    ado_delete_source=$(ado_completion_option "${FM_ADO_DELETE_SOURCE_BRANCH:-}" ado-delete-source-branch)
+    ado_transition_items=$(ado_completion_option "${FM_ADO_TRANSITION_WORK_ITEMS:-}" ado-transition-work-items)
     ado_body=$(jq -nc --arg head "$FM_PR_MERGE_HEAD" \
-      '{status:"completed",lastMergeSourceCommit:{commitId:$head},completionOptions:{mergeStrategy:"squash",deleteSourceBranch:true,transitionWorkItems:true}}') || exit 1
+      --argjson delete_source "$ado_delete_source" --argjson transition_items "$ado_transition_items" \
+      '{status:"completed",lastMergeSourceCommit:{commitId:$head},completionOptions:{mergeStrategy:"squash",deleteSourceBranch:$delete_source,transitionWorkItems:$transition_items}}') || exit 1
     if ! fm_pr_ado_request PATCH "$FM_PR_ADO_BASE?api-version=7.1" "$ado_body" >/dev/null; then
       echo "error: Azure DevOps completion failed for $URL; merge poll remains armed" >&2
       exit 1
