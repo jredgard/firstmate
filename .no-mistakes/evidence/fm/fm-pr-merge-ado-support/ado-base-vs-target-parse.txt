@@ -1,0 +1,4 @@
+== base commit 0ed89d2 (before change) ==
+base: REFUSED Azure DevOps PR URL (the away-window failure: check/merge saw it as an invalid PR request)
+== target commit 9bef4c2 (this change) ==
+target: ACCEPTED provider=ado path=acme/Project%20One/_git/Backend number=56784

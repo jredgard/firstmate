@@ -1,0 +1,20 @@
+== canonical ADO URLs accepted ==
+ACCEPT https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 -> provider=ado host=dev.azure.com path=acme/Project%20One/_git/Backend number=42
+ACCEPT https://dev.azure.com/contoso/Platform/_git/Platform/pullrequest/56784 -> provider=ado host=dev.azure.com path=contoso/Platform/_git/Platform number=56784
+ACCEPT https://dev.azure.com/contoso/Platform/_git/Platform/pullrequest/56819 -> provider=ado host=dev.azure.com path=contoso/Platform/_git/Platform number=56819
+== noncanonical / hostile ADO-shaped URLs refused ==
+REJECT https://dev.azure.com/acme/p/_git/r/pullrequest/042
+REJECT https://dev.azure.com/acme/p/_git/r/pullrequest/1?x=1
+REJECT https://dev.azure.com/acme/p%2Fr/_git/r/pullrequest/1
+REJECT https://dev.azure.com/acme/p/_git/../pullrequest/1
+REJECT https://dev.azure.com/acme/p/_git/./pullrequest/1
+REJECT https://evil.example/acme/p/_git/r/pullrequest/1
+REJECT https://dev.azure.com.evil.example/acme/p/_git/r/pullrequest/1
+REJECT https://dev.azure.com/acme/p/_git/r/pullrequest/0
+REJECT https://dev.azure.com/-bad/p/_git/r/pullrequest/1
+REJECT https://dev.azure.com/acme/p/_git/r/pullrequest/1/extra
+== existing providers still parse ==
+ACCEPT github provider=github
+ACCEPT gitlab provider=gitlab
+== ADO REST base derivation ==
+BASE=https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42

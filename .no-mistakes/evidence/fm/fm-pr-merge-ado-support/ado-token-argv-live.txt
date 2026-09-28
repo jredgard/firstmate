@@ -1,0 +1,4 @@
+last real-curl GET rc=22 (non-zero expected: fake org/bearer): curl: (22) The requested URL returned error: 404
+PASS: bearer marker never appeared in any /proc/*/cmdline sample (67200 cmdlines sampled during 3 real curl requests)
+curl invocations were captured in the sample window: 45 argv lines show --max-time
+grep -c "curl" "$LAB/argv-stream" > /dev/null && echo "curl invocations were captured in the sample window: $(grep -c '"'"'max-time'"'"' "$LAB/argv-stream") argv lines show --max-time"

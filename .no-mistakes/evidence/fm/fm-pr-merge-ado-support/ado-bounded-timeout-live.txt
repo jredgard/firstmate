@@ -1,0 +1,3 @@
+== hung token acquisition is bounded (FM_PR_ADO_TIMEOUT=3, az stub sleeps 300s) ==
+hung-az request rc=1 elapsed=3s (expect failure within ~3-4s, not 300s)
+BOUNDED: OK
