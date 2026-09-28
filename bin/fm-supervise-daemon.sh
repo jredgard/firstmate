@@ -1456,8 +1456,8 @@ inject_evidence_record() {  # <blocker> <detail> <backend> <target>
       fi
       ;;
     herdr)
-      if type fm_backend_herdr_capture_ansi >/dev/null 2>&1 \
-         && capture=$(fm_backend_herdr_capture_ansi "$target" "$lines" 2>/dev/null); then
+      if type fm_backend_herdr_visible_capture_ansi >/dev/null 2>&1 \
+         && capture=$(fm_backend_herdr_visible_capture_ansi "$target" 2>/dev/null); then
         capture=$(printf '%s' "$capture" | tail -n "$lines" | head -c "$bytes")
         style=ansi
       fi

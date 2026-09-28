@@ -3059,7 +3059,7 @@ test_inject_msg_herdr_busy_guard_defers() {
   state="$dir/state"
   afk_enter "$state"
   (
-    fm_backend_herdr_capture_ansi() { printf 'busy fixture pane'; }
+    fm_backend_herdr_visible_capture_ansi() { printf 'busy fixture pane'; }
     fm_backend_target_exists() { [ "$1" = herdr ] && [ "$2" = "default:w1:p2" ] || fail "unexpected target_exists args: $1 $2"; return 0; }
     pane_is_busy() { return 0; }
     fm_backend_composer_state() { fail "composer_state should not be consulted once the busy-guard already deferred"; }
@@ -3067,6 +3067,12 @@ test_inject_msg_herdr_busy_guard_defers() {
     if FM_SUPERVISOR_BACKEND=herdr FM_SUPERVISOR_TARGET="default:w1:p2" inject_msg "hello" "$state"; then
       fail "inject_msg should defer (return non-zero) when the herdr supervisor pane is busy"
     fi
+    [ "$INJECT_LAST_CAPTURE_STYLE" = ansi ] \
+      || fail "herdr busy-guard evidence did not use the ANSI viewport capture (style=$INJECT_LAST_CAPTURE_STYLE)"
+    case "$INJECT_LAST_PANE_CAPTURE" in
+      *'busy fixture pane'*) ;;
+      *) fail "herdr busy-guard evidence lost the captured pane: $INJECT_LAST_PANE_CAPTURE" ;;
+    esac
   ) || fail "herdr busy-guard inject_msg subshell failed"
   pass "inject_msg: herdr busy-guard defers before ever attempting a submit"
 }
@@ -3077,7 +3083,7 @@ test_inject_msg_herdr_composer_guard_defers() {
   state="$dir/state"
   afk_enter "$state"
   (
-    fm_backend_herdr_capture_ansi() { printf 'pending fixture pane'; }
+    fm_backend_herdr_visible_capture_ansi() { printf 'pending fixture pane'; }
     fm_backend_target_exists() { return 0; }
     pane_is_busy() { return 1; }
     fm_backend_composer_state() { [ "$1" = herdr ] && [ "$2" = "default:w1:p2" ] || fail "unexpected composer_state args: $1 $2"; printf 'pending'; }
@@ -3095,7 +3101,7 @@ test_inject_msg_herdr_pane_gone_defers() {
   state="$dir/state"
   afk_enter "$state"
   (
-    fm_backend_herdr_capture_ansi() { printf 'gone fixture pane'; }
+    fm_backend_herdr_visible_capture_ansi() { printf 'gone fixture pane'; }
     fm_backend_target_exists() { return 1; }
     pane_is_busy() { fail "busy guard should not be consulted once the pane-exists check already failed"; }
     fm_backend_send_text_submit() { fail "send_text_submit should not run when the pane does not exist"; }
@@ -3139,7 +3145,7 @@ test_inject_msg_defers_on_dead_shell_unknown() {
   state="$dir/state"
   afk_enter "$state"
   (
-    fm_backend_herdr_capture_ansi() { printf 'dead shell fixture pane'; }
+    fm_backend_herdr_visible_capture_ansi() { printf 'dead shell fixture pane'; }
     fm_backend_target_exists() { return 0; }
     pane_is_busy() { return 1; }
     fm_backend_composer_state() { printf 'unknown'; }
@@ -3157,7 +3163,7 @@ test_inject_msg_defers_on_unrecognized_composer_state() {
   state="$dir/state"
   afk_enter "$state"
   (
-    fm_backend_herdr_capture_ansi() { printf 'future-state fixture pane'; }
+    fm_backend_herdr_visible_capture_ansi() { printf 'future-state fixture pane'; }
     fm_backend_target_exists() { return 0; }
     pane_is_busy() { return 1; }
     fm_backend_composer_state() { printf 'future-state'; }
