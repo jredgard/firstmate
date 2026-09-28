@@ -101,12 +101,35 @@
 # and state/.claude-autoarm-failure-alarmed bounds the attended fail-open and
 # suppresses any later automatic continuation in that unresolved episode.
 #
-# This hook never blocks the Stop decision itself and never prints to stdout:
-# exit 0 is always silent, and exit 2 carries the rewake banner on stderr.
+# In hook mode it never blocks the Stop decision itself or prints to stdout:
+# exit 0 is silent, and exit 2 carries the rewake banner on stderr.
 # On any uncertainty such as unresolvable ancestry, malformed lock state, or
 # lock contention, it exits 0 and leaves continuity to the synchronous guard and
 # the model.
+#
+# The Stop hook passes no arguments, so any argument means a manual run: -h or
+# --help prints usage and an unknown argument is refused, both before anything
+# is sourced, read, or armed. A park started from a model's tool call would be
+# owned by that short-lived process and leave supervision down once it exits.
 set -u
+
+usage() {
+  cat <<'EOF'
+Usage: fm-claude-stop-autoarm.sh
+
+Claude Stop hook registered in .claude/settings.json; not for manual use.
+It reads the Stop payload on stdin and, in a primary home that needs
+supervision, arms the watcher or supervision host for this session.
+Exit 0 is silent; exit 2 carries a rewake banner on stderr.
+EOF
+}
+
+if [ "$#" -gt 0 ]; then
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    *) echo "error: unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
@@ -152,6 +175,20 @@ PAYLOAD=$(cat 2>/dev/null || true)
 # (docs/turnend-guard.md "Harness integrations"). Cursor's own park adapter owns
 # its turn boundary, so stand down on a Cursor-delivered payload.
 fm_hook_payload_is_foreign_host "$PAYLOAD" && exit 0
+
+# pi-code (Pi's Claude-hook compatibility extension) also loads the tracked
+# Claude settings and has no asyncRewake, so it awaits every Stop hook and this
+# arm would run SYNCHRONOUSLY inside Pi's turn end, holding that turn open for
+# the declared multi-hour timeout - the same wedge as Cursor above (issue
+# #3343). Pi's own native extensions own Pi supervision, so stand down on a
+# pi-code-delivered payload. The signal is again the PAYLOAD, not the
+# environment: pi-code stamps every hook payload's transcript_path with Pi's
+# own session file under .pi/, which a Claude transcript path never contains.
+# Fail direction matches the guard above: no payload, no jq, or no
+# transcript_path means the hook RUNS.
+if [ -n "$PAYLOAD" ] && command -v jq >/dev/null 2>&1; then
+  printf '%s' "$PAYLOAD" | jq -e '(.transcript_path // "") | type == "string" and contains("/.pi/")' >/dev/null 2>&1 && exit 0
+fi
 
 # --- scope: genuine primary checkout only -----------------------------------
 fm_primary_scope_matches "$FM_ROOT" "$STATE" || exit 0
@@ -397,7 +434,6 @@ while [ "$attempt" -lt "$AUTOARM_ATTEMPTS" ]; do
     grep -Eq "$ACTIONABLE_RE" "$OUT" 2>/dev/null && ACTIONABLE=1
   fi
   [ "$ACTIONABLE" -eq 1 ] && break
-
   if [ "$HOST_MODE" -eq 1 ]; then
     # The host stood down because this session or generation no longer owns
     # supervision: whoever does owns continuity now.
@@ -415,6 +451,9 @@ while [ "$attempt" -lt "$AUTOARM_ATTEMPTS" ]; do
       OUT=
       continue
     fi
+    # A failed hand-back cannot be dismissed just because its successor
+    # watcher is healthy: the close is still undelivered.
+    [ "$HOST_RC" -eq 0 ] || break
   fi
 
   # A non-actionable close is benign when another verified watcher already owns
