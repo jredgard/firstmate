@@ -1163,10 +1163,8 @@ test_forge_gerrit_changes_what_no_mistakes_means() {
     || fail "the brief did not record the machine-readable forge in its delivery contract"
 
   # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
-  assert_grep 'Pass `--skip push,pr,ci` when starting each new `no-mistakes axi run` for this task' "$brief" \
+  assert_grep 'Pass `--skip push,pr,ci` on every `no-mistakes axi run` for this task' "$brief" \
     "the worker was not given the skip vocabulary the forge requires"
-  assert_grep 'Reattach to an active run without flags' "$brief" \
-    "the worker was not told how to reattach without starting an unskipped run"
   assert_grep 'skip nothing else' "$brief" "nothing stopped the worker skipping the review itself"
   assert_grep 'branch_sync.next_action' "$brief" \
     "the worker was not told where to read whether custody must be recovered"
@@ -1468,7 +1466,7 @@ STUB
   grep -qx "Delivery contract: mode=no-mistakes forge=gerrit shape=squash" "$payload" \
     || fail "the promoted worker did not receive the forge in its delivery contract"
   # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
-  assert_grep 'Pass `--skip push,pr,ci` when starting each new `no-mistakes axi run` for this task' "$payload" \
+  assert_grep 'Pass `--skip push,pr,ci` on every `no-mistakes axi run` for this task' "$payload" \
     "the promoted worker was not given the skip vocabulary the forge requires"
   assert_grep 'You may not publish until you have closed that gap' "$payload" \
     "the promoted worker was not required to recover custody before publishing"
