@@ -75,7 +75,7 @@
 # then checks active, succeeded mergeStatus, and non-draft live, and that
 # every blocking policy evaluation is approved or notApplicable; a
 # non-blocking evaluation never refuses, and the blocking merge-strategy
-# policy - matched by its type id fa4e907d-c16b-4a4c-9dfa-4906e5d171dd, never
+# policy - matched by its type id fa4e907d-c16b-4a4c-9dfa-4916e5d171ab, never
 # by its localizable display name - is fulfilled by the squash completion
 # itself. The configured reviewer votes +10, and the PATCH binds the verified
 # source commit with squash; source-branch deletion and work-item transition
@@ -558,6 +558,7 @@ ado_verify_mergeable() {
   # never by its localizable display name. Every other blocking evaluation
   # fails closed unless the one named exception was explicitly requested in an
   # attended session.
+  # Verified 2026-09-28 against live policy evaluations.
   if ! policies=$(fm_pr_ado_request GET \
     "https://dev.azure.com/${PR_PATH%%/*}/$project_id/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/$project_id/$PR_NUMBER&api-version=7.1-preview.1" 2>/dev/null); then
     echo "error: could not read Azure DevOps policies for $URL" >&2
@@ -570,7 +571,7 @@ ado_verify_mergeable() {
       then [.value[] | select(.status != "approved" and .status != "notApplicable")
             | select(.configuration.isBlocking != false)
             | select((.configuration.type.id // "" | ascii_downcase)
-                != "fa4e907d-c16b-4a4c-9dfa-4906e5d171dd")
+                != "fa4e907d-c16b-4a4c-9dfa-4916e5d171ab")
             | select(.configuration.type.displayName != $allowed)
             | .configuration.type.displayName + "=" + .status] | join(", ")
       else error("invalid policy evaluations") end' 2>/dev/null); then
