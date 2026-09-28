@@ -6,9 +6,8 @@
 # head is that named head and is already stored on the forge.
 # The watcher check source is byte-for-byte bin/fm-pr-poll.sh; task and PR data
 # live only in a private sidecar and are never interpolated into shell source.
-# A GitHub pull request URL, a GitLab merge request URL, and a Gerrit change URL
-# are all accepted, including a merge request or change on a self-hosted
-# instance.
+# GitHub, GitLab, Gerrit, and canonical dev.azure.com PR URLs are accepted.
+# Azure DevOps requires an authenticated REST read and records its live head.
 # A GitHub pull request the forge reports as a draft is refused, naming the draft
 # state and recording and arming nothing: a draft cannot be merged, so a poll armed on it
 # would wait for an event that cannot occur while nobody is asked to act.
@@ -86,6 +85,14 @@ if [ "$PROVIDER" = gerrit ]; then
     exit 1
   fi
 fi
+if [ "$PROVIDER" = ado ]; then
+  for tool in az curl jq; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      echo "error: watching an Azure DevOps pull request requires $tool on PATH" >&2
+      exit 1
+    fi
+  done
+fi
 
 # The draft state is read before anything is recorded or armed. Only a positive
 # draft reading refuses, because an unreadable one must not block arming.
@@ -120,6 +127,25 @@ if [ "$PROVIDER" = github ] && [ -n "$WT" ] && [ -d "$WT" ] && command -v gh >/d
     && fm_pr_head_valid "$REMOTE_HEAD"; then
     PR_HEAD=$REMOTE_HEAD
   fi
+fi
+if [ "$PROVIDER" = ado ]; then
+  if ! fm_pr_ado_read_pr "$URL"; then
+    echo "error: could not read the Azure DevOps pull request $URL" >&2
+    exit 1
+  fi
+  if [ "${FM_PR_CHECK_MERGE:-}" != 1 ] \
+    && [ "$(fm_pr_json_draft_state "$FM_PR_ADO_JSON")" = true ]; then
+    echo "error: $URL is a draft pull request; mark it ready before arming merge monitoring" >&2
+    exit 1
+  fi
+  PR_HEAD=$(printf '%s' "$FM_PR_ADO_JSON" | jq -er '.lastMergeSourceCommit.commitId // empty') || {
+    echo "error: could not read the Azure DevOps pull request head for $URL" >&2
+    exit 1
+  }
+  fm_pr_head_valid "$PR_HEAD" || {
+    echo "error: invalid Azure DevOps pull request head for $URL" >&2
+    exit 1
+  }
 fi
 
 KIND=$(grep '^kind=' "$META" | tail -1 | cut -d= -f2- || true)

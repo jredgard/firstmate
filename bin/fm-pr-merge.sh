@@ -4,7 +4,10 @@
 # The full canonical URL is parsed by bin/fm-pr-lib.sh. A GitHub pull request is
 # addressed through gh by the derived owner and repository; a GitLab merge
 # request is addressed through glab by the project URL rebuilt from the parsed
-# host and path, so any instance works and no host is hardcoded. A Gerrit change
+# host and path, so any instance works and no host is hardcoded. An Azure DevOps
+# PR uses the parsed dev.azure.com organization, project, repository and ID
+# through REST with an Azure resource token; no organization or reviewer is
+# hardcoded. A Gerrit change
 # is refused outright: that adapter is read-only, and the refusal at the parse
 # below owns why.
 #
@@ -25,7 +28,7 @@
 # name, still requires every other check green, and still binds the head. It is
 # refused while the away-posture record exists, and it never
 # applies on GitLab, where a merge already requires the head pipeline to have
-# succeeded. After gh returns success, GitHub's live state is read back and
+# succeeded. On Azure DevOps it names one exact policy. After gh returns success, GitHub's live state is read back and
 # accepted only when the pull request is merged or in the merge queue. gh's
 # GraphQL API supplies that queue-aware read; when that read fails, gh-axi's
 # own view still proves a landed merge, and every outcome it cannot prove
@@ -67,8 +70,16 @@
 # reported rather than trusted, because a rebase moves the head and leaves the
 # recorded value stale. Reading that state needs glab and jq, and either one
 # absent stops the merge before any state is recorded.
+# Azure DevOps requires FM_ADO_REVIEWER_ID or the one-line local
+# config/ado-reviewer-id file. It refuses a missing or malformed identity,
+# then checks active, succeeded mergeStatus, non-draft, and approved policy
+# evaluations live. A rejected "Require a merge strategy" policy is fulfilled
+# by the squash completion. The configured reviewer votes +10, and the PATCH
+# binds the verified source commit with squash, source-branch deletion, and
+# work-item transition; a completed-status readback is required for a landed
+# result. No prompt or extra forge arguments are accepted on that path.
 #
-# Before either forge merge, the task's existing per-task control lock
+# Before any forge merge, the task's existing per-task control lock
 # serializes the captain-hold check through the forge command. A still-held or
 # unreadable row refuses before that command, so a captain approval must be
 # recorded as an `answer --release` before this entrypoint is invoked. While
@@ -188,6 +199,10 @@ while [ "$#" -gt 0 ]; do
 done
 if [ "${#ALLOW_RED[@]}" -gt 0 ] && [ "$PROVIDER" = gitlab ]; then
   echo "error: --allow-red does not apply to GitLab, where a merge already requires the head pipeline to have succeeded" >&2
+  exit 2
+fi
+if [ "$PROVIDER" = ado ] && [ "$#" -gt 0 ]; then
+  echo "error: Azure DevOps completion accepts no extra forge arguments" >&2
   exit 2
 fi
 
@@ -391,6 +406,14 @@ if [ "$PROVIDER" = github ]; then
     exit 1
   fi
 fi
+if [ "$PROVIDER" = ado ]; then
+  for tool in az curl jq; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      echo "error: merging an Azure DevOps pull request requires $tool on PATH" >&2
+      exit 1
+    fi
+  done
+fi
 
 # The recorded head is read before bin/fm-pr-check.sh rewrites the metadata,
 # because that script re-records pr= and drops a pr_head= it cannot resolve.
@@ -502,6 +525,53 @@ FIELDS
     "$URL" "$live_head" >&2
   FM_PR_MERGE_HEAD=$live_head
   FM_PR_GITLAB_ASYNC_CONFIGURED=$async_configured
+}
+
+# ADO's completion PATCH carries the exact source commit observed here. The
+# server rejects a changed head, while policy evaluations guard the same PR.
+ado_verify_mergeable() {
+  local status merge_status draft head project_id policies bad allowed=${ALLOW_RED[0]:-}
+  if ! fm_pr_ado_read_pr "$URL"; then
+    echo "error: could not read the Azure DevOps pull request before completing $URL" >&2
+    return 1
+  fi
+  status=$(printf '%s' "$FM_PR_ADO_JSON" | jq -er '.status') || return 1
+  merge_status=$(printf '%s' "$FM_PR_ADO_JSON" | jq -er '.mergeStatus // empty') || return 1
+  draft=$(fm_pr_json_draft_state "$FM_PR_ADO_JSON")
+  head=$(printf '%s' "$FM_PR_ADO_JSON" | jq -er '.lastMergeSourceCommit.commitId // empty') || return 1
+  project_id=$(printf '%s' "$FM_PR_ADO_JSON" | jq -er '.repository.project.id // empty') || return 1
+  if [ "$status" != active ] || [ "$merge_status" != succeeded ] || [ "$draft" != false ] \
+    || ! fm_pr_head_valid "$head" || ! [[ "$project_id" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+    printf 'error: refusing to complete %s: status=%s mergeStatus=%s isDraft=%s head=%s projectId=%s\n' \
+      "$URL" "$status" "$merge_status" "$draft" "$head" "$project_id" >&2
+    return 1
+  fi
+  # The merge-strategy policy is fulfilled by the squash completion itself.
+  # All other nonapproved policies fail closed unless the one named exception
+  # was explicitly requested in an attended session.
+  if ! policies=$(fm_pr_ado_request GET \
+    "https://dev.azure.com/${PR_PATH%%/*}/$project_id/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/$project_id/$PR_NUMBER&api-version=7.1-preview.1" 2>/dev/null); then
+    echo "error: could not read Azure DevOps policies for $URL" >&2
+    return 1
+  fi
+  if ! bad=$(printf '%s' "$policies" | jq -er --arg allowed "$allowed" '
+      if type == "object" and (.value | type) == "array" and
+         all(.value[]; (.status | type) == "string" and
+             (.configuration.type.displayName | type) == "string" and .configuration.type.displayName != "")
+      then [.value[] | select(.status != "approved")
+            | select(.configuration.type.displayName != "Require a merge strategy")
+            | select(.configuration.type.displayName != $allowed)
+            | .configuration.type.displayName + "=" + .status] | join(", ")
+      else error("invalid policy evaluations") end' 2>/dev/null); then
+    echo "error: could not parse Azure DevOps policies for $URL" >&2
+    return 1
+  fi
+  if [ -n "$bad" ]; then
+    echo "error: refusing to complete $URL: policies not approved: $bad" >&2
+    return 1
+  fi
+  FM_PR_MERGE_HEAD=$head
+  printf 'verified: %s is active, mergeable, and policy approved at head %s\n' "$URL" "$head" >&2
 }
 
 # Every GitHub check that is not green in the given live pull-request JSON, one
@@ -1128,7 +1198,20 @@ gitlab_confirm_merged() {
   [ "$state" = merged ]
 }
 
-# Record before either forge call. This arms the merge poll without claiming a
+# ADO may finish its accepted completion asynchronously. Keep the authority
+# receipt and poll armed until a bounded readback proves completed.
+ado_confirm_completed() {
+  local attempt
+  for attempt in 1 2 3 4; do
+    if fm_pr_ado_read_record "$URL" && [ "$FM_PR_RECORD_MERGED" = true ]; then
+      return 0
+    fi
+    [ "$attempt" -eq 4 ] || sleep 1
+  done
+  return 1
+}
+
+# Record before any forge call. This arms the merge poll without claiming a
 # landed outcome, so even a provider read failure after a real merge cannot
 # leave teardown without the PR identity it needs to verify the result.
 away_status=0
@@ -1139,10 +1222,56 @@ record_pr_metadata || exit 1
 require_released_captain_hold || exit 1
 
 # Accepted confused-agent-grade limitation, as in bin/fm-lease-lib.sh, not an
-# oversight: if this lock-owning shell dies while its gh or glab child lives,
+# oversight: if this lock-owning shell dies while its forge child lives,
 # stale-owner recovery can release the record for archive or replacement and
 # the orphaned forge child can still merge on the lapsed away authority.
 case "$PROVIDER" in
+  ado)
+    ADO_REVIEWER_ID=${FM_ADO_REVIEWER_ID:-}
+    ADO_REVIEWER_FILE="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}/ado-reviewer-id"
+    if [ -z "$ADO_REVIEWER_ID" ] && { [ -e "$ADO_REVIEWER_FILE" ] || [ -L "$ADO_REVIEWER_FILE" ]; }; then
+      if [ ! -f "$ADO_REVIEWER_FILE" ] || [ -L "$ADO_REVIEWER_FILE" ]; then
+        echo "error: Azure DevOps reviewer configuration $ADO_REVIEWER_FILE is not a regular file" >&2
+        exit 1
+      fi
+      ADO_REVIEWER_ID=$(cat "$ADO_REVIEWER_FILE") || exit 1
+    fi
+    if [ -z "$ADO_REVIEWER_ID" ]; then
+      echo "error: FM_ADO_REVIEWER_ID or config/ado-reviewer-id is not configured; cannot cast the required Azure DevOps approval vote for $URL" >&2
+      exit 1
+    fi
+    if ! [[ "$ADO_REVIEWER_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+      echo "error: Azure DevOps reviewer identity must be a UUID (FM_ADO_REVIEWER_ID or config/ado-reviewer-id)" >&2
+      exit 1
+    fi
+    ado_verify_mergeable || exit 1
+    hold_away_record_for_merge || exit 1
+    away_status=0
+    require_current_away_authority || away_status=$?
+    [ "$away_status" -eq 0 ] || exit "$away_status"
+    # The identity comes only from this home, never from a repository-specific
+    # constant or a prompt that an away session cannot answer.
+    if ! fm_pr_ado_request PUT "$FM_PR_ADO_BASE/reviewers/$ADO_REVIEWER_ID?api-version=7.1" \
+      '{"vote":10}' >/dev/null; then
+      echo "error: Azure DevOps reviewer approval failed for $URL; nothing was completed" >&2
+      exit 1
+    fi
+    ado_body=$(jq -nc --arg head "$FM_PR_MERGE_HEAD" \
+      '{status:"completed",lastMergeSourceCommit:{commitId:$head},completionOptions:{mergeStrategy:"squash",deleteSourceBranch:true,transitionWorkItems:true}}') || exit 1
+    if ! fm_pr_ado_request PATCH "$FM_PR_ADO_BASE?api-version=7.1" "$ado_body" >/dev/null; then
+      echo "error: Azure DevOps completion failed for $URL; merge poll remains armed" >&2
+      exit 1
+    fi
+    persist_accepted_merge_authority || exit 1
+    fm_afk_contract_lock_release || true
+    fm_lock_release "$MERGE_CONTROL_LOCK" || true
+    MERGE_CONTROL_LOCK=
+    if ! ado_confirm_completed; then
+      echo "actionable: Azure DevOps completion for $URL is unconfirmed (status=${FM_PR_RECORD_STATE:-unreadable}); merge poll remains armed" >&2
+      exit 1
+    fi
+    printf 'verified: %s is completed at head %s\n' "$URL" "$FM_PR_MERGE_HEAD"
+    ;;
   github)
     merge_output=
     merge_args=()

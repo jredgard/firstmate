@@ -13,6 +13,7 @@ Start with the directory layout, then use the setting reference for the behavior
 | Backlog, preferences, and memory | [Backlog backend](#backlog-backend-taskstoml--configbacklog-backend), [captain preferences](#captain-preferences-datacaptainmd--datacaptain-sharedmd), and [startup memory budget](#startup-memory-budget-configstartup-memory-budget) |
 | Supervision and presentation | [Pi supervision branch](#pi-supervision-branch), [supervision host](#supervision-host-configsupervision-host), and [Calm preference](#calm-preference-configcalm) |
 | Persistent secondmates | [Secondmate routes](#secondmate-routes-datasecondmatesmd) |
+| Azure DevOps PR approval | [Azure DevOps reviewer identity](#azure-devops-reviewer-identity-configado-reviewer-id--fm_ado_reviewer_id) |
 | Per-run overrides and tuning | [Environment variables](#environment-variables) |
 
 ## FM_HOME
@@ -594,6 +595,13 @@ With the flag absent the wedge timer spends no fold or current-state read for it
 The flag is a home-local supervision-noise preference and is not inherited by secondmate homes, which supervise their own crew and own that trade separately.
 
 [`architecture.md`](architecture.md) owns the wait-evidence contract and which records may take the ladder away; `bin/fm-watch.sh`'s `wedge_wait_evidence` owns the exact derivation and its fail-closed boundaries.
+
+## Azure DevOps reviewer identity (config/ado-reviewer-id / FM_ADO_REVIEWER_ID)
+
+For a home that completes Azure DevOps pull requests, put its reviewer identity UUID on one line in the local `config/ado-reviewer-id` file.
+`FM_ADO_REVIEWER_ID` overrides that file for one invocation.
+The merge script refuses completion when neither is set, so an away session needs this configuration before it starts.
+Azure CLI must already be signed in to obtain a token for resource `499b84ac-1321-427f-aa17-267ca6975798`.
 
 ## Gate defaults (.no-mistakes.yaml)
 

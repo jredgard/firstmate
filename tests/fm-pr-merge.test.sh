@@ -3213,7 +3213,148 @@ test_allow_red_refused_on_gitlab() {
   pass "fm-pr-merge refuses --allow-red on GitLab"
 }
 
+add_ado_merge_mocks() {  # <case-dir>
+  local dir=$1
+  cat > "$dir/fakebin/az" <<'SH'
+#!/usr/bin/env bash
+[ "$*" = 'account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv' ] || exit 2
+printf '%s\n' fixture-token
+SH
+  cat > "$dir/fakebin/curl" <<'SH'
+#!/usr/bin/env bash
+method= url=${*: -1} body=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --request) method=$2; shift 2 ;;
+    --data) body=$2; shift 2 ;;
+    *) shift ;;
+  esac
+done
+printf '%s %s %s\n' "$method" "$url" "$body" >> "$FM_TEST_ADO_DIR/ado.log"
+case "$method:$url" in
+  GET:*'/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1')
+    status=active
+    if [ -e "$FM_TEST_ADO_DIR/ado-complete" ]; then
+      status=completed
+      if [ -e "$FM_TEST_ADO_DIR/ado-delayed" ]; then
+        reads=$(cat "$FM_TEST_ADO_DIR/ado-delayed")
+        reads=$((reads + 1))
+        printf '%s\n' "$reads" > "$FM_TEST_ADO_DIR/ado-delayed"
+        [ "$reads" -ge 2 ] || status=active
+      fi
+    fi
+    [ ! -e "$FM_TEST_ADO_DIR/ado-post-active" ] || status=active
+    merge_status=succeeded
+    [ ! -e "$FM_TEST_ADO_DIR/ado-conflict" ] || merge_status=conflicts
+    printf '{"pullRequestId":42,"status":"%s","mergeStatus":"%s","isDraft":false,"lastMergeSourceCommit":{"commitId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"repository":{"project":{"id":"11111111-1111-1111-1111-111111111111"}}}\n' "$status" "$merge_status"
+    ;;
+  GET:*'/_apis/policy/evaluations?'*) cat "$FM_TEST_ADO_DIR/ado-policies.json" ;;
+  PUT:*'/reviewers/22222222-2222-2222-2222-222222222222?api-version=7.1')
+    [ "$body" = '{"vote":10}' ] || exit 2
+    : > "$FM_TEST_ADO_DIR/ado-voted"
+    ;;
+  PATCH:*'/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1')
+    [ -e "$FM_TEST_ADO_DIR/ado-voted" ] || exit 2
+    printf '%s' "$body" | jq -e '
+      .status == "completed" and
+      .lastMergeSourceCommit.commitId == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" and
+      .completionOptions.mergeStrategy == "squash" and
+      .completionOptions.deleteSourceBranch == true and
+      .completionOptions.transitionWorkItems == true' >/dev/null || exit 2
+    : > "$FM_TEST_ADO_DIR/ado-complete"
+    ;;
+  *) exit 2 ;;
+esac
+SH
+  chmod +x "$dir/fakebin/az" "$dir/fakebin/curl"
+  printf '%s\n' '{"value":[{"status":"approved","configuration":{"type":{"displayName":"Build"}}},{"status":"rejected","configuration":{"type":{"displayName":"Require a merge strategy"}}}]}' \
+    > "$dir/ado-policies.json"
+}
+
+test_ado_headless_merge_and_refusals() {
+  local dir url rc
+  url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
+  dir=$(make_case ado-headless)
+  add_ado_merge_mocks "$dir"
+  write_away_record "$dir" --words 'complete green Azure DevOps work'
+  FM_SUPERVISION_ACTOR=branch FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    run_pr_merge "$dir" task-x1 "$url" </dev/null > "$dir/stdout" 2> "$dir/stderr" \
+    || fail "headless Azure DevOps merge failed: $(cat "$dir/stderr")"
+  [ -e "$dir/ado-complete" ] || fail "Azure DevOps completion PATCH did not run"
+  grep -qxF "pr=$url" "$dir/state/task-x1.meta" || fail "Azure DevOps merge did not record PR URL"
+  grep -qxF 'pr_head=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' "$dir/state/task-x1.meta" \
+    || fail "Azure DevOps merge did not record the live head"
+  grep -qF "verified: $url is completed" "$dir/stdout" || fail "Azure DevOps merge did not verify completion"
+  grep -qF "merge landed: task-x1 $url away" "$dir/state/.wake-queue" \
+    || fail "headless Azure DevOps merge was not attributed to away authority"
+
+  dir=$(make_case ado-delayed-completion)
+  add_ado_merge_mocks "$dir"
+  printf '0\n' > "$dir/ado-delayed"
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    run_pr_merge "$dir" task-x1 "$url" </dev/null > "$dir/stdout" 2> "$dir/stderr" \
+    || fail "delayed Azure DevOps completion was not confirmed: $(cat "$dir/stderr")"
+  [ "$(cat "$dir/ado-delayed")" -ge 2 ] || fail "Azure DevOps completion was not read back again"
+
+  dir=$(make_case ado-missing-reviewer)
+  add_ado_merge_mocks "$dir"
+  set +e
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID='' run_pr_merge "$dir" task-x1 "$url" </dev/null \
+    > "$dir/stdout" 2> "$dir/stderr"
+  rc=$?
+  set -e
+  expect_code 1 "$rc" "Azure DevOps missing reviewer"
+  grep -qF 'FM_ADO_REVIEWER_ID or config/ado-reviewer-id is not configured' "$dir/stderr" \
+    || fail "Azure DevOps missing reviewer refusal did not name configuration"
+  [ ! -e "$dir/ado-complete" ] || fail "Azure DevOps merged without a reviewer identity"
+
+  dir=$(make_case ado-file-reviewer)
+  add_ado_merge_mocks "$dir"
+  printf '%s\n' 22222222-2222-2222-2222-222222222222 > "$dir/home/config/ado-reviewer-id"
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID='' run_pr_merge "$dir" task-x1 "$url" </dev/null \
+    > "$dir/stdout" 2> "$dir/stderr" \
+    || fail "configured Azure DevOps reviewer merge failed: $(cat "$dir/stderr")"
+  [ -e "$dir/ado-voted" ] && [ -e "$dir/ado-complete" ] \
+    || fail "Azure DevOps reviewer file was not used"
+
+  dir=$(make_case ado-red-policy)
+  add_ado_merge_mocks "$dir"
+  printf '%s\n' '{"value":[{"status":"rejected","configuration":{"type":{"displayName":"Build"}}}]}' \
+    > "$dir/ado-policies.json"
+  set +e
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    run_pr_merge "$dir" task-x1 "$url" </dev/null > "$dir/stdout" 2> "$dir/stderr"
+  rc=$?
+  set -e
+  expect_code 1 "$rc" "Azure DevOps red policy"
+  grep -qF 'Build=rejected' "$dir/stderr" || fail "Azure DevOps red policy was not named"
+  [ ! -e "$dir/ado-complete" ] || fail "Azure DevOps completed a red PR"
+
+  dir=$(make_case ado-named-policy-override)
+  add_ado_merge_mocks "$dir"
+  printf '%s\n' '{"value":[{"status":"rejected","configuration":{"type":{"displayName":"Build"}}}]}' \
+    > "$dir/ado-policies.json"
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    run_pr_merge "$dir" task-x1 "$url" --allow-red Build </dev/null \
+    > "$dir/stdout" 2> "$dir/stderr" \
+    || fail "exact attended Azure DevOps policy override refused: $(cat "$dir/stderr")"
+  [ -e "$dir/ado-complete" ] || fail "exact Azure DevOps policy override did not complete"
+
+  dir=$(make_case ado-readback-active)
+  add_ado_merge_mocks "$dir"
+  touch "$dir/ado-post-active"
+  set +e
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    run_pr_merge "$dir" task-x1 "$url" </dev/null > "$dir/stdout" 2> "$dir/stderr"
+  rc=$?
+  set -e
+  expect_code 1 "$rc" "Azure DevOps unconfirmed completion"
+  grep -qF 'unconfirmed' "$dir/stderr" || fail "Azure DevOps unconfirmed completion was not reported"
+  pass "Azure DevOps green merge is headless and verifies vote, policies, head, and completion"
+}
+
 test_gitlab_head_override_args_refuse_before_recording
+test_ado_headless_merge_and_refusals
 test_secondmate_merge_reports_upward_once
 test_secondmate_merge_reports_on_the_local_route
 test_gitlab_merge_reports_upward

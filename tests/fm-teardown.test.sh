@@ -822,6 +822,47 @@ test_no_mistakes_truly_unpushed_refuses() {
   pass "no-mistakes worktree with genuinely unlanded work is refused (safety preserved)"
 }
 
+test_ado_pushed_but_active_pr_refuses_teardown() {
+  local case_dir rc url
+  case_dir=$(make_case ado-pushed-active)
+  url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
+  write_meta "$case_dir" no-mistakes ship
+  printf 'pr=%s\n' "$url" >> "$case_dir/state/task-x1.meta"
+  wt_commit "$case_dir" "pushed Azure DevOps work"
+  git -C "$case_dir/wt" push -q origin fm/task-x1
+  git -C "$case_dir/project" fetch -q origin
+  cat > "$case_dir/fakebin/az" <<'SH'
+#!/usr/bin/env bash
+[ "$*" = 'account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv' ] || exit 2
+printf '%s\n' fixture-token
+SH
+  cat > "$case_dir/fakebin/curl" <<'SH'
+#!/usr/bin/env bash
+case "${*: -1}" in
+  'https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1') ;;
+  *) exit 2 ;;
+esac
+status=active
+[ ! -e "$FM_TEST_ADO_DIR/ado-completed" ] || status=completed
+printf '{"pullRequestId":42,"status":"%s"}\n' "$status"
+SH
+  chmod +x "$case_dir/fakebin/az" "$case_dir/fakebin/curl"
+  set +e
+  FM_TEST_ADO_DIR="$case_dir" run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+  expect_code 1 "$rc" "pushed active Azure DevOps PR teardown"
+  grep -qF 'not verifiably completed' "$case_dir/stderr" \
+    || fail "active Azure DevOps PR refusal did not name completion status"
+  [ -f "$case_dir/state/task-x1.meta" ] && [ -d "$case_dir/wt" ] \
+    || fail "active Azure DevOps PR teardown removed task state"
+  touch "$case_dir/ado-completed"
+  FM_TEST_ADO_DIR="$case_dir" run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" \
+    || fail "completed Azure DevOps PR teardown refused: $(cat "$case_dir/stderr")"
+  [ ! -f "$case_dir/state/task-x1.meta" ] || fail "completed Azure DevOps PR task was not retired"
+  pass "pushed Azure DevOps work is retained while PR is active and cleaned after completion"
+}
+
 test_squash_merged_branch_deleted_allows() {
   local case_dir rc pr_head
   case_dir=$(make_case squash-merged)
@@ -4071,6 +4112,7 @@ test_local_only_truly_unpushed_refuses
 test_local_only_merged_to_local_main_allows
 test_no_mistakes_origin_remote_allows
 test_no_mistakes_truly_unpushed_refuses
+test_ado_pushed_but_active_pr_refuses_teardown
 test_local_only_force_overrides_unpushed
 test_secondmate_pr_registration_publishes_ready_line
 test_secondmate_home_teardown_delivers_final_line_or_refuses
