@@ -3059,6 +3059,7 @@ test_inject_msg_herdr_busy_guard_defers() {
   state="$dir/state"
   afk_enter "$state"
   (
+    # shellcheck disable=SC2329 # Invoked indirectly by inject_msg's evidence capture.
     fm_backend_herdr_visible_capture_ansi() { printf 'busy fixture pane'; }
     fm_backend_target_exists() { [ "$1" = herdr ] && [ "$2" = "default:w1:p2" ] || fail "unexpected target_exists args: $1 $2"; return 0; }
     pane_is_busy() { return 0; }
@@ -3083,6 +3084,7 @@ test_inject_msg_herdr_composer_guard_defers() {
   state="$dir/state"
   afk_enter "$state"
   (
+    # shellcheck disable=SC2329 # Invoked indirectly by inject_msg's evidence capture.
     fm_backend_herdr_visible_capture_ansi() { printf 'pending fixture pane'; }
     fm_backend_target_exists() { return 0; }
     pane_is_busy() { return 1; }
@@ -3101,6 +3103,7 @@ test_inject_msg_herdr_pane_gone_defers() {
   state="$dir/state"
   afk_enter "$state"
   (
+    # shellcheck disable=SC2329 # Invoked indirectly by inject_msg's evidence capture.
     fm_backend_herdr_visible_capture_ansi() { printf 'gone fixture pane'; }
     fm_backend_target_exists() { return 1; }
     pane_is_busy() { fail "busy guard should not be consulted once the pane-exists check already failed"; }
@@ -3145,6 +3148,7 @@ test_inject_msg_defers_on_dead_shell_unknown() {
   state="$dir/state"
   afk_enter "$state"
   (
+    # shellcheck disable=SC2329 # Invoked indirectly by inject_msg's evidence capture.
     fm_backend_herdr_visible_capture_ansi() { printf 'dead shell fixture pane'; }
     fm_backend_target_exists() { return 0; }
     pane_is_busy() { return 1; }
@@ -3163,6 +3167,7 @@ test_inject_msg_defers_on_unrecognized_composer_state() {
   state="$dir/state"
   afk_enter "$state"
   (
+    # shellcheck disable=SC2329 # Invoked indirectly by inject_msg's evidence capture.
     fm_backend_herdr_visible_capture_ansi() { printf 'future-state fixture pane'; }
     fm_backend_target_exists() { return 0; }
     pane_is_busy() { return 1; }
