@@ -6,7 +6,8 @@
 # The stored identity is provider-tagged: provider, url, host, path, number.
 # "path" is the full project path, which is owner/repository on GitHub, an
 # arbitrarily nested group/subgroup/project namespace on GitLab, and an
-# arbitrarily nested project name on Gerrit, where "number" is the change
+# arbitrarily nested project name on Gerrit, and org/project/_git/repo on
+# Azure DevOps, where "number" is the change or pull-request
 # number. A GitLab or Gerrit project can sit at any depth, so no
 # owner/repository pair can address one and the sidecar carries the whole path
 # instead. Both also run on self-hosted instances, and Gerrit runs nowhere else,
@@ -18,6 +19,11 @@
 # after its durable wake is appended.
 # The receipt binds the terminal observation to the canonical registration and
 # lets a restart finish fixed-path removal without executing state-file bytes.
+
+# Bounded execution is fm-timeout-lib.sh's alone; source it rather than
+# re-deriving a deadline around the ADO REST calls here.
+# shellcheck source=bin/fm-timeout-lib.sh disable=SC1091
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fm-timeout-lib.sh"
 
 FM_PR_PROVIDER=
 FM_PR_URL=
@@ -95,6 +101,8 @@ FM_PR_RETIRE_RECEIPT_IDENTITY=
 FM_PR_RECORD_STATE=
 FM_PR_RECORD_MERGED=
 FM_PR_POLL_RETIREMENT_REJECTED=
+FM_PR_ADO_BASE=
+FM_PR_ADO_JSON=
 
 fm_task_id_path_safe() {
   local id=${1-}
@@ -199,7 +207,7 @@ fm_pr_gerrit_path_valid() {
 # FM_PR_PATH instead, so a change on any instance resolves without a hardcoded
 # host.
 fm_pr_url_parse() {
-  local raw=${1-} pattern host path
+  local raw=${1-} pattern host path org project repo number
   local LC_ALL=C
   FM_PR_PROVIDER=
   FM_PR_URL=
@@ -222,6 +230,26 @@ fm_pr_url_parse() {
     # shellcheck disable=SC2034
     FM_PR_REPO=${BASH_REMATCH[2]}
     FM_PR_NUMBER=${BASH_REMATCH[3]}
+    return 0
+  fi
+  # Azure DevOps' browser URL has a literal _git route between project and
+  # repository. Only %20 is accepted as an escaped path byte: encoded slashes
+  # or dots would give the browser and REST endpoint different identities.
+  pattern='^https://dev\.azure\.com/([A-Za-z0-9][A-Za-z0-9-]{0,63})/(([A-Za-z0-9._-]|%20)+)/_git/(([A-Za-z0-9._-]|%20)+)/pullrequest/([1-9][0-9]*)$'
+  if [[ "$raw" =~ $pattern ]]; then
+    org=${BASH_REMATCH[1]}
+    project=${BASH_REMATCH[2]}
+    repo=${BASH_REMATCH[4]}
+    number=${BASH_REMATCH[6]}
+    [ "${#project}" -le 255 ] && [ "${#repo}" -le 255 ] || return 1
+    case "$project:$repo" in
+      .:*|..:*|*:.|*:..) return 1 ;;
+    esac
+    FM_PR_PROVIDER=ado
+    FM_PR_URL=$raw
+    FM_PR_HOST=dev.azure.com
+    FM_PR_PATH="$org/$project/_git/$repo"
+    FM_PR_NUMBER=$number
     return 0
   fi
   # The path class contains "/" and "-", so this match is greedy to the last
@@ -263,6 +291,62 @@ fm_pr_head_valid() {
   local head=${1-}
   local LC_ALL=C
   [[ "$head" =~ ^[0-9a-f]{40}$|^[0-9a-f]{64}$ ]]
+}
+
+# ADO REST calls share one canonical browser identity and one Azure resource.
+# Callers construct only the fixed PR, policy, or reviewer paths from this base.
+fm_pr_ado_base() {  # <canonical-pr-url>
+  local org project marker repo
+  fm_pr_url_parse "$1" && [ "$FM_PR_PROVIDER" = ado ] || return 1
+  IFS=/ read -r org project marker repo <<< "$FM_PR_PATH"
+  [ "$marker" = _git ] && [ -n "$repo" ] || return 1
+  FM_PR_ADO_BASE="https://dev.azure.com/$org/$project/_apis/git/repositories/$repo/pullRequests/$FM_PR_NUMBER"
+}
+
+# The token is delivered through a private file descriptor rather than argv,
+# so a live bearer never shows in any process listing, and both the token
+# acquisition and the REST call are hard-bounded so a wedged connection cannot
+# hold a caller's lock or watcher cycle open.
+fm_pr_ado_request() {  # <GET|PUT|PATCH> <constructed-url> [json-body]
+  local method=$1 url=$2 token timeout=${FM_PR_ADO_TIMEOUT:-20}
+  [[ "$timeout" =~ ^[1-9][0-9]*$ ]] || timeout=20
+  command -v az >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 || return 1
+  token=$(fm_run_timed "$timeout" az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv 2>/dev/null) || return 1
+  [ -n "$token" ] || return 1
+  case "$token" in *$'\n'*|*$'\r'*) return 1 ;; esac
+  if [ "$#" -eq 3 ]; then
+    curl -fsS --max-time "$timeout" --request "$method" --header @/dev/fd/3 \
+      --header 'Content-Type: application/json' --data "$3" "$url" \
+      3< <(printf 'Authorization: Bearer %s\n' "$token")
+  else
+    curl -fsS --max-time "$timeout" --request "$method" --header @/dev/fd/3 \
+      --header 'Content-Type: application/json' "$url" \
+      3< <(printf 'Authorization: Bearer %s\n' "$token")
+  fi
+}
+
+fm_pr_ado_read_pr() {  # <canonical-pr-url>
+  local json
+  FM_PR_ADO_JSON=
+  fm_pr_ado_base "$1" || return 1
+  json=$(fm_pr_ado_request GET "$FM_PR_ADO_BASE?api-version=7.1" 2>/dev/null) || return 1
+  [ -n "$json" ] || return 1
+  # The response must describe the requested PR, not a redirected or malformed
+  # record. A missing ID must never be accepted as completed by a teardown.
+  printf '%s' "$json" | jq -e --argjson id "$FM_PR_NUMBER" \
+    'type == "object" and .pullRequestId == $id and (.status | type) == "string"' >/dev/null 2>&1 || return 1
+  FM_PR_ADO_JSON=$json
+}
+
+fm_pr_ado_read_record() {  # <canonical-pr-url>
+  local state
+  FM_PR_RECORD_STATE=
+  FM_PR_RECORD_MERGED=
+  fm_pr_ado_read_pr "$1" || return 1
+  state=$(printf '%s' "$FM_PR_ADO_JSON" | jq -er '.status') || return 1
+  FM_PR_RECORD_STATE=$state
+  FM_PR_RECORD_MERGED=false
+  [ "$state" != completed ] || FM_PR_RECORD_MERGED=true
 }
 
 # The one reading of a GitHub pull request's draft state. Prints "true" or

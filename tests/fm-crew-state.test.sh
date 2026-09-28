@@ -1674,6 +1674,90 @@ test_terminal_passed_with_unreadable_gerrit_change_reports_unknown() {
   pass "terminal passed run handles an unreadable or mismatched Gerrit read"
 }
 
+# The Azure DevOps read goes through the same bounded record helper the
+# watcher uses: az mints the token, curl reads the PR, and only a response
+# naming this exact pullRequestId may answer for it.
+add_ado_state_fakes() {  # <case-dir>
+  local d=$1
+  cat > "$d/fakebin/az" <<'SH'
+#!/usr/bin/env bash
+[ "$*" = 'account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv' ] || exit 2
+printf '%s\n' fixture-token
+SH
+  cat > "$d/fakebin/curl" <<SH
+#!/usr/bin/env bash
+auth=
+while [ "\$#" -gt 1 ]; do
+  case "\$1" in
+    --header) case "\$2" in @*) auth=\$(cat "\${2#@}" 2>/dev/null) ;; esac; shift 2 ;;
+    *) shift ;;
+  esac
+done
+[ "\$auth" = 'Authorization: Bearer fixture-token' ] || exit 2
+case "\$1" in
+  'https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1') ;;
+  *) exit 2 ;;
+esac
+[ ! -e "$d/ado-read-fail" ] || exit 22
+printf '{"pullRequestId":%s,"status":"%s"}\n' "\$(cat "$d/ado-id")" "\$(cat "$d/ado-status")"
+SH
+  chmod +x "$d/fakebin/az" "$d/fakebin/curl"
+  printf '42\n' > "$d/ado-id"
+  printf 'active\n' > "$d/ado-status"
+}
+
+test_terminal_passed_with_ado_pr_states() {
+  reset_fakes
+  local d url out
+  d=$(new_case passed-ado-pr)
+  url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
+  make_repo_on_branch "$d/wt" fm/feat-dado
+  make_fakebin "$d" >/dev/null
+  add_ado_state_fakes "$d"
+  fm_write_meta "$d/state/feat-dado.meta" "window=fm:fm-feat-dado" \
+    "worktree=$d/wt" "kind=ship" "pr=$url"
+  FM_FAKE_AXI_STATUS="$(run_passed_with_pr fm/feat-dado "$url")"
+  out=$(run_crew_state "$d" feat-dado)
+  assert_contains "$out" "run passed: PR open" "active Azure DevOps PR state is named open"
+  assert_not_contains "$out" "PR merged" "active Azure DevOps PR must not be reported merged"
+
+  printf 'completed\n' > "$d/ado-status"
+  out=$(run_crew_state "$d" feat-dado)
+  assert_contains "$out" "run passed: PR merged" "completed Azure DevOps PR is reported merged"
+
+  printf 'abandoned\n' > "$d/ado-status"
+  out=$(run_crew_state "$d" feat-dado)
+  assert_contains "$out" "run passed: PR closed" "abandoned Azure DevOps PR is reported closed"
+  assert_not_contains "$out" "PR merged" "abandoned Azure DevOps PR must not be reported merged"
+
+  # A record naming another pull request can never answer for this one.
+  printf '43\n' > "$d/ado-id"
+  printf 'completed\n' > "$d/ado-status"
+  out=$(run_crew_state "$d" feat-dado)
+  assert_contains "$out" "run passed: PR state unknown (unreadable)" "mismatched Azure DevOps record is honest unknown"
+  assert_not_contains "$out" "PR merged" "another PR's completed record must not report merged"
+
+  printf '42\n' > "$d/ado-id"
+  touch "$d/ado-read-fail"
+  out=$(run_crew_state "$d" feat-dado)
+  assert_contains "$out" "run passed: PR state unknown (unreadable)" "failed Azure DevOps read is honest unknown"
+  assert_not_contains "$out" "PR merged" "failed Azure DevOps read must not be reported merged"
+  rm -f "$d/ado-read-fail"
+
+  # A wedged token acquisition must be cut by the bounded read, not stall the
+  # state report; the bounded helper then reports honest unknown.
+  cat > "$d/fakebin/az" <<'SH'
+#!/usr/bin/env bash
+sleep 30
+printf '%s\n' fixture-token
+SH
+  chmod +x "$d/fakebin/az"
+  out=$(run_crew_state "$d" feat-dado)
+  assert_contains "$out" "run passed: PR state unknown (unreadable)" "hung Azure DevOps token read is bounded to honest unknown"
+  assert_not_contains "$out" "PR merged" "hung Azure DevOps read must not be reported merged"
+  pass "terminal passed run reads active, completed, abandoned, mismatched, and unreadable Azure DevOps PR state"
+}
+
 test_terminal_failed() {
   reset_fakes
   local d; d=$(new_case failed)
@@ -5290,6 +5374,7 @@ test_terminal_passed_with_failed_gitlab_read_reports_unknown
 test_terminal_passed_with_open_gerrit_change_does_not_claim_merged
 test_terminal_passed_with_merged_gerrit_change_reports_merged
 test_terminal_passed_with_unreadable_gerrit_change_reports_unknown
+test_terminal_passed_with_ado_pr_states
 test_terminal_failed
 test_terminal_failed_ci_orphan_after_green_reads_done
 test_terminal_failed_ci_orphan_status_only_reads_done

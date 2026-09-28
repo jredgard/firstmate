@@ -6,9 +6,12 @@
 # a merge. The provider-tagged identity is data in the sidecar and is never
 # interpolated into this source: these bytes are identical for every task.
 # Each provider is read through its own standard CLI, gh for GitHub, glab for
-# GitLab, and gerrit-axi for Gerrit, so an upstream checkout needs no extra
-# tooling to follow the first two. The Gerrit branch additionally needs jq,
-# which bin/fm-pr-check.sh refuses to arm a Gerrit watch without.
+# GitLab, gerrit-axi for Gerrit, and Azure REST for dev.azure.com. The ADO
+# branch requires az, curl, jq, and timeout or gtimeout;
+# bin/fm-pr-check.sh checks them before arming. Its token travels through a
+# private file descriptor rather than argv, and both the token acquisition and
+# the REST read are hard-bounded so a wedged connection cannot stall the
+# watcher cycle.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -52,6 +55,41 @@ esac
 # the stored URL must then be exactly reconstructible from those components, so
 # a doctored sidecar cannot redirect this poll at another host or project.
 case "$provider" in
+  ado)
+    [ "$host" = dev.azure.com ] || exit 0
+    pattern='^https://dev\.azure\.com/([A-Za-z0-9][A-Za-z0-9-]{0,63})/(([A-Za-z0-9._-]|%20)+)/_git/(([A-Za-z0-9._-]|%20)+)/pullrequest/([1-9][0-9]*)$'
+    [[ "$url" =~ $pattern ]] || exit 0
+    org=${BASH_REMATCH[1]}
+    project=${BASH_REMATCH[2]}
+    repo=${BASH_REMATCH[4]}
+    [ "${BASH_REMATCH[6]}" = "$number" ] || exit 0
+    [ "$path" = "$org/$project/_git/$repo" ] || exit 0
+    [ "${#project}" -le 255 ] && [ "${#repo}" -le 255 ] || exit 0
+    case "$project:$repo" in
+      .:*|..:*|*:.|*:..) exit 0 ;;
+    esac
+    command -v az >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 \
+      && command -v jq >/dev/null 2>&1 || exit 0
+    if command -v timeout >/dev/null 2>&1; then
+      bound=timeout
+    elif command -v gtimeout >/dev/null 2>&1; then
+      bound=gtimeout
+    else
+      exit 0
+    fi
+    ado_timeout=${FM_PR_ADO_TIMEOUT:-20}
+    [[ "$ado_timeout" =~ ^[1-9][0-9]*$ ]] || ado_timeout=20
+    token=$("$bound" -k 1 "$ado_timeout" az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv 2>/dev/null) || exit 0
+    [ -n "$token" ] || exit 0
+    case "$token" in *$'\n'*|*$'\r'*) exit 0 ;; esac
+    json=$(curl -fsS --max-time "$ado_timeout" --request GET --header @/dev/fd/3 \
+      "https://dev.azure.com/$org/$project/_apis/git/repositories/$repo/pullRequests/$number?api-version=7.1" \
+      2>/dev/null 3< <(printf 'Authorization: Bearer %s\n' "$token")) || exit 0
+    [ -n "$json" ] || exit 0
+    printf '%s' "$json" | jq -e --argjson id "$number" \
+      'type == "object" and .pullRequestId == $id and .status == "completed"' >/dev/null 2>&1 \
+      && printf '%s\n' merged
+    ;;
   github)
     [ "$host" = github.com ] || exit 0
     owner=${path%%/*}

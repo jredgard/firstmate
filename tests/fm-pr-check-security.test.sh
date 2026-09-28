@@ -513,6 +513,19 @@ https://gerrit.example/c/proj/+/1|gerrit.example|proj|1
 https://gerrit.example.co.uk/c/a/b/c/d/+/42|gerrit.example.co.uk|a/b/c/d|42
 https://review.internal/c/All-Projects/+/123456|review.internal|All-Projects|123456
 EOF
+  fm_pr_url_parse 'https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42' \
+    || fail "parser rejected canonical Azure DevOps URL"
+  [ "$FM_PR_PROVIDER" = ado ] && [ "$FM_PR_HOST" = dev.azure.com ] \
+    && [ "$FM_PR_PATH" = 'acme/Project%20One/_git/Backend' ] \
+    && [ "$FM_PR_NUMBER" = 42 ] || fail "parser returned wrong Azure DevOps identity"
+  for row in \
+    'https://dev.azure.com/acme/p/_git/r/pullrequest/042' \
+    'https://dev.azure.com/acme/p/_git/r/pullrequest/1?x=1' \
+    'https://dev.azure.com/acme/p%2Fr/_git/r/pullrequest/1' \
+    'https://dev.azure.com/acme/p/_git/../pullrequest/1' \
+    'https://evil.example/acme/p/_git/r/pullrequest/1'; do
+    ! fm_pr_url_parse "$row" || fail "parser accepted a noncanonical Azure DevOps URL"
+  done
   fm_pr_url_parse https://github.com/a/b/pull/1 || fail "parser rejected canonical URL"
   [ "$FM_PR_PROVIDER" = github ] || fail "parser did not tag a pull request URL as github"
   [ "$FM_PR_HOST" = github.com ] || fail "parser returned wrong GitHub host"
@@ -904,6 +917,97 @@ run_poll() {
     FM_TEST_GERRIT_AXI_LOG="$dir/gerrit-axi.log" \
     PATH="$dir/fakebin:$BASE_PATH" \
     bash "$dir/home/state/task-a.check.sh"
+}
+
+add_ado_mocks() {  # <case-dir>
+  local dir=$1
+  cat > "$dir/fakebin/az" <<'SH'
+#!/usr/bin/env bash
+[ "$*" = 'account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv' ] || exit 2
+printf '%s\n' fixture-token
+SH
+  cat > "$dir/fakebin/curl" <<'SH'
+#!/usr/bin/env bash
+url=${*: -1} auth= max_time=
+printf '%s\n' "$*" >> "$FM_TEST_ADO_DIR/ado.log"
+case "$*" in *fixture-token*) exit 2 ;; esac
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --max-time) max_time=$2; shift 2 ;;
+    --header)
+      case "$2" in @*) auth=$(cat "${2#@}" 2>/dev/null) ;; esac
+      shift 2 ;;
+    *) shift ;;
+  esac
+done
+[ "$auth" = 'Authorization: Bearer fixture-token' ] || exit 2
+case "$max_time" in ''|0|*[!0-9]*) exit 2 ;; esac
+case "$url" in
+  *'/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1')
+    status=active
+    [ ! -e "$FM_TEST_ADO_DIR/completed" ] || status=completed
+    printf '{"pullRequestId":42,"status":"%s","isDraft":false,"mergeStatus":"succeeded","lastMergeSourceCommit":{"commitId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"repository":{"project":{"id":"11111111-1111-1111-1111-111111111111"}}}\n' "$status"
+    ;;
+  *) exit 2 ;;
+esac
+SH
+  chmod +x "$dir/fakebin/az" "$dir/fakebin/curl"
+  ln -s "$REAL_JQ" "$dir/fakebin/jq"
+}
+
+test_ado_registration_and_poll() {
+  local dir state url out rc
+  dir=$(make_case ado-registration)
+  state="$dir/home/state"
+  url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
+  add_ado_mocks "$dir"
+  write_task_meta "$dir"
+  FM_TEST_ADO_DIR="$dir" run_check_entry "$dir" task-a "$url" > "$dir/stdout" 2> "$dir/stderr" \
+    || fail "Azure DevOps registration refused a canonical live PR: $(cat "$dir/stderr")"
+  grep -qxF "pr=$url" "$state/task-a.meta" || fail "Azure DevOps URL not recorded"
+  grep -qxF 'pr_head=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' "$state/task-a.meta" \
+    || fail "Azure DevOps live head not recorded"
+  fm_pr_poll_artifacts_valid "$state" task-a "$POLL" \
+    || fail "Azure DevOps poll registration invalid"
+  out=$(FM_TEST_ADO_DIR="$dir" run_poll "$dir")
+  [ -z "$out" ] || fail "active Azure DevOps PR emitted a merged wake"
+  touch "$dir/completed"
+  out=$(FM_TEST_ADO_DIR="$dir" run_poll "$dir")
+  [ "$out" = merged ] || fail "completed Azure DevOps PR did not emit a merged wake"
+  sed '3s/dev.azure.com/evil.example/' "$state/task-a.pr-poll" > "$dir/tampered-poll"
+  cat "$dir/tampered-poll" > "$state/task-a.pr-poll"
+  out=$(FM_TEST_ADO_DIR="$dir" run_poll "$dir")
+  [ -z "$out" ] || fail "tampered Azure DevOps poll emitted a merged wake"
+  dir=$(make_case ado-hung-token)
+  add_ado_mocks "$dir"
+  write_task_meta "$dir"
+  FM_TEST_ADO_DIR="$dir" run_check_entry "$dir" task-a "$url" > "$dir/stdout" 2> "$dir/stderr" \
+    || fail "hung-token case could not arm its Azure DevOps poll: $(cat "$dir/stderr")"
+  cat > "$dir/fakebin/az" <<'SH'
+#!/usr/bin/env bash
+sleep 30
+printf '%s\n' fixture-token
+SH
+  chmod +x "$dir/fakebin/az"
+  touch "$dir/completed"
+  out=$(FM_PR_ADO_TIMEOUT=1 FM_TEST_ADO_DIR="$dir" run_poll "$dir")
+  [ -z "$out" ] || fail "a hung Azure DevOps token acquisition still emitted a merged wake"
+  dir=$(make_case ado-draft)
+  add_ado_mocks "$dir"
+  write_task_meta "$dir"
+  # A draft response refuses before registration, without a poll sidecar.
+  cat > "$dir/fakebin/curl" <<'SH'
+#!/usr/bin/env bash
+printf '{"pullRequestId":42,"status":"active","isDraft":true,"lastMergeSourceCommit":{"commitId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}\n'
+SH
+  chmod +x "$dir/fakebin/curl"
+  set +e
+  FM_TEST_ADO_DIR="$dir" run_check_entry "$dir" task-a "$url" > "$dir/stdout" 2> "$dir/stderr"
+  rc=$?
+  set -e
+  expect_code 1 "$rc" "Azure DevOps draft registration"
+  [ ! -e "$dir/home/state/task-a.pr-poll" ] || fail "draft Azure DevOps PR armed a poll"
+  pass "Azure DevOps registration records the head, polls completed status, and refuses drafts"
 }
 
 test_static_poll_contract() {
@@ -3381,6 +3485,7 @@ SH
 }
 
 test_parser_matrix
+test_ado_registration_and_poll
 test_gitlab_merge_watch
 test_gerrit_merge_watch
 test_gerrit_arming_records_no_patch_set_revision

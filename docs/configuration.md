@@ -13,6 +13,7 @@ Start with the directory layout, then use the setting reference for the behavior
 | Backlog, preferences, and memory | [Backlog backend](#backlog-backend-taskstoml--configbacklog-backend), [captain preferences](#captain-preferences-datacaptainmd--datacaptain-sharedmd), and [startup memory budget](#startup-memory-budget-configstartup-memory-budget) |
 | Supervision and presentation | [Pi supervision branch](#pi-supervision-branch), [supervision host](#supervision-host-configsupervision-host), and [Calm preference](#calm-preference-configcalm) |
 | Persistent secondmates | [Secondmate routes](#secondmate-routes-datasecondmatesmd) |
+| Azure DevOps PR approval | [Azure DevOps reviewer identity](#azure-devops-reviewer-identity-configado-reviewer-id--fm_ado_reviewer_id) and [completion options](#azure-devops-completion-options-configado-delete-source-branch--configado-transition-work-items) |
 | Per-run overrides and tuning | [Environment variables](#environment-variables) |
 
 ## FM_HOME
@@ -594,6 +595,19 @@ With the flag absent the wedge timer spends no fold or current-state read for it
 The flag is a home-local supervision-noise preference and is not inherited by secondmate homes, which supervise their own crew and own that trade separately.
 
 [`architecture.md`](architecture.md) owns the wait-evidence contract and which records may take the ladder away; `bin/fm-watch.sh`'s `wedge_wait_evidence` owns the exact derivation and its fail-closed boundaries.
+
+## Azure DevOps reviewer identity (config/ado-reviewer-id / FM_ADO_REVIEWER_ID)
+
+For a home that completes Azure DevOps pull requests, put its reviewer identity UUID on one line in the local `config/ado-reviewer-id` file.
+`FM_ADO_REVIEWER_ID` overrides that file for one invocation.
+The merge script refuses completion when neither is set, so an away session needs this configuration before it starts.
+Azure CLI must already be signed in to obtain a token for resource `499b84ac-1321-427f-aa17-267ca6975798`.
+
+## Azure DevOps completion options (config/ado-delete-source-branch / config/ado-transition-work-items)
+
+An Azure DevOps completion deletes the source branch or transitions linked work items only when the home opts in; both default off because the GitHub path never deletes a branch or touches a work item unattended.
+Creating the local `config/ado-delete-source-branch` or `config/ado-transition-work-items` flag file opts the home into the matching completion option.
+`FM_ADO_DELETE_SOURCE_BRANCH` and `FM_ADO_TRANSITION_WORK_ITEMS` override the matching file for one invocation: exactly `true` enables the option, and any other set value, even an empty one, disables it; only an unset variable falls back to the file.
 
 ## Gate defaults (.no-mistakes.yaml)
 
@@ -2238,6 +2252,7 @@ CMUX_SOCKET_PASSWORD=   # cmux-only: socket password fallback when config/cmux-s
 FM_SESSION_START_STATUS_TAIL=5   # state/*.status lines printed per task in the session-start digest; each line is capped by bin/fm-line-cap-lib.sh
 FM_SESSION_START_QUEUED_LIMIT=20   # plain queued backlog rows in the session-start digest; in-flight, held, and blocked rows are never bounded and done rows are never listed
 FM_BACKLOG_ROW_TIMEOUT_SECS=10   # seconds bounding each backlog row read (bin/fm-backlog-transition-lib.sh); nonpositive or invalid values fall back to 10; the first bound hit latches the sweep so later reads return immediately, each still naming its own item
+FM_PR_ADO_TIMEOUT=20   # seconds bounding each Azure DevOps token acquisition and REST call (bin/fm-pr-lib.sh and the static merge poll); nonpositive or invalid values fall back to 20
 FM_BOOTSTRAP_DETECT_ONLY=0   # internal/read-only session-start mode: skip bootstrap's mutating sweeps and print advisory TANGLE wording
 FM_BOOTSTRAP_NETWORK=all   # internal session-start phase split: all, skip (local steps only), or only (network steps only); see bin/fm-bootstrap.sh
 FM_STARTUP_NETWORK_TIMEOUT=120   # seconds bounding the deferred inactive-outcome scan plus network checks, including the lock waits the worker makes before them; hitting it prints an actionable NETWORK_CHECKS line, and a lock a live process still holds at the deadline ends the worker with a failed-rerun record (publication and delivery are bounded by FM_SESSION_START_TIMEOUT the same way)

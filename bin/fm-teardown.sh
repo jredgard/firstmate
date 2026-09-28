@@ -1846,11 +1846,20 @@ teardown_treehouse_return() {
 
 validate_worktree_teardown_safety() {
   local dirty_raw dirty unpushed_raw unpushed DEFAULT unmerged_raw unmerged branch
-  [ -d "$WT" ] || return 0
   [ "$FORCE" != "--force" ] || return 0
   case "$KIND" in
     secondmate|scout) return 0 ;;
   esac
+  # A pushed branch has no unpushed commits, so the ordinary content check
+  # below never runs. Its recorded ADO PR must itself be completed before any
+  # worktree cleanup, including recovery when the worktree is already absent.
+  if [[ "$PR_URL" == https://dev.azure.com/* ]]; then
+    if ! fm_pr_ado_read_record "$PR_URL" || [ "$FM_PR_RECORD_MERGED" != true ]; then
+      echo "REFUSED: Azure DevOps pull request $PR_URL is not verifiably completed; preserving task and worktree." >&2
+      return 1
+    fi
+  fi
+  [ -d "$WT" ] || return 0
 
   if ! dirty_raw=$(git -C "$WT" status --porcelain 2>/dev/null); then
     if worktree_safety_blocked_by_lock "uncommitted changes"; then
