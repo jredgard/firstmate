@@ -1,0 +1,2 @@
+ok - Azure DevOps green merge is headless and verifies vote, policies, head, and completion
+ok - Azure DevOps policy gate passes notApplicable, non-blocking, and the merge-strategy type id, refusing the rest

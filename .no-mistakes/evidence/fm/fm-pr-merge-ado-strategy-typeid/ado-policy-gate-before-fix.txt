@@ -1,0 +1,3 @@
+not ok - headless Azure DevOps merge failed: note: PR merge (fm-pr-merge) proceeds for the supervision branch under the away-posture record: main is parked and its standing authority is relocated; this script's own gate still applies (docs/pi-supervision-branch.md "Postures")
+note: PR merge (fm-pr-merge) proceeds for the supervision branch under the away-posture record: main is parked and its standing authority is relocated; this script's own gate still applies (docs/pi-supervision-branch.md "Postures")
+error: refusing to complete https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42: policies not approved: Require a merge strategy=rejected
