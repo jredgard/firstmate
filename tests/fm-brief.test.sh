@@ -373,16 +373,22 @@ test_no_mistakes_dod_wording() {
   # shellcheck disable=SC2016  # single quotes are deliberate: the backticks must stay literal
   assert_grep '`help`' "$brief" \
     "no-mistakes DOD must render literal backticks around help"
-  assert_grep "make \`--intent\` preserve all relevant content from this brief" "$brief" \
-    "no-mistakes DOD must require --intent to retain the accepted task contract"
-  assert_grep "carrying only each requirement's current accepted form" "$brief" \
-    "no-mistakes DOD must replace superseded requirements with their current accepted form"
-  assert_grep "retain direct requirements instead of substituting a diff summary" "$brief" \
-    "no-mistakes DOD must keep direct requirements and exclude generic scaffold boilerplate from --intent"
-  assert_grep "exclude generic operational, status, delivery, and other scaffold boilerplate unless it is task-specific" "$brief" \
-    "no-mistakes DOD must exclude non-task-specific scaffold boilerplate from --intent"
+  assert_grep "pass \`--intent\` as only this brief's \`## Captain's intent\`" "$brief" \
+    "no-mistakes DOD must require --intent to be the Captain's intent subsection"
+  assert_grep "plus any later words the captain actually said" "$brief" \
+    "no-mistakes DOD must allow later captain words in --intent"
+  assert_grep "Do not include \`## Firstmate spec\`" "$brief" \
+    "no-mistakes DOD must keep Firstmate spec out of --intent"
+  assert_grep "or your own decisions and tradeoffs" "$brief" \
+    "no-mistakes DOD must keep worker tradeoffs out of --intent"
+  assert_grep "This replaces the no-mistakes skill's advice to enrich \`--intent\`" "$brief" \
+    "no-mistakes DOD must override the external skill's enrich-with-decisions guidance"
+  assert_grep "The \`--intent\` string you pass must be self-sufficient" "$brief" \
+    "no-mistakes DOD must require a self-sufficient --intent string"
+  assert_grep "write the substance of the referenced items into \`--intent\`" "$brief" \
+    "no-mistakes DOD must resolve report, decision, and PR references into substance"
   # shellcheck disable=SC2016  # single quotes are deliberate: the backticks must stay literal
-  assert_grep 'Keep the assembled `--intent` under 900 characters by compressing phrasing, never by dropping requirements' "$brief" \
+  assert_grep 'Keep the assembled `--intent` under 900 characters by compressing phrasing, never by dropping captain requirements' "$brief" \
     "no-mistakes DOD must cap the --intent length so ADO PR descriptions keep the pipeline report"
   assert_grep "an intent beyond ~900 characters evicts the pipeline's visible verification report" "$brief" \
     "no-mistakes DOD must explain why the --intent cap exists"
@@ -407,7 +413,7 @@ test_no_mistakes_dod_wording() {
   # the heredoc), so it renders verbatim instead of being reworded or escaped
   # away. test_no_heredoc_in_command_substitution guards the structure that makes
   # it safe.
-  assert_grep "carrying only each requirement's current accepted form" "$brief" \
+  assert_grep "as only this brief's" "$brief" \
     "no-mistakes DOD lost the apostrophe prose that the structural fix makes parse-safe"
 
   # The --yes ban is a fleet-wide prohibition, not a preference, and it must not
@@ -982,9 +988,8 @@ test_scout_and_secondmate_load_decision_hold_policy() {
   pass "fm-brief.sh: investigation and visual-review completions load the shared decision policy"
 }
 
-# A scout brief offers the Lavish review loop only when bootstrap confirms the
-# supported lavish-axi floor at scaffold time; a missing or older build gets a
-# text-report instruction instead, so a scout never drives a below-floor Lavish.
+# A scout brief offers the Lavish review loop for every compatible board version,
+# including older builds that use the legacy reply path.
 test_scout_lavish_line_follows_presentation_floor() {
   local base label version expect case_dir fakebin brief n=0
   local hosting='use the lavish-axi rule'
@@ -1009,9 +1014,11 @@ test_scout_lavish_line_follows_presentation_floor() {
       assert_no_grep "$hosting" "$brief" "$label: scout brief offered a below-floor Lavish"
     fi
   done <<'ROWS'
-lavish-axi at the floor^0.1.77^hosting
-lavish-axi above the floor^0.2.0^hosting
-lavish-axi just below the floor^0.1.76^text
+lavish-axi at the board compatibility floor^0.1.77^hosting
+lavish-axi below the reply feature floor^0.1.79^hosting
+lavish-axi at the reply feature floor^0.1.80^hosting
+lavish-axi above the reply feature floor^0.2.0^hosting
+lavish-axi below the board compatibility floor^0.1.76^text
 absent lavish-axi^absent^text
 ROWS
   pass "fm-brief.sh: scout Lavish hosting follows the bootstrap lavish-axi floor"

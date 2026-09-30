@@ -297,9 +297,15 @@ fm_nm_driving_block() {  # <forge>
   cat <<EOF
 You drive no-mistakes by responding to its gates, not by implementing fixes.
 Follow the guidance no-mistakes itself provides for the mechanics: it loads when you invoke /no-mistakes, and \`no-mistakes axi run --help\` plus the \`help\` lines in each \`axi\` response are authoritative and version-matched to the installed binary.
-When starting no-mistakes, make \`--intent\` preserve all relevant content from this brief's \`# Task\` section plus every later accepted Firstmate requirement, clarification, constraint, exclusion, and supersession, carrying only each requirement's current accepted form; retain direct requirements instead of substituting a diff summary, and exclude generic operational, status, delivery, and other scaffold boilerplate unless it is task-specific.
-For a legacy brief with no \`## Captain's intent\` subsection, lines marked \`[captain] \` are the captain's words - keep their substance, excluding that metadata prefix, and never add speaker labels or direct address.
-Keep the assembled \`--intent\` under 900 characters by compressing phrasing, never by dropping requirements: Azure DevOps caps the entire PR description at 4000 characters, and after the What Changed, Risk, and attestation sections an intent beyond ~900 characters evicts the pipeline's visible verification report from the PR body (measured on Mosaiq.Factory PR 54336: a 1373-character intent left 313 of the ~800 the report needs).
+When starting no-mistakes, pass \`--intent\` as only this brief's \`## Captain's intent\` subsection body, not its heading, plus any later words the captain actually said.
+Preserve the actual words without adding speaker labels or direct address; the subsection heading supplies provenance outside the pipeline input.
+For a legacy brief with no such subsection, include only words on lines marked \`[captain] \`, excluding that metadata prefix; never copy its mixed \`# Task\` wholesale.
+If it has no provenance-marked captain words, stop and ask firstmate instead of starting no-mistakes.
+Do not include \`## Firstmate spec\`, later Firstmate build constraints, or your own decisions and tradeoffs.
+The \`--intent\` string you pass must be self-sufficient: that string plus the codebase must let a reader reconstruct roughly the same specification, without depending on a separate report, a PR, or context that lives only in this conversation.
+When the captain's intent refers to a report, decision, or PR ("do items 1, 2, 3, and 7 of the report"), write the substance of the referenced items into \`--intent\` in the captain's terms, not only the pointer; that substance is the captain's ask by reference, while Firstmate's build instructions and your own decisions still stay out.
+This replaces the no-mistakes skill's advice to enrich \`--intent\` with decisions and tradeoffs; that advice does not apply to Firstmate-dispatched work.
+Keep the assembled \`--intent\` under 900 characters by compressing phrasing, never by dropping captain requirements: Azure DevOps caps the entire PR description at 4000 characters, and after the What Changed, Risk, and attestation sections an intent beyond ~900 characters evicts the pipeline's visible verification report from the PR body (measured on Mosaiq.Factory PR 54336: a 1373-character intent left 313 of the ~800 the report needs).
 Do not hand-edit, commit, or fix findings yourself while a run is active - the pipeline applies every fix.
 ${custody_line}
 ${followup_line}

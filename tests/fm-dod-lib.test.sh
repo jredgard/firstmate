@@ -401,6 +401,27 @@ test_nm_dod_draft_check_is_scoped_to_github() {
   pass "no-mistakes DoD scopes the CI-green draft check per forge"
 }
 
+test_nm_driving_preserves_provenance_budget_and_custody() {
+  local out
+  out="$TMP_ROOT/nm-driving.md"
+  fm_nm_driving_block github > "$out"
+  assert_grep "subsection body, not its heading, plus any later words the captain actually said" "$out" \
+    "no-mistakes intent must retain upstream provenance"
+  assert_grep 'later Firstmate build constraints, or your own decisions and tradeoffs' "$out" \
+    "no-mistakes intent must exclude implementation specification"
+  assert_grep 'under 900 characters' "$out" "no-mistakes intent must retain the ADO description budget"
+  assert_grep 'Once the run reaches checks-passed or completed, branch custody is yours.' "$out" \
+    "published runs must return branch custody"
+  assert_grep 'only for custody recovery during an active run' "$out" \
+    "published follow-ups must not use active-run synchronization"
+  fm_nm_driving_block gerrit > "$out"
+  assert_grep 'follow the custody recovery steps below before publishing' "$out" \
+    "Gerrit must recover unpublished gate fixes before publishing"
+  assert_grep 'branch_sync.next_action' "$out" "Gerrit custody must follow the exact recovery command"
+  pass "no-mistakes driving combines upstream provenance with the fork intent budget and forge-aware custody"
+}
+
+test_nm_driving_preserves_provenance_budget_and_custody
 test_scout_done_is_not_gated
 test_unpushed_ship_done_is_refused
 test_no_mistakes_prevalidation_done_is_not_gated
