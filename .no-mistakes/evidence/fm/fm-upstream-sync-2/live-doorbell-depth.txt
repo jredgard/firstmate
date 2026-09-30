@@ -1,0 +1,8 @@
+== live drive: steering doorbell stays short under a deep home (fm_task_inbox_doorbell_line) ==
+deep home inbox path length: 117
+deep doorbell (175 chars): : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your 'task-abc123.inbox' steering inbox, read and act on each in numeric order, then mv each into its handled/.
+shallow doorbell (175 chars): : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your 'task-abc123.inbox' steering inbox, read and act on each in numeric order, then mv each into its handled/.
+doorbell IDENTICAL regardless of home depth (expected)
+doorbell names literal $FM_TASK_INBOX and short task-abc123.inbox name (expected)
+no absolute path in doorbell (expected)
+non-printable inbox name refused with no output (expected, rc=1)

@@ -1,0 +1,13 @@
+== live drive: supervision-host home gate (bash bin/fm-supervision-engine-lib.sh enabled) ==
+/tmp/fm-lab.Rlfl5l
+lab home created: layout: config data projects state 
+enabled(claude) exit=0 [no host files: Claude default ON expected exit=0]
+enabled(codex) exit=1 [no host files: codex stays opt-in expected exit=1]
+enabled(pi) exit=1 [no host files: pi stays in-process expected exit=1]
+enabled(claude) exit=1 [opt-out file with arbitrary contents: presence-only OFF expected exit=1]
+enabled(claude) exit=1 [both files present: opt-out wins expected exit=1]
+enabled(codex) exit=1 [both files present: opt-out wins for opted-in harness too expected exit=1]
+enabled(codex) exit=0 [explicit config/supervision-host line: opted-in harness ON expected exit=0]
+enabled(claude) exit=1 [opt-out as dangling symlink: still OFF expected exit=1]
+-- default engine/model resolution for a bare Claude primary --
+engine=claude model=sonnet problem=none

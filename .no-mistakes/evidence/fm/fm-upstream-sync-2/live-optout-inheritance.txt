@@ -1,0 +1,7 @@
+== live drive: supervision-host-off inheritance primary -> secondmate (propagate_secondmate_inheritance) ==
+two lab homes minted
+opt-out PROPAGATED to secondmate (expected)
+engine line config/supervision-host NOT propagated (expected: stays home-local)
+secondmate gate after inherit: enabled(claude) exit=1 (expected 1: inherited opt-out)
+primary absence MIRRORED: secondmate opt-out removed (expected)
+secondmate gate after absence mirror: enabled(claude) exit=0 (expected 0: back to default ON)

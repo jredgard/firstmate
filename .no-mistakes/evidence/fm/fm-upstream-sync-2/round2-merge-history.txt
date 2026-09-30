@@ -1,0 +1,11 @@
+== git rev-list --parents (both merge commits) ==
+297200dc906c757735f6de282cdb4e0c9690733a 27f37d8ae7eb18c325ac69400be74a12dc5b8b33 23e5584714e6765cc223a1740d385d0e85f8ad8e
+27f37d8ae7eb18c325ac69400be74a12dc5b8b33 fac261cb0dd460ba10297e704efb0e4a14ab52fb 65c75b0dab02f2bd6c293cf21a20f712dfac16bd
+== ancestor checks ==
+65c75b0 is ancestor of HEAD: yes
+23e5584 is ancestor of HEAD: yes
+== origin/main unchanged first parent ==
+fac261cb0dd460ba10297e704efb0e4a14ab52fb
+fac261cb0dd460ba10297e704efb0e4a14ab52fb
+== HEAD ==
+297200dc906c757735f6de282cdb4e0c9690733a

@@ -1,0 +1,14 @@
+PASS fm-afk-launch
+PASS fm-dod-lib
+PASS fm-brief
+PASS fm-afk-contract
+PASS fm-daemon
+FAIL fm-supervision-host (exit 1)
+PASS fm-send-inbox
+PASS fm-pr-report-compact
+PASS fm-host-mirror
+PASS fm-task-inbox
+PASS fm-git-strip-ai-trailers
+PASS fm-claude-stop-autoarm
+PASS fm-pr-merge
+PASS fm-procevent

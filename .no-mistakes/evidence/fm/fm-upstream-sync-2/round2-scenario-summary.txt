@@ -1,0 +1,66 @@
+Round 2 test phase — finding test-2 (drive previously-untested scenarios through EXISTING deterministic tests; no new code/tests)
+Head: 297200dc906c757735f6de282cdb4e0c9690733a
+Suite logs: round2-suite-logs/ (15 suites, 831 ok assertions, 1 known pre-existing failure)
+
+Per-scenario evidence (all via executed existing suites/checks):
+
+1. /afk under host default records away mandate without starting a daemon; /uberafk + /uberquiet refresh/exit routing; quiet attended-readiness hold
+   -> fm-afk-launch (96 ok), fm-afk-contract (20 ok), fm-afk-return (33 ok), all exit 0.
+   Anchors: "enter: one call writes the record ... and launches no daemon";
+   "daemon entry: no daemon lifecycle starts without the away-posture record";
+   "mode: a bare refresh (FM_AFK_MODE unset) of an already-running quiet daemon preserves quiet, never resets to away";
+   "start: /afk over a running quiet daemon refreshes the flag to away";
+   "supervision host: /quiet is a statement where the attended host runs, and a quiet enter writes nothing there";
+   "supervision host: quiet-check names what the attended host lacks".
+   Note: no dedicated uber-wrapper test files exist; /uberafk//uberquiet route through the same fm-afk-launch/contract mode/refresh/exit surfaces asserted above.
+
+2. Supervision exit latency, park boundaries, quiet-as-attended authority (fake-clock deterministic matrix)
+   -> fm-supervision-host (31 ok + 1 known host-gap case), fm-branch-supervision (34 ok, exit 0).
+   Anchors: "host: an off written while the host is parked sends the next attended close to main, naming the opt-out";
+   attended/away close-routing matrix (7 park/close/boundary cases);
+   "a quiet-mode record never caps a present captain's spawn, while the away record's cap still binds".
+
+3. Stop-hook write-failure handling — HOST GAP (per recorded decision, not re-driven live).
+   The suite run reproduced exactly "not ok - hook write failure: the Stop hook did not finish"
+   (250 polls x 0.1s), identical to prior-round runs on merge head, fork parent fac261cb, and
+   upstream parent per the author's plan. Remote CI owns this coverage.
+
+4. Lavish board replies accepted synchronously before worker handoff; listener survival; older poll-with-reply fallback
+   -> fm-procevent (138 ok), fm-bearings-board (18 ok), both exit 0.
+   Anchors: "one Send & End yields exactly one captured result, automatic retirement, and no recurring poll";
+   "a staged worker reply is handed to the board once across quiet poll retries";
+   "a listener whose staged reply is gone polls the board without one";
+   "a listener that refuses its own setup leaves the staged reply for the next one";
+   "worker board replies and recovered listeners derive their server from the board session".
+
+5. ADO PR completion, exact-policy waiver, merge-strategy policy type id, bounded token-off-argv requests, polling/cleanup + GitHub UNKNOWN-mergeability bounded retry coexist
+   -> fm-pr-merge (111 ok), fm-pr-check-security (46 ok), fm-pr-state (15 ok), fm-teardown (103 ok), fm-teardown-endpoint-safety (27 ok), all exit 0.
+   Anchors: "fm-pr-merge retries a bounded number of times when mergeable is UNKNOWN and merges once it resolves";
+   "Azure DevOps green merge is headless and verifies vote, policies, head, and completion";
+   "Azure DevOps policy gate passes notApplicable, non-blocking, and the merge-strategy type id, refusing the rest";
+   "Azure DevOps requests are bounded and deliver the token off argv";
+   "fm-pr-merge accepts exactly one separately named red-check waiver".
+
+6. Away-mode escalation delivery and diagnostics: blocker detail behind later progress, capture corroboration, batched digests
+   -> fm-daemon (139 ok), fm-afk-inject-e2e (4 ok, private tmux socket afk-e2e-<pid>), both exit 0.
+   Anchors: "a stale wake escalates a blocker hidden by later progress";
+   "herdr idle busy-footer stale clears through capture corroboration";
+   "multiple escalations flush as a single batched digest";
+   inject e2e defers on human partial input, retries swallowed Enter, delivers one clean digest.
+   No Herdr lab lifecycle was needed; no ambient sessions touched.
+
+7. Empty core.hooksPath runs no repository hook (adopted upstream fix)
+   -> fm-git-strip-ai-trailers (16 ok, exit 0).
+   Anchor: "an empty project core.hooksPath runs no repository hook and still strips the trailer".
+
+8. Merge preserves fork history
+   -> round2-merge-history.txt: 297200d parents = 27f37d8 + 23e5584; 27f37d8 parents = fac261cb + 65c75b0;
+   65c75b0 and 23e5584 are ancestors of HEAD; origin/main = fac261cb = unchanged first parent of 27f37d8.
+
+Disclosed host gaps (unchanged, not worked around): Ruby absent (CI-yaml parsing suites),
+tsc absent (Pi typecheck), Pi herdr-agent-state integration absent (agent_not_found),
+Fish-vs-POSIX Pi Calm fixture, LABREADY live-lab readiness, and the supervision-host
+Stop-hook write-failure case above. No host config changed, nothing installed.
+
+--- Re-run confirmation (same fix turn, fresh execution) ---
+All 15 suites and the git history checks above were re-executed end-to-end in the final round-2 session on 2026-09-30 (~22:3x local); results identical: 831 ok assertions, exit 0 everywhere except fm-supervision-host exit 1 with only the recorded host-gap case "not ok - hook write failure: the Stop hook did not finish". Logs in round2-suite-logs/ and round2-merge-history.txt are from this fresh execution.
