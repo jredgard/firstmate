@@ -3309,7 +3309,7 @@ test_unreadable_away_record_refuses_merge() {
   rc=$?
   set -e
   expect_code 1 "$rc" "away-unreadable: an unreadable away record must refuse"
-  assert_grep 'away-posture record could not be read' "$case_dir/stderr" \
+  assert_grep 'posture record could not be read' "$case_dir/stderr" \
     "away-unreadable: refusal did not fail closed"
   assert_no_grep 'pr merge' "$case_dir/gh.log" \
     "away-unreadable: gh pr merge ran despite an unreadable record"
@@ -3423,7 +3423,7 @@ test_a_record_made_unreadable_before_the_merge_refuses_it() {
   set -e
 
   expect_code 1 "$rc" "away-unreadable-before-merge: a record made unreadable before the authority read must refuse"
-  assert_grep 'away-posture record could not be read' "$case_dir/stderr" \
+  assert_grep 'posture record could not be read' "$case_dir/stderr" \
     "away-unreadable-before-merge: refusal did not fail closed"
   assert_no_grep 'pr merge' "$case_dir/gh.log" \
     "away-unreadable-before-merge: gh pr merge ran on a record that could not be read"

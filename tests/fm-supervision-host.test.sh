@@ -951,7 +951,7 @@ test_quiet_record_without_its_daemon_is_a_present_captain() {
   wait_until 150 watcher_live "$home" || fail "quiet: the host never started a watcher cycle"
   append_status "$home" 'ready for review'
   wait_until 250 host_exited "$home" || fail "quiet: the captain outcome did not wake the present captain's main: $(cat "$home/state/.supervision-host.log")"
-  assert_re '	handled	turn=[^	]*	posture=attended	' "$home/state/.supervision-host.log" "a quiet record must leave the host's turn attended"
+  assert_re '	handled	turn=[^	]*	posture=attended	' "$home/state/.supervision-host.log" "a wordless quiet record must leave the host's turn attended"
   assert_no_re '^POSTURE: AWAY' "$home/engine-call.1" "a turn beside a quiet record must carry no away tail"
   assert_re 'MAIN DIALOG MIRROR' "$home/engine-call.1" "a turn beside a quiet record must carry the captain's dialog"
   assert_grep 'MAIN processes it from its next drain' "$home/engine-report.log" "a captain report beside a quiet record must say main processes it"
@@ -1227,7 +1227,7 @@ test_claude_stop_hook_rewakes_a_present_captain_beside_a_quiet_record() {
   wait_until 150 watcher_live "$home" || fail "hook quiet: the Stop hook never started a watcher cycle: $(cat "$home/hook.err" 2>/dev/null)"
   append_status "$home" 'ready for review'
   wait_until 250 hook_exited "$home" || fail "hook quiet: the Stop hook never closed: $(cat "$home/state/.supervision-host.log")"
-  assert_re '	handled	turn=[^	]*	posture=quiet	' "$home/state/.supervision-host.log" "a quiet record must leave the host's turn attended"
+  assert_re '	handled	turn=[^	]*	posture=quiet	' "$home/state/.supervision-host.log" "a quiet-with-words record must put the host's turn under the quiet posture"
   assert_rewoke_main "$home" "hook quiet"
   assert_re '^supervision-host: branch-outcome: ' "$home/hook.err" "the rewake must carry the captain outcome"
   assert_no_grep 'not a return' "$home/hook.err" "a present captain's rewake must not call itself away-posture supervision"

@@ -1190,7 +1190,7 @@ resolve_merge_authority() {
     FM_PR_MERGE_AUTHORITY=$FM_MERGE_AUTHORITY
     return 0
   fi
-  echo "error: PR merge refused - the away-posture record could not be read; nothing was merged" >&2
+  echo "error: PR merge refused - the posture record could not be read; nothing was merged" >&2
   return 1
 }
 
@@ -1203,7 +1203,7 @@ resolve_merge_authority() {
 # lock, so the pair cannot deadlock.
 hold_away_record_for_merge() {
   fm_afk_contract_lock_hold "$STATE" && return 0
-  echo "error: PR merge refused - the away-posture record could not be locked for the merge; nothing was merged" >&2
+  echo "error: PR merge refused - the posture record could not be locked for the merge; nothing was merged" >&2
   return 1
 }
 
@@ -1212,23 +1212,23 @@ require_current_away_authority() {
   if fm_afk_contract_authority_present "$STATE"; then
     FM_PR_AWAY_POSTURE=true
     if [ "$PROVIDER" = github ] && [ "$FM_PR_GITHUB_AUTO_REQUESTED" = true ]; then
-      echo "error: --auto is attended-only; while the away-posture record exists only a synchronous merge may run under its authority lock" >&2
+      echo "error: --auto is attended-only; while the away or quiet-with-words record exists only a synchronous merge may run under its authority lock" >&2
       return 2
     fi
     if [ "$PROVIDER" = gitlab ] \
       && { [ "$FM_PR_GITLAB_ASYNC_REQUESTED" = true ] || [ "$FM_PR_GITLAB_ASYNC_CONFIGURED" = true ]; }; then
-      echo "error: GitLab auto-merge is attended-only; while the away-posture record exists only an immediate merge may run under its authority lock" >&2
+      echo "error: GitLab auto-merge is attended-only; while the away or quiet-with-words record exists only an immediate merge may run under its authority lock" >&2
       return 2
     fi
   fi
   fm_lease_forbid_branch "PR merge (fm-pr-merge)" --record-pr-authority
   resolve_merge_authority || return 1
   if [ "$FM_PR_AWAY_POSTURE" = true ] && [ "${#ALLOW_RED[@]}" -gt 0 ]; then
-    echo "error: --allow-red is attended-only; while the away-posture record exists the green check is absolute" >&2
+    echo "error: --allow-red is attended-only; while the away or quiet-with-words record exists the green check is absolute" >&2
     return 2
   fi
   if [ "$FM_PR_AWAY_POSTURE" = true ] && [ "${#ALLOW_MISSING[@]}" -gt 0 ]; then
-    echo "error: --allow-missing is attended-only; while the away-posture record exists every required check must report" >&2
+    echo "error: --allow-missing is attended-only; while the away or quiet-with-words record exists every required check must report" >&2
     return 2
   fi
 }
@@ -1268,7 +1268,7 @@ refuse_github_queue_while_away() {
   # enqueue the merge, which can land after its away authority lapses.
   github_read_queue_method
   [ "$FM_PR_GITHUB_QUEUE_STATUS" = none ] && return 0
-  echo "error: GitHub merge refused while away because the base branch's merge-queue state does not prove an immediate merge; nothing was handed to the forge" >&2
+  echo "error: GitHub merge refused while the away or quiet-with-words record exists because the base branch's merge-queue state does not prove an immediate merge; nothing was handed to the forge" >&2
   return 2
 }
 
@@ -1332,7 +1332,7 @@ github_caller_method_is() {
 github_report_queue_rules() {
   local queue_method methods_display
   if [ "$FM_PR_AWAY_POSTURE" = true ]; then
-    printf 'error: the direct merge did not land while the away-posture record exists; merge-queue retry flags are unavailable because a queued merge would outlive its authority\n' >&2
+    printf 'error: the direct merge did not land while the away or quiet-with-words record exists; merge-queue retry flags are unavailable because a queued merge would outlive its authority\n' >&2
     return 0
   fi
   github_read_queue_method
@@ -1388,7 +1388,7 @@ github_report_unmerged_outcome() {
   fi
   if [ "$FM_PR_GITHUB_QUEUE_OBSERVED" != true ]; then
     if [ "$FM_PR_AWAY_POSTURE" = true ]; then
-      printf 'error: the synchronous merge did not land while the away-posture record exists; no asynchronous merge or queue retry is available under away authority\n' >&2
+      printf 'error: the synchronous merge did not land while the away or quiet-with-words record exists; no asynchronous merge or queue retry is available under the record'"'"'s authority\n' >&2
     else
       printf 'error: the merge queue could not be observed for %s because the queue-aware read was unavailable, so a pull request already in the merge queue cannot be told apart from one that never entered it; re-check the pull request'"'"'s merge queue state before retrying\n' \
         "$URL" >&2
