@@ -868,10 +868,31 @@ test_no_mistakes_truly_unpushed_refuses() {
 }
 
 test_ado_pushed_but_active_pr_refuses_teardown() {
-  local case_dir rc url head reported_head
+  local case_dir rc url head reported_head real_tasks_axi show
   case_dir=$(make_case ado-pushed-active)
   url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
   write_meta "$case_dir" no-mistakes ship
+  seed_backlog_in_flight "$case_dir"
+  real_tasks_axi=$(command -v tasks-axi)
+  cat > "$case_dir/fakebin/tasks-axi" <<SH
+#!/usr/bin/env bash
+previous=
+for arg in "\$@"; do
+  if [ "\$previous" = --pr ] && [ "\$arg" = "$url" ]; then
+    echo 'error: "Task pr link must be a canonical pull request URL"'
+    exit 1
+  fi
+  previous=\$arg
+done
+exec "$real_tasks_axi" "\$@"
+SH
+  chmod +x "$case_dir/fakebin/tasks-axi"
+  if "$case_dir/fakebin/tasks-axi" 'done' task-x1 --file "$case_dir/data/backlog.md" \
+    --pr "$url" > "$case_dir/pr-refusal" 2>&1; then
+    fail "tasks-axi fixture accepted an unsupported Azure DevOps PR link"
+  fi
+  assert_contains "$(cat "$case_dir/pr-refusal")" "Task pr link must be a canonical pull request URL" \
+    "tasks-axi fixture did not reproduce the reported PR-link refusal"
   printf 'pr=%s\n' "$url" >> "$case_dir/state/task-x1.meta"
   wt_commit "$case_dir" "pushed Azure DevOps work"
   head=$(git -C "$case_dir/wt" rev-parse HEAD)
@@ -905,6 +926,8 @@ SH
     || fail "active Azure DevOps PR refusal did not name completion status"
   [ -f "$case_dir/state/task-x1.meta" ] && [ -d "$case_dir/wt" ] \
     || fail "active Azure DevOps PR teardown removed task state"
+  [ "$(backlog_row_state "$case_dir")" = in_flight ] \
+    || fail "active Azure DevOps PR teardown closed the backlog item"
   touch "$case_dir/ado-completed"
   for reported_head in bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb ''; do
     printf '%s\n' "$reported_head" > "$case_dir/ado-head"
@@ -932,6 +955,13 @@ SH
   FM_TEST_ADO_DIR="$case_dir" run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" \
     || fail "completed Azure DevOps PR teardown refused: $(cat "$case_dir/stderr")"
   [ ! -f "$case_dir/state/task-x1.meta" ] || fail "completed Azure DevOps PR task was not retired"
+  [ "$(backlog_row_state "$case_dir")" = 'done' ] \
+    || fail "completed Azure DevOps PR teardown left the backlog item open"
+  show=$(tasks-axi show task-x1 --file "$case_dir/data/backlog.md" --full)
+  assert_contains "$show" "Azure DevOps PR $url" \
+    "completed Azure DevOps PR teardown did not durably record the URL"
+  assert_absent "$case_dir/state/task-x1.backlog-close" \
+    "completed Azure DevOps PR teardown left a pending-close marker"
   pass "pushed Azure DevOps work is retained until its PR is completed at the recorded head"
 }
 
