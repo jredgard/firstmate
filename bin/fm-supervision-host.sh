@@ -787,6 +787,9 @@ handle_wake() {  # <reason-lines>
   HEALTH_NOTE=
   TURN_POSTURE=attended
   ! fm_afk_contract_away_present "$STATE" || TURN_POSTURE=away
+  if [ "$TURN_POSTURE" = attended ] && fm_afk_contract_authority_present "$STATE"; then
+    TURN_POSTURE=quiet
+  fi
   first=$(printf '%s\n' "$reason" | head -n 1)
   if [ "$TURN_POSTURE" = attended ]; then
     attended_acceptor "$first" || return 2
@@ -844,7 +847,7 @@ handle_wake() {  # <reason-lines>
   printf 'turn=%s\nrows=%s\ntasks=%s\nunscoped=%s\nwake=%s\nposture=%s\n' \
     "$turn" "$rows" "$tasks" "${unscoped:-0}" "$first" "$TURN_POSTURE" > "$TURN_FILE"
   readback=
-  if [ "$TURN_POSTURE" = away ]; then
+  if [ "$TURN_POSTURE" != attended ]; then
     readback=$(mktemp "$STATE/.supervision-host-readback.XXXXXX") || readback=
     if [ -n "$readback" ]; then
       FM_STATE_OVERRIDE="$STATE" "$SCRIPT_DIR/fm-afk-contract.sh" readback > "$readback" 2>/dev/null || : > "$readback"
@@ -856,7 +859,7 @@ handle_wake() {  # <reason-lines>
   # away wake never reads the mirror or moves its cursor.
   mirror=$MIRROR_FEED
   rm -f "$mirror"
-  if [ "$TURN_POSTURE" = attended ] \
+  if [ "$TURN_POSTURE" != away ] \
     && ! (umask 077; exec "$SCRIPT_DIR/fm-host-mirror.sh" feed "$ENGINE_SESSION" "$ENGINE_MODE" > "$mirror" 2>/dev/null); then
     rm -f "$TURN_FILE" "$mirror"
     "$SCRIPT_DIR/fm-wake-grant.sh" release "$GEN" >/dev/null 2>&1 || true
@@ -866,6 +869,8 @@ handle_wake() {  # <reason-lines>
   set -- --report "the bin/fm-branch-report.sh command"
   if [ "$TURN_POSTURE" = away ]; then
     set -- "$@" --away ${readback:+--readback-file "$readback"}
+  elif [ "$TURN_POSTURE" = quiet ]; then
+    set -- "$@" --quiet --mirror-file "$mirror" ${readback:+--readback-file "$readback"}
   else
     set -- "$@" --mirror-file "$mirror"
   fi
@@ -930,7 +935,7 @@ handle_wake() {  # <reason-lines>
   if [ "$ENGINE_ERROR" -eq 0 ] && [ "${receipts:-0}" -gt 0 ] && [ -z "$unacked" ]; then
     write_engine_record $((ENGINE_TURNS + 1)) "$(printf '%s\n' "$usage" | sed -n 's/.* conversation_cost=\([^ ]*\).*/\1/p')" \
       || rm -f "$ENGINE_RECORD"
-    [ "$TURN_POSTURE" != attended ] || "$SCRIPT_DIR/fm-host-mirror.sh" commit >/dev/null 2>&1 || true
+    [ "$TURN_POSTURE" = away ] || "$SCRIPT_DIR/fm-host-mirror.sh" commit >/dev/null 2>&1 || true
     [ "$errors" = /dev/null ] || rm -f "$errors"
     TURN_ERRORS=
     log_line "handled	turn=$turn	posture=$TURN_POSTURE	rc=$rc	reports=$receipts	$usage	$first"
@@ -968,6 +973,10 @@ turn_captain_seqs() {  # <turn>
 # ATTENDED_OFFER to the offer's verdict and the scope it judged.
 attended_acceptor() {  # <first-reason-line>
   local offer=
+  set -- "$1"
+  if fm_afk_contract_authority_present "$STATE"; then
+    set -- "$@" --afk
+  fi
   ATTENDED_WHY=
   ATTENDED_OFFER=
   if ! fm_supervision_host_attended_ready "$CONFIG" "$PRIMARY"; then
@@ -976,7 +985,7 @@ attended_acceptor() {  # <first-reason-line>
     ATTENDED_WHY="the main session could not be identified"
   elif health_cooling; then
     ATTENDED_WHY="the supervision session is cooling down after engine errors"
-  elif ! offer=$(printf '%s\n' "$1" | node "$SCRIPT_DIR/fm-branch-dispatch.mjs" offer 2>/dev/null); then
+  elif ! offer=$(printf '%s\n' "$1" | node "$SCRIPT_DIR/fm-branch-dispatch.mjs" offer "${@:2}" 2>/dev/null); then
     ATTENDED_WHY="branch eligibility could not be computed"
   elif [ "$(printf '%s\n' "$offer" | sed -n 's/^eligible=//p')" != 1 ]; then
     ATTENDED_WHY="main-only"

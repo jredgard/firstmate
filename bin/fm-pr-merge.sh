@@ -118,9 +118,8 @@
 # serializes the captain-hold check through the forge command. A still-held or
 # unreadable row refuses before that command, so a captain approval must be
 # recorded as an `answer --release` before this entrypoint is invoked. While
-# an away record exists (a quiet-mode record is a present captain, so its
-# merges stay attended: bin/fm-afk-contract.sh mode) any green merge may
-# proceed under away authority:
+# a record carries authority (bin/fm-afk-contract.sh AWAY OR QUIET) any green
+# merge may proceed under its words:
 # the record's presence is the whole mechanical fact, and which merge the
 # captain's away words meant is the supervision session's reading
 # (bin/fm-branch-prompt.sh "Postures"). An unreadable record refuses rather
@@ -409,7 +408,7 @@ META="$STATE/$ID.meta"
 # whatever that record says.
 # shellcheck source=bin/fm-lease-lib.sh
 . "$SCRIPT_DIR/fm-lease-lib.sh"
-fm_lease_forbid_branch "PR merge (fm-pr-merge)" --away-relocated
+fm_lease_forbid_branch "PR merge (fm-pr-merge)" --record-pr-authority
 
 if [ ! -f "$META" ] || [ -L "$META" ]; then
   echo "error: task metadata is unavailable" >&2
@@ -1210,7 +1209,7 @@ hold_away_record_for_merge() {
 
 require_current_away_authority() {
   FM_PR_AWAY_POSTURE=false
-  if fm_afk_contract_away_present "$STATE"; then
+  if fm_afk_contract_authority_present "$STATE"; then
     FM_PR_AWAY_POSTURE=true
     if [ "$PROVIDER" = github ] && [ "$FM_PR_GITHUB_AUTO_REQUESTED" = true ]; then
       echo "error: --auto is attended-only; while the away-posture record exists only a synchronous merge may run under its authority lock" >&2
@@ -1222,7 +1221,7 @@ require_current_away_authority() {
       return 2
     fi
   fi
-  fm_lease_forbid_branch "PR merge (fm-pr-merge)" --away-relocated
+  fm_lease_forbid_branch "PR merge (fm-pr-merge)" --record-pr-authority
   resolve_merge_authority || return 1
   if [ "$FM_PR_AWAY_POSTURE" = true ] && [ "${#ALLOW_RED[@]}" -gt 0 ]; then
     echo "error: --allow-red is attended-only; while the away-posture record exists the green check is absolute" >&2

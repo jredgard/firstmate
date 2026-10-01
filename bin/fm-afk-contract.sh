@@ -12,12 +12,15 @@
 # only reach profile this release records: there is no phone channel, and the
 # entry announcement says so every time.
 #
-# AWAY OR QUIET. The same record also backs daemon-backed quiet mode, which a
+# AWAY OR QUIET. The same record also backs quiet mode on host and daemon homes, which a
 # quiet entry marks with `mode: quiet`: the captain is present there, so a quiet
 # record holds nothing for a return. fm_afk_contract_mode (the `mode`
 # subcommand) is the one reading of which posture a record is, and
 # fm_afk_contract_away_present is true only for an away record; any record
 # without a valid quiet mode reads as away, so a damaged mode keeps the holds.
+# fm_afk_contract_authority_present reads an away record or a quiet record with
+# non-empty words as carrying the words' authority; quiet without words stays
+# attended. It checks presence and bytes only, never interprets the words.
 # A quiet record's announcement and read-back say it holds nothing and name no
 # reach, return, or spend cap; an away record's are unchanged. Only a quiet
 # entry over no record or over a quiet record writes one: an away entry over a
@@ -95,6 +98,8 @@
 #     (for a quiet record, the entry time and that nothing is held).
 #   fm-afk-contract.sh mode [--path <record>]
 #     Print `away` or `quiet` (AWAY OR QUIET above); exit 1 with no record.
+#   fm-afk-contract.sh authority-present
+#     Exit 0 for a record carrying authority (AWAY OR QUIET above).
 #   fm-afk-contract.sh field <name> [--path <record>]
 #   fm-afk-contract.sh words [--path <record>]
 #   fm-afk-contract.sh validate [--path <record>]  exit 0 when the record is readable and complete
@@ -103,7 +108,7 @@
 #
 # CROSS-SUBSYSTEM LOCK (state/.afk-contract.lock; this script is its one owner).
 # This record is authority another subsystem reads and then ACTS on outside this
-# script: bin/fm-pr-merge.sh reads an away record as away merge authority
+# script: bin/fm-pr-merge.sh reads a record carrying authority
 # and afterwards hands a merge to the forge. A publication, replacement, or
 # archive landing between that read and the forge handoff would land a merge on
 # authority that no longer holds, so the two subsystems share one lock instead of
@@ -138,7 +143,7 @@ FM_AFK_CONTRACT_VERSION=2
 FM_AFK_CONTRACT_READABLE_VERSIONS="1 2"
 FM_AFK_CONTRACT_REACH_ANNOUNCED='No phone channel is configured; anything that needs you waits for your return.'
 FM_AFK_CONTRACT_SPEND_DEFAULT=4
-FM_AFK_CONTRACT_QUIET_HOLDS_NOTHING='you are present, so nothing waits for your return: every action you ask for, a local landing or a merge included, proceeds now under ordinary attended authority, and quiet mode changes only which updates reach this conversation.'
+FM_AFK_CONTRACT_QUIET_HOLDS_NOTHING='you are present, so nothing waits for your return; recorded words carry the authority described in bin/fm-branch-prompt.sh Postures, and without words merge authority stays attended.'
 # Generous against the longest legitimate holder, a merge waiting on the forge,
 # so the bound only ever trips on something genuinely wedged.
 _FM_AFK_CONTRACT_LOCK_TIMEOUT=120
@@ -183,6 +188,15 @@ fm_afk_contract_mode() {  # [state-dir]
 # True only while an away record exists; a quiet record is a present captain.
 fm_afk_contract_away_present() {  # [state-dir]
   [ "$(fm_afk_contract_mode "$@")" = away ]
+}
+
+fm_afk_contract_authority_present() {
+  local path words result
+  path=$(fm_afk_contract_path "${1:-$FM_AFK_CONTRACT_STATE}")
+  [ -f "$path" ] || return 1
+  [ "$(fm_afk_contract_record_mode "$path")" = quiet ] || return 0
+  words=$(fm_afk_contract_read_words "$path"; result=$?; printf x; exit "$result") || return 2
+  [ "$words" != x ]
 }
 
 fm_afk_contract_lock_path() {  # [state-dir]
@@ -634,6 +648,9 @@ fm_afk_contract_main() {
       path=$(fm_afk_contract_select_path "$@") || { fm_afk_contract_usage >&2; return 2; }
       [ -f "$path" ] || { fm_afk_contract_log "no record at $path"; return 1; }
       fm_afk_contract_record_mode "$path" ;;
+    authority-present)
+      [ "$#" -eq 0 ] || return 2
+      fm_afk_contract_authority_present ;;
     validate)
       path=$(fm_afk_contract_select_path "$@") || { fm_afk_contract_usage >&2; return 2; }
       fm_afk_contract_validate "$path" ;;
