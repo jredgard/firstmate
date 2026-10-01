@@ -988,8 +988,13 @@ test_quiet_words_reach_the_engine_and_report_now() {
   assert_contains "$(cat "$home/engine-call.1")" 'per your quiet instructions:' "quiet wake must require immediate attributed reporting"
   assert_no_re '^POSTURE: AWAY' "$home/engine-call.1" "quiet wake must not park main"
   assert_re 'MAIN DIALOG MIRROR' "$home/engine-call.1" "quiet wake must retain the present captain's dialog"
+  assert_re '	handled	turn=[^	]*	posture=quiet	' "$home/state/.supervision-host.log" "the ledger must record the quiet turn"
+  assert_grep 'MAIN processes it from its next drain' "$home/engine-report.log" "a quiet captain report must use the present-captain path"
+  assert_no_grep 'the captain has returned' "$home/engine-report.log" "a quiet report must never claim the captain returned"
+  assert_no_grep 'supervision-host-return' "$home/state/.wake-queue" "a quiet report must queue no captain-returned relay"
   drained=$(FM_HOME="$home" "$FAKE_CLAUDE" -c '"$0" 2>&1' "$ROOT/bin/fm-wake-drain.sh")
   assert_contains "$drained" 'BRANCH OUTCOMES' "quiet outcome must be available now"
+  assert_not_contains "$drained" 'was recorded after the captain returned' "the drain must carry no captain-returned relay for a quiet outcome"
   pass "quiet words reach the generated wake interface with present-captain reporting and immediate outcomes"
 }
 

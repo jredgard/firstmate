@@ -113,7 +113,6 @@ import {
   activateEligibleRowsOwner,
   afkPostureRecordPresent,
   awayPostureTailFor,
-  quietPostureTailFor,
   branchWakePrompt,
   deactivateEligibleRowsOwner,
   FM_BRANCH_DISPATCH_EVENT,
@@ -1465,16 +1464,13 @@ ${context.command}
   // enforce either way.
   async function awayPostureTail(): Promise<string> {
     let readback = "";
-    let quiet = false;
     try {
-      const mode = await runCommandAsync("bash", [afkContractScript, "mode"], { cwd: fmRoot, env: scriptEnv });
-      quiet = mode.status === 0 && mode.stdout.trim() === "quiet";
       const rendered = await runCommandAsync("bash", [afkContractScript, "readback"], { cwd: fmRoot, env: scriptEnv });
       if (rendered.status === 0) readback = rendered.stdout || "";
     } catch {
       readback = "";
     }
-    return quiet ? quietPostureTailFor(readback) : awayPostureTailFor(readback);
+    return awayPostureTailFor(readback);
   }
 
   function enqueueWake(message: string, acceptedGeneration: number, recoveryProbe = false, acceptedAwayOnly = false): Promise<void> {

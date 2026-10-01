@@ -1115,6 +1115,13 @@ unit_supervision_host_quiet_statement() {
   printf 'claude\n' > "$st/config/supervision-host"
   out=$(FM_TEST_HARNESS=pi quiet_in "$st" "$LAUNCH" quiet-check); rc=$?
   [ "$rc" -eq 1 ] && [ -z "$out" ] || fail "quiet-check on a pi home must exit 1 silently (rc=$rc): $out"
+  for harness in pi pi-signed; do
+    out=$(FM_TEST_HARNESS=$harness quiet_in "$st" env FM_AFK_MODE=quiet "$LAUNCH" enter --words "stay quiet"); rc=$?
+    if [ "$rc" -ne 3 ] || [ -e "$st/state/.afk-contract" ] \
+      || ! printf '%s' "$out" | grep -F "quiet mode records nothing on a $harness primary" >/dev/null; then
+      fail "$harness: a quiet enter must refuse before writing any record (rc=$rc): $out"
+    fi
+  done
 
   for harness in claude cursor; do
     out=$(FM_TEST_HARNESS=$harness quiet_in "$st" "$LAUNCH" quiet-check); rc=$?

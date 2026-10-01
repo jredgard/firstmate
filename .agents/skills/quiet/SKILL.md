@@ -22,7 +22,7 @@ For captain-held rechecks under quiet, see [architecture](../../../docs/architec
 ## What it does
 
 0. **First check whether quiet mode needs anything here.**
-   On Pi or pi-signed, enter nothing: the attended branch already keeps routine wakes out of this conversation (the `afk` skill's step 2); tell the captain so.
+   On Pi or pi-signed, enter nothing: the attended branch already keeps routine wakes out of this conversation (the `afk` skill's step 2), and no quiet record is supported there (`bin/fm-afk-launch.sh enter` refuses in quiet mode before writing), so words typed with the command are not recorded; tell the captain so.
    Everywhere else run `bin/fm-afk-launch.sh quiet-check`; its header's QUIET MODE owns what each result means.
    - Exit 0: without words or a live quiet record, enter nothing; with words, go to step 1 to record them without a daemon.
      If quiet-check reports a live quiet record, leave it active unless refreshing its words or explicitly exiting.

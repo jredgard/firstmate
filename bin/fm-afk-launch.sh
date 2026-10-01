@@ -39,7 +39,12 @@
 # an away record (one without the quiet mode a quiet entry records) is live on
 # that home, whatever state/.afk says, `quiet-check` (exit 2) and a quiet
 # `enter` (exit 3) refuse and name it: the captain's return
-# (bin/fm-afk-return.sh and its catch-up gate) comes first. Where the attended
+# (bin/fm-afk-return.sh and its catch-up gate) comes first. On a pi or
+# pi-signed primary a quiet `enter` also refuses (exit 3) before writing
+# anything: the attended Pi branch reads no quiet record, so quiet words are
+# never recorded there and recorded quiet authority is a non-Pi capability (a
+# documented limitation; the quiet skill's step 0 enters nothing on Pi).
+# Where the attended
 # host lacks one of those parts, `quiet-check` names it and quiet mode enters
 # through the daemon as it does without the host. A quiet `enter` records its
 # mode, so `start` and `start-native` launch the quiet daemon without
@@ -373,8 +378,15 @@ fm_afk_launch_record_require() {
 }
 
 fm_afk_launch_enter() {
+  local harness
   fm_afk_launch_catchup_pending && return 1
   if [ "${FM_AFK_MODE:-}" = quiet ]; then
+    harness=$(fm_afk_launch_primary_harness)
+    case "$harness" in
+      pi|pi-signed)
+        fm_afk_launch_log "quiet mode records nothing on a $harness primary: the attended branch reads no quiet record there, so a quiet enter refuses before writing (the quiet skill's step 0 enters nothing on Pi)"
+        return 3 ;;
+    esac
     fm_afk_launch_quiet_needs_nothing
     case $? in
       2)

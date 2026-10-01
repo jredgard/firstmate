@@ -142,6 +142,7 @@ The captain stays present; quiet outcomes are delivered now, never saved for a r
 Without words, quiet mode changes no merge authority.
 While [the broken-session latch](#the-broken-session-latch) holds, quiet-check says the session is paused instead.
 Where the home runs the host but the attended host lacks one of its parts, `/quiet` names the missing part and enters the quiet daemon, and while an away record is live the captain's return comes first.
+A Pi or pi-signed primary supports no quiet record at all: the attended Pi branch reads none, so `bin/fm-afk-launch.sh enter` refuses quiet mode there before writing and quiet words are not recordable on those primaries (a documented limitation).
 `bin/fm-afk-launch.sh` owns the readiness test and refusals in its `quiet-check` contract, and the [quiet skill](../.agents/skills/quiet/SKILL.md) owns the procedure.
 
 ## The dialog mirror

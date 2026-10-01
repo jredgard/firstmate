@@ -17,8 +17,8 @@ The standing mandate is the captain's 2026-09-27 away entry, quoted verbatim: "p
 ## Entry
 
 If `off` is the only word typed after `/uberquiet`, treat it as the explicit exit request described under "Announcement and return" and perform none of the entry steps below.
-Follow the `quiet` skill's step 0 before recording a mandate; its result decides only whether a daemon launches, never whether the record is written.
-Every `/uberquiet` invocation carries words because the standing mandate is always present, so always record them through the quiet entry, even on a home whose attended supervision host already keeps routine wakes quiet.
+Follow the `quiet` skill's step 0 before recording a mandate: on a Pi or pi-signed primary enter nothing and record nothing - no quiet record is supported there, so the mandate cannot be recorded (a documented limitation); tell the captain so and perform none of the steps below.
+On every other home step 0's quiet-check result decides only whether a daemon launches, never whether the record is written: every `/uberquiet` invocation carries words because the standing mandate is always present, so record them through the quiet entry, even on a home whose attended supervision host already keeps routine wakes quiet.
 Otherwise, when `/uberquiet` is invoked, create a private temporary words file before any other work.
 Write the standing mandate above into the file exactly as quoted, without quotation marks, attribution, or an extra trailing newline.
 Append any words typed after `/uberquiet` verbatim after one newline, in the order given; do not include the command itself.
