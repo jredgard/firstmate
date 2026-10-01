@@ -127,14 +127,18 @@ fi
 # GitLab task records no pr_head, and neither does a Gerrit task: a Gerrit
 # revision names one patch set, every amend or rebase is a new patch set, and
 # bin/fm-review-diff.sh has no Gerrit path to resolve a current head with, so a
-# recorded revision would silently become the reviewed content. Both consumers
-# already treat it as optional:
+# recorded revision would silently become the reviewed content. Where it is
+# absent, both consumers already treat it as optional:
 # bin/fm-teardown.sh reads the head from the forge at teardown rather than from
 # metadata and falls back to its provider-agnostic content check, and
 # bin/fm-review-diff.sh fetches a pull request head from the remote when none is
 # recorded and otherwise diffs the local branch, which is the current content.
 # bin/fm-pr-merge.sh reads a GitLab head live at merge time for the same reason,
 # and treats a recorded value that disagrees as stale rather than authoritative.
+# An Azure DevOps task instead records pr_head unconditionally from the REST
+# read below, because bin/fm-pr-merge.sh refuses a live head that moved off the
+# recorded value and bin/fm-teardown.sh requires completed status at it; their
+# headers own those gates.
 WT=$(grep '^worktree=' "$META" | tail -1 | cut -d= -f2- || true)
 PR_HEAD=
 if [ "$PROVIDER" = github ] && [ -n "$WT" ] && [ -d "$WT" ] && command -v gh >/dev/null 2>&1; then

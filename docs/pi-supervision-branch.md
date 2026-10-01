@@ -645,7 +645,7 @@ At that moment the branch reports any refusal instead of concluding there is "no
 
 `tests/fm-branch-supervision.test.sh` covers:
 
-- Prompt stability, including the landed-work cleanup instruction and the second-mate relay, signal-span, and stale-liveness rules.
+- Prompt stability, including the landed-work cleanup instruction, the away-authority relocation and live-head merge instructions, and the second-mate relay, signal-span, and stale-liveness rules.
 - Store append-only behavior, the captain cursor barrier, processed-marker sequence bounds and absent-marker safety, and captain-only recorded ages.
 - Leases, guards, and non-branch-home invariance.
 - The away relocation: only under a valid live record, never for local-only landing, queued-only branch dispatch rather than orphaned in-flight recovery, the spend cap for both actors and its lock-held recheck, and the attended guarded-action behavior restored by archive or an invalid record.
@@ -697,6 +697,8 @@ Other tests remain where they were:
 
 `FM_PI_BRANCH_RESPONSIVENESS_E2E=1 tests/fm-pi-branch-responsiveness-live-e2e.test.sh` answers the question only a real TUI can.
 It types into an isolated Pi pane while outcomes are delivered and fails if keystroke echo leaves the class of the same machine's extension-free floor.
+
+`FM_BRANCH_PROMPT_AWAY_LIVE_E2E=1 tests/fm-branch-prompt-away-live-e2e.test.sh` probes the real engine's reading of the emitted prompt and away wake with no tools and no forge: forge-wide away words choose a synchronous guarded merge of a green, policy-approved head without waiting on the worker's still-running CI monitor, a red or unreported required check holds, and lane-specific words hold an uncovered lane.
 
 Record dated current results in [docs/verification/runtime-backends.md](verification/runtime-backends.md).
 The strict typecheck in `tests/fm-pi-primary-types.test.sh` pins the extension against the installed Pi package.

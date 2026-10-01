@@ -63,6 +63,11 @@
 # up a merged PR whose head branch matches the worktree's branch, fetching its head
 # via refs/pull/<n>/head when the branch itself was deleted. So a missing pr= never
 # by itself causes a false refusal of landed work.
+# A recorded Azure DevOps PR additionally requires a REST readback with status
+# completed and lastMergeSourceCommit.commitId equal to the recorded pr_head,
+# even for pushed work or an already-absent worktree. Missing or mismatched heads
+# refuse; a pushed-but-open PR is not landed. A verified completed ADO head can
+# prove containment of local work without a GitHub lookup.
 # A gh lookup error falls back to the content check; if that is also inconclusive,
 # teardown refuses rather than risk discarding unlanded work.
 # Uncommitted changes are never landed.
@@ -1532,23 +1537,31 @@ EOF
 # occurs - the caller then falls back to the content check.
 pr_is_merged() {
   local branch=$1 target view state remainder head resolved_url current landed=0
-  if [ -n "$PR_URL" ]; then
+  if [[ "$PR_URL" == https://dev.azure.com/* ]]; then
+    head=$(fm_meta_get "$META" pr_head)
+    fm_pr_ado_read_record "$PR_URL" "$head" || return 1
+    [ "$FM_PR_RECORD_MERGED" = true ] || return 1
     target=$PR_URL
+    resolved_url=$PR_URL
   else
-    target=$(pr_number_from_branch "$branch") || return 1
+    if [ -n "$PR_URL" ]; then
+      target=$PR_URL
+    else
+      target=$(pr_number_from_branch "$branch") || return 1
+    fi
+    [ -n "$target" ] || return 1
+    view=$(cd "$WT" && gh pr view "$target" --json state,headRefOid,url -q '.state + "\t" + .headRefOid + "\t" + .url' 2>/dev/null) || return 1
+    state=${view%%$'\t'*}
+    remainder=${view#*$'\t'}
+    [ "$state" != "$view" ] || return 1
+    head=${remainder%%$'\t'*}
+    resolved_url=${remainder#*$'\t'}
+    [ "$head" != "$remainder" ] || return 1
+    case "$state" in
+      MERGED|merged) ;;
+      *) return 1 ;;
+    esac
   fi
-  [ -n "$target" ] || return 1
-  view=$(cd "$WT" && gh pr view "$target" --json state,headRefOid,url -q '.state + "\t" + .headRefOid + "\t" + .url' 2>/dev/null) || return 1
-  state=${view%%$'\t'*}
-  remainder=${view#*$'\t'}
-  [ "$state" != "$view" ] || return 1
-  head=${remainder%%$'\t'*}
-  resolved_url=${remainder#*$'\t'}
-  [ "$head" != "$remainder" ] || return 1
-  case "$state" in
-    MERGED|merged) ;;
-    *) return 1 ;;
-  esac
   [ -n "$head" ] || return 1
   ensure_commit_object "$target" "$head" || return 1
   current=$(git -C "$WT" rev-parse --verify HEAD 2>/dev/null) || return 1
@@ -1874,8 +1887,8 @@ validate_worktree_teardown_safety() {
   # below never runs. Its recorded ADO PR must itself be completed before any
   # worktree cleanup, including recovery when the worktree is already absent.
   if [[ "$PR_URL" == https://dev.azure.com/* ]]; then
-    if ! fm_pr_ado_read_record "$PR_URL" || [ "$FM_PR_RECORD_MERGED" != true ]; then
-      echo "REFUSED: Azure DevOps pull request $PR_URL is not verifiably completed; preserving task and worktree." >&2
+    if ! fm_pr_ado_read_record "$PR_URL" "$(fm_meta_get "$META" pr_head)" || [ "$FM_PR_RECORD_MERGED" != true ]; then
+      echo "REFUSED: Azure DevOps pull request $PR_URL is not verifiably completed at the recorded head; preserving task and worktree." >&2
       return 1
     fi
   fi

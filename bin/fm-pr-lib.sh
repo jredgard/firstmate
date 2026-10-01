@@ -338,7 +338,7 @@ fm_pr_ado_read_pr() {  # <canonical-pr-url>
   FM_PR_ADO_JSON=$json
 }
 
-fm_pr_ado_read_record() {  # <canonical-pr-url>
+fm_pr_ado_read_record() {  # <canonical-pr-url> [expected-head]
   local state
   FM_PR_RECORD_STATE=
   FM_PR_RECORD_MERGED=
@@ -346,7 +346,13 @@ fm_pr_ado_read_record() {  # <canonical-pr-url>
   state=$(printf '%s' "$FM_PR_ADO_JSON" | jq -er '.status') || return 1
   FM_PR_RECORD_STATE=$state
   FM_PR_RECORD_MERGED=false
-  [ "$state" != completed ] || FM_PR_RECORD_MERGED=true
+  [ "$state" = completed ] || return 0
+  if [ "$#" -gt 1 ]; then
+    fm_pr_head_valid "$2" || return 0
+    printf '%s' "$FM_PR_ADO_JSON" | jq -e --arg head "$2" \
+      '.lastMergeSourceCommit.commitId == $head' >/dev/null 2>&1 || return 0
+  fi
+  FM_PR_RECORD_MERGED=true
 }
 
 # The one reading of a GitHub pull request's draft state. Prints "true" or
