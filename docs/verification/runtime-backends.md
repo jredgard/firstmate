@@ -2320,6 +2320,18 @@ ok - under the away-posture record the wake carries the verbatim read-back tail,
 
 The merge suite and the security suite dominate the wall time.
 
+### 2026-10-01 the away words choose the green Azure DevOps merge
+
+The opt-in credentialed interpretation probe was run on 2026-10-01 against the installed Claude Code 2.1.286 under its normal managed authentication.
+It sends the final emitted supervision system prompt and away wake to the real Claude engine with no exposed tools and fixture forge observations only; no live forge or fleet was mutated.
+
+```sh
+FM_BRANCH_PROMPT_AWAY_LIVE_E2E=1 bash tests/fm-branch-prompt-away-live-e2e.test.sh
+```
+
+All four decisions passed with a captain verdict: forge-wide away words over a green, policy-approved Azure DevOps head chose `synchronous_merge` through `bin/fm-pr-merge.sh` without waiting on the worker's still-running CI monitor, a rejected required check chose `hold`, an unreported required check chose `hold`, and lane-limited words held an uncovered lane's green PR.
+This is model-interpretation evidence for how the engine reads the emitted prompts, not a real forge integration proof; the portable executable Azure DevOps merge and teardown regressions in `tests/fm-pr-merge.test.sh` and `tests/fm-teardown.test.sh` pass separately and own the guarded behavior itself.
+
 ## Native Codex through Pi
 
 Verified on 2026-09-08 with Pi 0.85.1 and the installed `pi-codex-native` 0.2.1 adapter.
