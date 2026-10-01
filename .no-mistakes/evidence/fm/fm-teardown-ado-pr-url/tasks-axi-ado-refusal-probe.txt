@@ -1,0 +1,20 @@
+Probe: real tasks-axi against a throwaway backlog (/tmp), 2026-10-01
+
+$ tasks-axi add demo-ado "Demo ADO task" --file "$D/backlog.md"
+ok: added demo-ado -> Queued
+$ tasks-axi start demo-ado --file "$D/backlog.md"
+ok: start demo-ado -> In flight
+
+--- attempting done with ADO --pr URL ---
+$ tasks-axi done demo-ado --pr 'https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Backend/pullrequest/42' --file "$D/backlog.md"
+error: "Task pr link must be a canonical pull request URL: https://github.com/<owner>/<repo>/pull/<n> (GitHub) or https://<host>/<owner>/<repo>/pulls/<n> (Forgejo)"
+code: VALIDATION_ERROR
+exit: 2
+
+--- now with --note instead ---
+$ tasks-axi done demo-ado --note 'Azure DevOps PR https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Backend/pullrequest/42' --file "$D/backlog.md"
+ok: done demo-ado -> Done
+$ tasks-axi show demo-ado --file "$D/backlog.md" --full
+  state: done
+  closed: 2026-10-01
+  body: "Azure DevOps PR https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Backend/pullrequest/42"

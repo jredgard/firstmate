@@ -1,0 +1,28 @@
+After-fix targeted runs of the three new ADO tests against the TARGET commit
+(02d308c, git-archive scratch tree; the /tmp copy of fm-teardown.test.sh had a
+single printf added after the existing `show=$(tasks-axi show ...)` capture so
+the final backlog row is visible — no assertion changed). The same tests also
+pass inside the unmodified full suites (see *.test.log).
+
+=== fm-teardown.test.sh :: test_ado_pushed_but_active_pr_refuses_teardown ===
+FINAL BACKLOG ROW after teardown:
+task:
+  id: task-x1
+  title: teardown fixture task
+  state: done
+  ...
+  closed: 2026-10-01
+  body: "Azure DevOps PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42"
+ok - pushed Azure DevOps work is retained until its PR is completed at the recorded head
+exit: 0
+
+=== fm-backlog-atomicity.test.sh :: test_recovery_replays_pull_request_closes_with_supported_artifacts ===
+(9 cases: {ado, github, forgejo} x {in_flight, done, held} — ADO URL recorded as
+done note; GitHub/Forgejo keep their pr: field; held items stay retained with
+their captain hold; every pending-close marker drained)
+ok - session start closes and backfills ADO notes without changing GitHub or Forgejo PR links
+exit: 0
+
+=== fm-captain-hold-lifecycle.test.sh :: test_answer_before_cleanup_replay_notes_a_retained_change ado ===
+ok - an answer before cleanup replay notes the retained ado change
+exit: 0

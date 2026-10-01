@@ -1,0 +1,17 @@
+Before-fix reproduction: the three new ADO tests run against the BASE commit
+(5699437, git-archive scratch tree with only the test files overlaid from the
+target commit). Each fails with the production refusal from the intent.
+
+=== fm-backlog-atomicity.test.sh :: test_recovery_replays_pull_request_closes_with_supported_artifacts ===
+not ok - session start left a ado close open: BACKLOG_RECONCILE: atomic-heal-ado-in_flight: recorded backlog close could not be replayed: error: "Task pr link must be a canonical pull request URL"
+exit: 1
+
+=== fm-teardown.test.sh :: test_ado_pushed_but_active_pr_refuses_teardown ===
+not ok - completed Azure DevOps PR teardown refused: error: task-x1's endpoint and local copy are cleaned up, but its backlog item could not be closed atomically (error: "Task pr link must be a canonical pull request URL"); the pending close is recorded and the next session start retries it
+exit: 1
+
+=== fm-captain-hold-lifecycle.test.sh :: test_answer_before_cleanup_replay_notes_a_retained_change ado ===
+fm-captain-hold: cannot apply the artifact recorded for sample-answer-before-replay-ado in .../state/sample-answer-before-replay-ado.backlog-close: error: "Task pr link must be a canonical pull request URL"
+fm-captain-hold: could not close answered captain-held task sample-answer-before-replay-ado
+not ok - the captain could not answer a ado task before cleanup replay
+exit: 1
