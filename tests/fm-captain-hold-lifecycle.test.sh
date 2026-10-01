@@ -3017,22 +3017,26 @@ SH
   pass "an answer before cleanup replay preserves the retained report"
 }
 
-test_answer_before_cleanup_replay_notes_a_retained_gerrit_change() {
-  local home id repo wt rc show real_tasks_axi gerrit_url=https://gerrit.example.com/c/project/+/12345
-  home=$(make_home answer-before-replay-gerrit)
-  id=sample-answer-before-replay-gerrit
+test_answer_before_cleanup_replay_notes_a_retained_change() {
+  local provider=$1 home id repo wt rc show real_tasks_axi url label
+  case "$provider" in
+    gerrit) url=https://gerrit.example.com/c/project/+/12345; label='Gerrit change' ;;
+    ado) url=https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42; label='Azure DevOps PR' ;;
+  esac
+  home=$(make_home "answer-before-replay-$provider")
+  id="sample-answer-before-replay-$provider"
   repo="$home/projects/sample"
   wt="$home/projects/$id"
-  fm_git_worktree "$repo" "$wt" fm/answer-before-replay-gerrit
-  tasks_in "$home" add "$id" "Ship the held Gerrit change" --kind ship \
-    --repo sample --start >/dev/null || fail "could not create the held Gerrit answer fixture"
+  fm_git_worktree "$repo" "$wt" "fm/answer-before-replay-$provider"
+  tasks_in "$home" add "$id" "Ship the held $provider change" --kind ship \
+    --repo sample --start >/dev/null || fail "could not create the held $provider answer fixture"
   fm_write_meta "$home/state/$id.meta" \
     "window=firstmate:fm-$id" "endpoint_task_id=$id" "worktree=$wt" \
     "project=$repo" "harness=codex" "kind=ship" "mode=no-mistakes" \
-    "pr=$gerrit_url" "spawn_gen=fixture-$id"
+    "pr=$url" "spawn_gen=fixture-$id"
   printf 'done: change landed\n' > "$home/state/$id.status"
   run_captain "$home" hold "$id" --reason "captain must choose the follow-up" >/dev/null \
-    || fail "could not hold the landed Gerrit task for the captain"
+    || fail "could not hold the landed $provider task for the captain"
   real_tasks_axi=$(command -v tasks-axi)
   cat > "$home/fakebin/tasks-axi" <<SH
 #!/usr/bin/env bash
@@ -3066,12 +3070,12 @@ SH
 
   printf 'Proceed with the landed change.\n' > "$home/answer.txt"
   run_captain "$home" answer "$id" --decision-file "$home/answer.txt" >/dev/null \
-    || fail "the captain could not answer a Gerrit task before cleanup replay"
-  show=$(tasks_in "$home" show "$id" --full) || fail "the answered Gerrit row is gone"
-  assert_contains "$show" "state: done" "the answer did not close the Gerrit row"
-  assert_contains "$show" "Gerrit change $gerrit_url" \
-    "the answer dropped the retained Gerrit change URL"
-  pass "an answer before cleanup replay notes the retained Gerrit change"
+    || fail "the captain could not answer a $provider task before cleanup replay"
+  show=$(tasks_in "$home" show "$id" --full) || fail "the answered $provider row is gone"
+  assert_contains "$show" "state: done" "the answer did not close the $provider row"
+  assert_contains "$show" "$label $url" \
+    "the answer dropped the retained $provider URL"
+  pass "an answer before cleanup replay notes the retained $provider change"
 }
 
 test_unusable_pending_close_record_names_its_reason() {
@@ -4169,7 +4173,8 @@ test_teardown_never_closes_a_captain_held_task
 test_retained_row_artifacts_survive_captain_answers
 test_interrupted_cleanup_keeps_the_captain_call_recoverable
 test_answer_before_cleanup_replay_preserves_the_retained_report
-test_answer_before_cleanup_replay_notes_a_retained_gerrit_change
+test_answer_before_cleanup_replay_notes_a_retained_change gerrit
+test_answer_before_cleanup_replay_notes_a_retained_change ado
 test_unusable_pending_close_record_names_its_reason
 test_relocated_report_does_not_wedge_an_answer_before_replay
 test_teardown_retains_captain_calls_in_a_relocated_backlog

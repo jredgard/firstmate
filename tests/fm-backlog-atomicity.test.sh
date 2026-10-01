@@ -2069,6 +2069,67 @@ SH
   pass "session start replays a recorded Gerrit close with its change URL as a note"
 }
 
+test_recovery_replays_pull_request_closes_with_supported_artifacts() {
+  local provider case_dir id url out real_tasks_axi show initial_state
+  real_tasks_axi=$(command -v tasks-axi)
+  for provider in ado github forgejo; do
+    case "$provider" in
+      ado) url=https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 ;;
+      github) url=https://github.com/acme/backend/pull/42 ;;
+      forgejo) url=https://forgejo.example.com/acme/backend/pulls/42 ;;
+    esac
+    for initial_state in in_flight 'done' held; do
+      id="atomic-heal-$provider-$initial_state"
+      case_dir=$(make_home "heal-pending-$provider-$initial_state-close")
+      add_item "$case_dir" "$id"
+      start_item "$case_dir" "$id"
+      if [ "$initial_state" = 'done' ]; then
+        tasks-axi 'done' "$id" --file "$(backlog_of "$case_dir")" >/dev/null
+      elif [ "$initial_state" = held ]; then
+        tasks-axi hold "$id" --reason "decision pending" --kind captain \
+          --file "$(backlog_of "$case_dir")" >/dev/null
+      fi
+      printf 'id=%s\ndata=%s\nspawn_gen=spawn-heal-pr\narg=--pr\narg=%s\n' \
+        "$id" "$(home_of "$case_dir")/data" "$url" \
+        > "$(home_of "$case_dir")/state/$id.backlog-close"
+      cat > "$case_dir/fakebin/tasks-axi" <<SH
+#!/usr/bin/env bash
+previous=
+for arg in "\$@"; do
+  if [ "\$previous" = --pr ] && ! [[ "\$arg" =~ ^https://github\.com/[^/]+/[^/]+/pull/[0-9]+\$|^https://[^/]+/[^/]+/[^/]+/pulls/[0-9]+\$ ]]; then
+    echo 'error: "Task pr link must be a canonical pull request URL"'
+    exit 1
+  fi
+  previous=\$arg
+done
+exec "$real_tasks_axi" "\$@"
+SH
+      chmod +x "$case_dir/fakebin/tasks-axi"
+
+      out=$(run_bootstrap "$case_dir")
+      show=$(tasks-axi show "$id" --file "$(backlog_of "$case_dir")" --full)
+      if [ "$initial_state" = held ]; then
+        [ "$(row_state "$case_dir" "$id")" = queued ] \
+          || fail "session start closed or failed to retain a held $provider item: $out"
+        assert_contains "$show" "hold_kind: captain" "replay dropped a $provider hold"
+      else
+        [ "$(row_state "$case_dir" "$id")" = 'done' ] \
+          || fail "session start left a $provider close open: $out"
+      fi
+      if [ "$provider" = ado ]; then
+        assert_contains "$show" "Azure DevOps PR $url" \
+          "replayed Azure DevOps close did not record its URL as a note"
+      else
+        assert_contains "$show" "pr:$url" \
+          "replayed $provider close did not preserve its PR field"
+      fi
+      assert_absent "$(home_of "$case_dir")/state/$id.backlog-close" \
+        "replayed $provider close left its pending marker"
+    done
+  done
+  pass "session start closes and backfills ADO notes without changing GitHub or Forgejo PR links"
+}
+
 test_recovery_backfills_a_recorded_link_on_an_already_done_item() {
   local case_dir id marker out
   id=atomic-heal-done-backfill-b9
@@ -3096,6 +3157,7 @@ test_recovery_rejects_an_internal_worker_record_symlink
 test_recovery_ignores_a_symlinked_worker_record
 test_recovery_replays_a_close_an_interrupted_cleanup_left_open
 test_recovery_replays_a_gerrit_close_with_its_change_url_as_a_note
+test_recovery_replays_pull_request_closes_with_supported_artifacts
 test_recovery_backfills_a_recorded_link_on_an_already_done_item
 test_recovery_preserves_a_close_when_the_backlog_cannot_be_read
 test_recovery_retry_preserves_incomplete_cleanup_warning

@@ -20,7 +20,11 @@
 # state/<id>.backlog-close first, so a process killed between the halves leaves
 # the next session start enough to finish it; a landed close removes that record.
 # A close that fails is fatal and loud, preserves its pending-close record, and
-# is retried by the next session start. The transition is skipped on a
+# is retried by the next session start. Azure DevOps PR URLs stay in that record
+# as --pr arguments; the shared close helper records them as done notes because
+# tasks-axi's PR field accepts only GitHub and Forgejo URLs. Immediate cleanup
+# and session-start replay use the same conversion without changing landed-work
+# verification. The transition is skipped on a
 # config/backlog-backend=manual home and in a markdown home that keeps no
 # data/backlog.md; those cases print the manual follow-up. A configured
 # non-markdown adapter remains active without a markdown file; any active
