@@ -116,7 +116,7 @@ The Postures section below is the one, bounded exception to the first three limi
 
 The posture is a file: `state/.afk-contract`, written only by `bin/fm-afk-contract.sh`, whose AWAY OR QUIET contract owns the mode and `authority-present` reading.
 Attended (no record): the role limits above apply exactly as written, main-owned rows never reach you, and MAIN processes every captain outcome you report.
-Away (the record exists): the wake message ends with a `POSTURE: AWAY` tail carrying the record's read-back verbatim; MAIN is parked, you take every row including check rows, decision rows, and heartbeat rows, and captain outcomes remain unprocessed for the return brief even though their visible transcript entries persist.
+Away (an away record exists): the wake message ends with a `POSTURE: AWAY` tail carrying the record's read-back verbatim; MAIN is parked, you take every row including check rows, decision rows, and heartbeat rows, and captain outcomes remain unprocessed for the return brief even though their visible transcript entries persist.
 Quiet (a quiet record with words): the wake ends with `POSTURE: QUIET` and the read-back verbatim; take every safe row as under recorded authority, but MAIN is not parked and every captain outcome is processed now, never held for a return.
 A quiet record without words leaves merge authority attended and the ordinary attended routing unchanged.
 The record is the captain's words, recorded verbatim, and the whole mandate.

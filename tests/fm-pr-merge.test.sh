@@ -3567,6 +3567,43 @@ SH
     > "$dir/ado-policies.json"
 }
 
+test_quiet_words_keep_ado_green_and_completion_guards() {
+  local dir scenario url rc
+  url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
+  for scenario in green red unreported waiver; do
+    dir=$(make_case "quiet-ado-$scenario")
+    add_ado_merge_mocks "$dir"
+    FM_AFK_MODE=quiet write_away_record "$dir" --words 'pr merge, approve and complete authority for devops and github'
+    set --
+    case "$scenario" in
+      red|waiver)
+        printf '%s\n' '{"value":[{"status":"rejected","configuration":{"isBlocking":true,"type":{"displayName":"Build"}}}]}' > "$dir/ado-policies.json"
+        ;;
+      unreported) printf '%s\n' '{"value":[{"status":"queued","configuration":{"isBlocking":true,"type":{"displayName":"Build"}}}]}' > "$dir/ado-policies.json" ;;
+    esac
+    [ "$scenario" != waiver ] || set -- --allow-red Build
+    set +e
+    FM_SUPERVISION_ACTOR=branch FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+      run_pr_merge "$dir" task-x1 "$url" "$@" </dev/null > "$dir/stdout" 2> "$dir/stderr"
+    rc=$?
+    set -e
+    if [ "$scenario" = green ]; then
+      expect_code 0 "$rc" "quiet Azure DevOps green completion"
+      [ -e "$dir/ado-complete" ] || fail "quiet Azure DevOps did not complete synchronously"
+      [ "$(sed -n 6p "$dir/state/task-x1.merge-authority")" = quiet ] || fail "quiet Azure DevOps lost its authority"
+      assert_grep "merge landed: task-x1 $url quiet" "$dir/state/.wake-queue" "quiet Azure DevOps outcome was not recorded"
+    else
+      if [ "$scenario" = waiver ]; then
+        expect_code 2 "$rc" "quiet Azure DevOps red waiver"
+      else
+        expect_code 1 "$rc" "quiet Azure DevOps $scenario policy"
+      fi
+      [ ! -e "$dir/ado-complete" ] || fail "quiet Azure DevOps completed with $scenario policies"
+    fi
+  done
+  pass "quiet words authorize only green, live-head synchronous Azure DevOps completion"
+}
+
 test_ado_headless_merge_and_refusals() {
   local dir url rc
   url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
@@ -4213,6 +4250,7 @@ test_allow_missing_follows_the_allow_red_rules() {
 
 test_gitlab_head_override_args_refuse_before_recording
 test_ado_headless_merge_and_refusals
+test_quiet_words_keep_ado_green_and_completion_guards
 test_ado_policy_gate_matches_ado_completion_semantics
 test_ado_completion_options_are_home_opt_ins
 test_ado_requests_are_bounded_and_keep_tokens_off_argv

@@ -166,7 +166,7 @@ On each actionable close the engine takes, the host runs these steps:
 
 1. It starts and verifies the successor watcher cycle and confirms the handling handoff, so the fleet stays supervised while the engine works.
 2. It computes the branch-claimable rows in the turn's posture and publishes the grant.
-3. It runs one bounded engine turn with the branch prompt and the wake message carrying, attended, the dialog mirror and, away, the record's read-back.
+3. It runs one bounded engine turn with the branch prompt and the wake message carrying the dialog mirror while present, the record's read-back under authority, and both under quiet words.
    The engine drains, handles, reports through `bin/fm-branch-report.sh`, and acknowledges, exactly as the Pi branch does.
 4. It releases the branch's leases and grant, whether or not the wake was handled.
 5. It parks on the successor only for a handled wake.
