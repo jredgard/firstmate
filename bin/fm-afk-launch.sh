@@ -17,8 +17,8 @@
 # harness.
 # On Pi and pi-signed the entry ENDS there: the away daemon is no longer launched
 # on Pi, the ordinary supervision session keeps running in both postures, and
-# `start` refuses on those harnesses. The same holds for away mode (not quiet
-# mode) on a claude, cursor, opencode, omp, grok, or codex primary whose home
+# `start` refuses on those harnesses. The same holds for away mode and quiet
+# mode with a ready attended host on a claude, cursor, opencode, omp, grok, or codex primary whose home
 # runs the supervision host (fm_supervision_host_enabled: by default on
 # Claude, by config/supervision-host elsewhere), where the host runs the away
 # session; `enter` there adds one line when the host has no
@@ -33,19 +33,25 @@
 # check), because that host already keeps the wakes it can take off a present
 # captain's main. `quiet-check` then says so, or, while the host's
 # broken-session latch holds, that the session is paused and when it retries;
-# either way a quiet `enter` refuses (exit 3) before writing anything, so quiet
-# mode never leaves a record that would park a present captain's main. While
+# a quiet `enter` writes the quiet record, carrying any words, without starting
+# a daemon there. `quiet-check` reports that live record and the host's readiness;
+# the captain remains present and its outcomes reach main now. While
 # an away record (one without the quiet mode a quiet entry records) is live on
 # that home, whatever state/.afk says, `quiet-check` (exit 2) and a quiet
 # `enter` (exit 3) refuse and name it: the captain's return
-# (bin/fm-afk-return.sh and its catch-up gate) comes first. Where the attended
+# (bin/fm-afk-return.sh and its catch-up gate) comes first. On a pi or
+# pi-signed primary a quiet `enter` also refuses (exit 3) before writing
+# anything: the attended Pi branch reads no quiet record, so quiet words are
+# never recorded there and recorded quiet authority is a non-Pi capability (a
+# documented limitation; the quiet skill's step 0 enters nothing on Pi).
+# Where the attended
 # host lacks one of those parts, `quiet-check` names it and quiet mode enters
 # through the daemon as it does without the host. A quiet `enter` records its
 # mode, so `start` and `start-native` launch the quiet daemon without
 # FM_AFK_MODE; a running quiet daemon is refreshed by a later `/quiet` and runs
 # until `/quiet off`. A quiet `start` or `start-native` that fails while no
-# daemon runs ends quiet mode as `stop` does, so no quiet record outlives its
-# daemon to park a present captain's main.
+# daemon runs ends daemon-backed quiet mode as `stop` does; a ready host's
+# quiet record remains live because no daemon is needed there.
 # `stop` (the return, driven by bin/fm-afk-return.sh) shuts the daemon down,
 # clears state/.afk last, and archives the record under state/afk-contracts/.
 #
@@ -93,7 +99,7 @@
 #   fm-afk-launch.sh quiet-check
 #                              Whether /quiet needs anything here (QUIET MODE
 #                              above): exit 0 with one line when it needs
-#                              nothing; exit 1 when quiet mode enters through
+#                              nothing or has a live quiet record; exit 1 when quiet mode enters through
 #                              `enter` and the daemon, with one line naming why
 #                              only on a home that runs the host; exit 2 with one
 #                              line naming a live away record on that home.
@@ -266,7 +272,6 @@ fm_afk_launch_quiet_needs_nothing() {
   fm_supervision_host_enabled "$config" "$harness" || return 1
   if fm_afk_contract_present "$FM_AFK_LAUNCH_STATE"; then
     fm_afk_launch_record_quiet || return 2
-    return 1
   fi
   [ ! -e "$FM_AFK_LAUNCH_STATE/.afk" ] || return 1
   if ! fm_supervision_host_attended_ready "$config" "$harness"; then
@@ -301,7 +306,11 @@ fm_afk_launch_quiet_check() {
     printf 'Quiet mode starts nothing on this home, but its supervision session is paused after repeated engine errors: routine wakes reach this conversation until it recovers, and %s.\n' "$retry"
     return 0
   fi
-  printf 'Quiet mode needs nothing on this home: the ordinary supervision session already handles the wakes it can while the captain is present, never opens a turn here for a routine outcome, and hands this conversation only what needs it; no daemon and no away record are used.\n'
+  if fm_afk_launch_record_quiet; then
+    printf 'Quiet mode recorded on this home: the supervision host reads its words; the captain is present, outcomes reach this conversation now, and no daemon is launched.\n'
+  else
+    printf 'Quiet mode needs nothing on this home: the ordinary supervision session already handles the wakes it can while the captain is present, never opens a turn here for a routine outcome, and hands this conversation only what needs it; enter quiet mode with words to record them without a daemon.\n'
+  fi
 }
 
 # The away daemon is no longer launched on Pi, nor for away mode on a primary
@@ -325,7 +334,9 @@ fm_afk_launch_daemon_allowed() {
   if [ -z "$mode" ] && [ -f "$FM_AFK_LAUNCH_STATE/.afk" ]; then
     mode=$(head -n 1 "$FM_AFK_LAUNCH_STATE/.afk" 2>/dev/null || true)
   fi
-  [ "$mode" != quiet ] || return 0
+  if [ "$mode" = quiet ]; then
+    fm_afk_launch_quiet_needs_nothing || return 0
+  fi
   fm_afk_launch_log "the away daemon is not launched on this $harness home, which runs the supervision host (docs/supervision-host.md); the away-posture record is the posture here (run bin/fm-afk-launch.sh enter and stop)"
   return 1
 }
@@ -367,13 +378,17 @@ fm_afk_launch_record_require() {
 }
 
 fm_afk_launch_enter() {
+  local harness
   fm_afk_launch_catchup_pending && return 1
   if [ "${FM_AFK_MODE:-}" = quiet ]; then
+    harness=$(fm_afk_launch_primary_harness)
+    case "$harness" in
+      pi|pi-signed)
+        fm_afk_launch_log "quiet mode records nothing on a $harness primary: the attended branch reads no quiet record there, so a quiet enter refuses before writing (the quiet skill's step 0 enters nothing on Pi)"
+        return 3 ;;
+    esac
     fm_afk_launch_quiet_needs_nothing
     case $? in
-      0)
-        fm_afk_launch_log "quiet mode writes no away-posture record on this home, whose attended supervision host already is quiet mode; run bin/fm-afk-launch.sh quiet-check"
-        return 3 ;;
       2)
         fm_afk_launch_log "quiet mode refuses while this home's away record (state/.afk-contract) is live; run the /afk return (bin/fm-afk-return.sh) and pass its catch-up gate, then run bin/fm-afk-launch.sh quiet-check"
         return 3 ;;
@@ -889,6 +904,9 @@ fm_afk_launch_stop() {
 # and no live daemon, archive the record as `stop` does. Returns <status>.
 fm_afk_launch_quiet_rollback() {  # <status>
   local status=$1
+  if fm_afk_launch_record_quiet && fm_afk_launch_quiet_needs_nothing; then
+    return "$status"
+  fi
   if [ "$(fm_afk_launch_requested_mode)" = quiet ] && fm_afk_launch_record_quiet \
     && ! daemon_lock_held_by_live_daemon; then
     fm_afk_launch_log "the quiet daemon did not start; ending quiet mode so its record does not outlive it"

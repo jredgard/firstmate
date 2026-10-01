@@ -70,8 +70,8 @@ test_branch_prompt_is_byte_stable_and_above_cache_floor() {
     *) fail "branch prompt lost the second-mate relay, signal-span, or stale-liveness rule" ;;
   esac
   case "$out_a" in
-    *"While attended, an instruction whose natural addressee is MAIN"*"its PR merge authority is yours, not parked with MAIN"*"every pull request in the lanes the words cover"*"A worker's still-running CI monitor is not a reason to wait"*"Report the verified merge as verdict captain"*) ;;
-    *) fail "emitted prompt lost the away-authority relocation and live-head merge instructions" ;;
+    *"Without recorded authority, an instruction whose natural addressee is MAIN"*"its PR merge authority is yours"*"every pull request in the lanes the words cover"*"A worker's still-running CI monitor is not a reason to wait"*"Report the verified merge as verdict captain"*"per your quiet instructions:"*"Quiet outcomes reach the present captain now"*) ;;
+    *) fail "emitted prompt lost the recorded-authority relocation, live-head merge or immediate quiet reporting instructions" ;;
   esac
   pass "branch prompt is byte-stable across homes, cwd, timezone, and time, above the cache floor"
 }
@@ -1377,7 +1377,7 @@ WRAPPER
   # Quiet mode's record is a present captain (bin/fm-afk-contract.sh AWAY OR
   # QUIET), so it relocates nothing: main keeps its standing authority.
   rm -f "$home/state/.afk-contract"
-  FM_HOME="$home" FM_AFK_MODE=quiet "$ROOT/bin/fm-afk-contract.sh" enter --words 'keep routine wakes off my main' >/dev/null \
+  FM_HOME="$home" FM_AFK_MODE=quiet "$ROOT/bin/fm-afk-contract.sh" enter >/dev/null \
     || fail "quiet entry failed"
   out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch "$ROOT/bin/fm-pr-merge.sh" task-x https://github.com/o/r/pull/1 2>&1)
   status=$?

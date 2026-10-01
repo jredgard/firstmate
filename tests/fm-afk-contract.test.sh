@@ -571,7 +571,7 @@ test_quiet_record_reads_as_a_present_captain_holding_nothing() {
   out=$(FM_AFK_MODE=quiet contract "$home" enter 2>&1) || fail "quiet entry failed: $out"
   assert_contains "$out" 'Quiet mode recorded at ' 'quiet announcement names quiet mode'
   assert_contains "$out" 'nothing waits for your return' 'quiet announcement says nothing is held'
-  assert_contains "$out" 'a local landing or a merge included, proceeds now under ordinary attended authority' 'quiet announcement names requested actions proceeding'
+  assert_contains "$out" 'without words merge authority stays attended' 'quiet announcement distinguishes words from posture'
   assert_contains "$out" 'Quiet mode (recorded):' 'quiet read-back title'
   assert_not_contains "$out" 'hold-for-return' 'a quiet entry must not read as hold-for-return'
   assert_not_contains "$out" 'Away posture' 'a quiet entry must not call itself the away posture'
@@ -600,6 +600,27 @@ test_quiet_record_reads_as_a_present_captain_holding_nothing() {
 # The mode written follows who is present: an /afk entry over quiet mode (a
 # refresh included) makes the record away, and a quiet entry never turns a
 # standing away record quiet, because the captain's return comes first.
+test_record_authority_reading() {
+  local home
+  home=$(make_home authority-reading)
+  if contract "$home" authority-present; then
+    fail "no record carried authority"
+  fi
+  FM_AFK_MODE=quiet contract "$home" enter >/dev/null || fail "quiet entry failed"
+  if contract "$home" authority-present; then
+    fail "quiet without words carried authority"
+  fi
+  FM_AFK_MODE=quiet contract "$home" enter --words $'\n' >/dev/null || fail "newline mandate failed"
+  contract "$home" authority-present || fail "non-empty newline words lost authority"
+  contract "$home" archive >/dev/null || fail "archive failed"
+  if contract "$home" authority-present; then
+    fail "archived words retained authority"
+  fi
+  contract "$home" enter >/dev/null || fail "away entry failed"
+  contract "$home" authority-present || fail "away record lost its existing authority reading"
+  pass "authority reading distinguishes quiet words, empty quiet, archive and away without interpreting words"
+}
+
 test_away_entry_over_quiet_mode_becomes_away_and_quiet_never_masks_away() {
   local home out quiet_entered
   home=$(make_home quiet-to-away)
@@ -641,4 +662,5 @@ test_version_1_record_still_validates_reads_and_archives
 test_version_1_record_is_replaced_by_a_version_2_record
 test_record_changes_refuse_while_a_reader_holds_the_lock
 test_quiet_record_reads_as_a_present_captain_holding_nothing
+test_record_authority_reading
 test_away_entry_over_quiet_mode_becomes_away_and_quiet_never_masks_away

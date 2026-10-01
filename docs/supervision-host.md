@@ -32,7 +32,7 @@ Today it runs beside a Claude, Cursor, OpenCode, omp, Grok, or Codex primary: aw
 - Away (an away record exists), the host hands each close to the engine.
   Main stays parked unless the host hands the wake back.
 - `/afk` launches no away daemon on a home of those harnesses that runs the host, because the host is the away session there.
-- `/quiet` enters nothing where the attended host runs, and elsewhere launches the daemon; see [Quiet mode](#quiet-mode).
+- `/quiet` records words without a daemon where the attended host runs, and elsewhere launches the daemon; see [Quiet mode](#quiet-mode).
   While the daemon's flag `state/.afk` exists, the host stands aside exactly as the plain arm does.
 - Pi keeps its in-process branch whatever the file says, and no Pi engine is built.
 - Kimi has no primary supervision protocol, so it has no arm owner to run the host.
@@ -101,7 +101,9 @@ So every guarded script treats it exactly as it treats the Pi branch.
 ## Postures
 
 The host reads the record's mode at every close and again when a turn starts (`bin/fm-afk-contract.sh` "AWAY OR QUIET").
-Only an away record is away: no record, or the record daemon-backed quiet mode writes, is a present captain, so the host runs attended beside a quiet record whose daemon is not running.
+Only an away record is away: no record or a quiet record means a present captain.
+A quiet record with words uses the same safe all-row scope as recorded away authority, while retaining the dialog mirror and immediate captain-outcome delivery; quiet without words keeps ordinary attended routing.
+`bin/fm-afk-contract.sh` "AWAY OR QUIET" owns the shared authority reading, and `bin/fm-branch-prompt.sh` "Postures" owns judgment, merge guards, and reporting.
 
 ### Attended
 
@@ -135,8 +137,12 @@ The record relocates its covered PR merge authority to the engine while main is 
 ### Quiet mode
 
 `/quiet` asks for what the attended host already does: routine wakes stay off a present captain's main.
-So where the attended host runs, `/quiet` is a statement that enters nothing, because the host already gives what a quiet entry would; while [the broken-session latch](#the-broken-session-latch) holds, it says the session is paused instead.
+Where the attended host runs, a quiet entry records its words without a daemon, so the host receives the durable mandate rather than dropping it because routine wakes are already quiet.
+The captain stays present; quiet outcomes are delivered now, never saved for a return.
+Without words, quiet mode changes no merge authority.
+While [the broken-session latch](#the-broken-session-latch) holds, quiet-check says the session is paused instead.
 Where the home runs the host but the attended host lacks one of its parts, `/quiet` names the missing part and enters the quiet daemon, and while an away record is live the captain's return comes first.
+A Pi or pi-signed primary supports no quiet record at all: the attended Pi branch reads none, so `bin/fm-afk-launch.sh enter` refuses quiet mode there before writing and quiet words are not recordable on those primaries (a documented limitation).
 `bin/fm-afk-launch.sh` owns the readiness test and refusals in its `quiet-check` contract, and the [quiet skill](../.agents/skills/quiet/SKILL.md) owns the procedure.
 
 ## The dialog mirror
@@ -161,7 +167,7 @@ On each actionable close the engine takes, the host runs these steps:
 
 1. It starts and verifies the successor watcher cycle and confirms the handling handoff, so the fleet stays supervised while the engine works.
 2. It computes the branch-claimable rows in the turn's posture and publishes the grant.
-3. It runs one bounded engine turn with the branch prompt and the wake message carrying, attended, the dialog mirror and, away, the record's read-back.
+3. It runs one bounded engine turn with the branch prompt and the wake message carrying the dialog mirror while present, the record's read-back under authority, and both under quiet words.
    The engine drains, handles, reports through `bin/fm-branch-report.sh`, and acknowledges, exactly as the Pi branch does.
 4. It releases the branch's leases and grant, whether or not the wake was handled.
 5. It parks on the successor only for a handled wake.

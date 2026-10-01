@@ -27,7 +27,7 @@
 //     this close at all, trigger class included), then the same five lines
 //     `scope` prints for the scan it judged. --afk judges it under the away
 //     posture.
-//   fm-branch-dispatch.mjs wake-prompt --report <surface> [--mirror-file <path>] [--away [--readback-file <path>]]
+//   fm-branch-dispatch.mjs wake-prompt --report <surface> [--mirror-file <path>] [--away|--quiet] [--readback-file <path>]
 //     Read the watcher's wake reason from stdin and print the branch wake
 //     prompt naming <surface> as the report surface. --mirror-file puts the
 //     host's dialog-mirror feed (bin/fm-host-mirror.sh) at its head; an empty
@@ -49,7 +49,7 @@ const dispatch = await import(pathToFileURL(path.join(root, ".pi", "extensions",
 
 function usage() {
   process.stderr.write(
-    "usage: fm-branch-dispatch.mjs scope [--heartbeat] [--afk] | offer [--afk] | wake-prompt --report <surface> [--mirror-file <path>] [--away [--readback-file <path>]]\n",
+    "usage: fm-branch-dispatch.mjs scope [--heartbeat] [--afk] | offer [--afk] | wake-prompt --report <surface> [--mirror-file <path>] [--away|--quiet] [--readback-file <path>]\n",
   );
   process.exit(2);
 }
@@ -103,17 +103,19 @@ if (command === "scope") {
 } else if (command === "wake-prompt") {
   let report = "";
   let away = false;
+  let quiet = false;
   let readbackFile = "";
   let mirrorFile = "";
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     if (arg === "--report" && index + 1 < args.length) report = args[++index];
     else if (arg === "--away") away = true;
+    else if (arg === "--quiet") quiet = true;
     else if (arg === "--readback-file" && index + 1 < args.length) readbackFile = args[++index];
     else if (arg === "--mirror-file" && index + 1 < args.length) mirrorFile = args[++index];
     else usage();
   }
-  if (!report) usage();
+  if (!report || (away && quiet)) usage();
   const message = readFileSync(0, "utf8").replace(/\n+$/, "");
   let mirror = "";
   if (mirrorFile) {
@@ -124,7 +126,8 @@ if (command === "scope") {
       process.exit(3);
     }
   }
-  const tail = away ? dispatch.awayPostureTailFor(readOptional(readbackFile)) : "";
+  const tail = quiet ? dispatch.quietPostureTailFor(readOptional(readbackFile))
+    : away ? dispatch.awayPostureTailFor(readOptional(readbackFile)) : "";
   process.stdout.write(`${dispatch.branchWakePrompt(message, report, tail, mirror)}\n`);
 } else {
   usage();

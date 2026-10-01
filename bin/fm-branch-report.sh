@@ -39,9 +39,10 @@
 # append, so every visible row is in the brief, queued, or both: the relay does
 # not depend on the host surviving its turn or on its owner delivering the
 # host's own handback. Silent outcomes remain in the store but are not queued
-# or relayed as notes. An attended turn queues nothing: its captain rows reach
-# MAIN through the host's branch-outcome exit and the drain's BRANCH OUTCOMES
-# section (bin/fm-wake-drain.sh), and its routine rows stay in the store.
+# or relayed as notes. An attended or quiet turn queues nothing, because its
+# captain is present: its captain rows reach MAIN through the host's
+# branch-outcome exit and the drain's BRANCH OUTCOMES section
+# (bin/fm-wake-drain.sh), and its routine rows stay in the store.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -131,14 +132,16 @@ if [ "$SILENT" = true ]; then
   printf 'recorded seq %s [routine]; silent outcome remains in the outcome store\n' "$SEQ"
   exit 0
 fi
-if [ "$(turn_field posture)" = attended ]; then
-  if [ "$VERDICT" = captain ] && ! fm_afk_contract_away_present "$STATE"; then
-    printf 'recorded seq %s [captain]; MAIN processes it from its next drain\n' "$SEQ"
-  else
-    printf 'recorded seq %s [%s]; it waits in the outcome store for MAIN\n' "$SEQ" "$VERDICT"
-  fi
-  exit 0
-fi
+case "$(turn_field posture)" in
+  attended|quiet)
+    if [ "$VERDICT" = captain ] && ! fm_afk_contract_away_present "$STATE"; then
+      printf 'recorded seq %s [captain]; MAIN processes it from its next drain\n' "$SEQ"
+    else
+      printf 'recorded seq %s [%s]; it waits in the outcome store for MAIN\n' "$SEQ" "$VERDICT"
+    fi
+    exit 0
+    ;;
+esac
 if ! fm_afk_contract_away_present "$STATE"; then
   # shellcheck source=bin/fm-wake-lib.sh
   . "$SCRIPT_DIR/fm-wake-lib.sh"

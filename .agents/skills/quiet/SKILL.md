@@ -2,8 +2,8 @@
 name: quiet
 description: >-
   Enter quiet supervision mode when the captain invokes /quiet or asks for quiet mode, quiet-while-present, or fewer routine wake turns while they stay in the session.
-  Where Pi's supervision branch or an attended supervision host already keeps routine wakes off the conversation, it enters nothing and says so.
-  Elsewhere it sets the same durable away/quiet-mode flag as /afk, in `quiet` mode, so the sub-supervisor daemon self-handles routine wakes and escalates captain-relevant events exactly as away mode does, but ordinary captain chat does NOT exit it - only an explicit `/quiet off` does.
+  Without words, where Pi's supervision branch or an attended supervision host already keeps routine wakes off the conversation, it enters nothing and says so.
+  Recorded words enter a quiet record even on an attended-host home without a daemon; elsewhere the daemon self-handles routine wakes, and ordinary captain chat does NOT exit it - only an explicit `/quiet off` does.
 user-invocable: true
 metadata:
   internal: true
@@ -22,9 +22,10 @@ For captain-held rechecks under quiet, see [architecture](../../../docs/architec
 ## What it does
 
 0. **First check whether quiet mode needs anything here.**
-   On Pi or pi-signed, enter nothing: the attended branch already keeps routine wakes out of this conversation (the `afk` skill's step 2); tell the captain so.
+   On Pi or pi-signed, enter nothing: the attended branch already keeps routine wakes out of this conversation (the `afk` skill's step 2), and no quiet record is supported there (`bin/fm-afk-launch.sh enter` refuses in quiet mode before writing), so words typed with the command are not recorded; tell the captain so.
    Everywhere else run `bin/fm-afk-launch.sh quiet-check`; its header's QUIET MODE owns what each result means.
-   - Exit 0: enter nothing - no record, no flag, no daemon, and `/quiet off` then needs nothing either.
+   - Exit 0: without words or a live quiet record, enter nothing; with words, go to step 1 to record them without a daemon.
+     If quiet-check reports a live quiet record, leave it active unless refreshing its words or explicitly exiting.
      Tell the captain in `AGENTS.md` section 9 language that supervision here already works that way: routine fleet events stay off this conversation, while decisions, failures, credentials, and review-ready work still reach them.
      When its line says the supervision session is paused, say instead that routine updates reach them until it recovers, and when it next retries.
    - Exit 2: an away record is live, so the captain has returned: run the `afk` skill's return and clear its catch-up gate, then run `quiet-check` again and follow its new result.
@@ -38,7 +39,8 @@ For captain-held rechecks under quiet, see [architecture](../../../docs/architec
    `FM_AFK_MODE=quiet` in the shell that invokes `bin/fm-afk-launch.sh enter`
    and `start` (or `start-native`), so the record notes quiet mode and
    `state/.afk`'s first line reads `quiet` instead of `away`.
-   On a home that runs the supervision host, launch the daemon on the path
+   On a ready attended-host home, record the words and launch no daemon; quiet-check reports the live record.
+   On an unready host home, launch the daemon on the path
    this harness uses without the host; `start` and `start-native` take quiet
    mode from the record `enter` wrote.
    Keep `FM_AFK_MODE=quiet` on a quiet refresh: an `/afk` entry, even without new words, replaces a quiet record with an away record and starts hold-for-return.
@@ -70,16 +72,16 @@ point of this mode (AGENTS.md section 8's away-mode stub, quiet branch).
 
 ## Orthogonal to approval authority
 
-Quiet mode changes how aggressively firstmate surfaces things, never who approves what.
-A PR ready for merge keeps the merge authority from `AGENTS.md` section 7, and a needs-decision finding keeps the `ask-user-authority` policy.
+`bin/fm-afk-contract.sh` AWAY OR QUIET owns when the record carries authority, and `bin/fm-branch-prompt.sh` Postures owns interpretation, guarded merges, and immediate reporting under the words.
+A quiet record without words leaves merge authority attended, and a needs-decision finding keeps the `ask-user-authority` policy unless the words pre-answer that exact decision.
 
 The captain is present, so quiet mode holds nothing for a return.
 The record a quiet entry writes carries quiet mode (`bin/fm-afk-contract.sh mode`), and its entry, read-back, and session-start lines say so.
-Every action the captain asks for or standing authority covers - landing local-only work, a merge, a dispatch - proceeds now exactly as it would without quiet mode; the `afk` skill's away holds never apply to a quiet record.
+The `afk` skill's away holds never apply to a quiet record; local-only landing still waits for the captain.
 
 ## Must not hide a decision or a failure
 
-Per the issue's own author triage: quiet mode is presentation only.
+Quiet mode without words is presentation only.
 Progress, retries, and internal mechanics stay below deck exactly as in away
 mode, but review-ready work, findings, decisions, failures, and credentials
 escalate every time, through the same classification policy `/afk` owns.

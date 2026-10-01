@@ -2952,6 +2952,53 @@ test_quiet_record_keeps_merges_attended() {
   pass "fm-pr-merge keeps a quiet-mode home's merges attended, the named red-check waiver included"
 }
 
+test_quiet_words_use_synchronous_live_head_authority() {
+  local case_dir scenario head url rc
+  head=abababababababababababababababababababab
+  url=https://github.com/example/repo/pull/89
+  for scenario in green red missing allow-red allow-missing auto queue; do
+    case_dir=$(make_case "quiet-words-$scenario")
+    add_gh_mocks "$case_dir" "$head"
+    FM_AFK_MODE=quiet write_away_record "$case_dir" --words 'merge green PRs for github and devops'
+    set --
+    case "$scenario" in
+      red|allow-red) write_github_red_json "$case_dir" "$head" lint ;;
+      missing|allow-missing) write_github_required "$case_dir" classic:lint ;;
+      queue) printf 'merge_method=MERGE\n' > "$case_dir/github-rules" ;;
+    esac
+    case "$scenario" in
+      allow-red) set -- --allow-red lint ;;
+      allow-missing) set -- --allow-missing lint ;;
+      auto) set -- --attended-override -- --auto --merge ;;
+    esac
+    set +e
+    FM_SUPERVISION_ACTOR=branch run_pr_merge "$case_dir" task-x1 "$url" "$@" \
+      > "$case_dir/stdout" 2> "$case_dir/stderr"
+    rc=$?
+    set -e
+    case "$scenario" in
+      green)
+        expect_code 0 "$rc" "quiet words: green PR must merge synchronously"
+        assert_logged_gh_merge "$case_dir" 89 example/repo --squash
+        assert_grep "--match-head-commit $head" "$case_dir/gh.log" "quiet merge must bind the live head"
+        assert_no_grep ' --auto' "$case_dir/gh.log" "quiet merge must not enqueue"
+        [ "$(sed -n 6p "$case_dir/state/task-x1.merge-authority")" = quiet ] \
+          || fail "quiet merge lost its authority provenance"
+        assert_grep "merge landed: task-x1 $url quiet" "$case_dir/state/.wake-queue" "quiet merge must report its outcome now"
+        ;;
+      red|missing)
+        expect_code 1 "$rc" "quiet words: $scenario checks must refuse"
+        assert_no_grep 'pr merge' "$case_dir/gh.log" "quiet words: $scenario checks reached the forge"
+        ;;
+      *)
+        expect_code 2 "$rc" "quiet words: $scenario must refuse"
+        assert_no_grep 'pr merge' "$case_dir/gh.log" "quiet words: $scenario reached the forge"
+        ;;
+    esac
+  done
+  pass "quiet words merge only a synchronous green live-head PR and refuse red, missing, waivers and queues"
+}
+
 test_allow_red_requires_one_separate_name() {
   local case_dir rc head
   head=afafafafafafafafafafafafafafafafafafafaf
@@ -3262,7 +3309,7 @@ test_unreadable_away_record_refuses_merge() {
   rc=$?
   set -e
   expect_code 1 "$rc" "away-unreadable: an unreadable away record must refuse"
-  assert_grep 'away-posture record could not be read' "$case_dir/stderr" \
+  assert_grep 'posture record could not be read' "$case_dir/stderr" \
     "away-unreadable: refusal did not fail closed"
   assert_no_grep 'pr merge' "$case_dir/gh.log" \
     "away-unreadable: gh pr merge ran despite an unreadable record"
@@ -3376,7 +3423,7 @@ test_a_record_made_unreadable_before_the_merge_refuses_it() {
   set -e
 
   expect_code 1 "$rc" "away-unreadable-before-merge: a record made unreadable before the authority read must refuse"
-  assert_grep 'away-posture record could not be read' "$case_dir/stderr" \
+  assert_grep 'posture record could not be read' "$case_dir/stderr" \
     "away-unreadable-before-merge: refusal did not fail closed"
   assert_no_grep 'pr merge' "$case_dir/gh.log" \
     "away-unreadable-before-merge: gh pr merge ran on a record that could not be read"
@@ -3518,6 +3565,43 @@ SH
   chmod +x "$dir/fakebin/az" "$dir/fakebin/curl"
   printf '%s\n' '{"value":[{"status":"approved","configuration":{"type":{"displayName":"Build"}}},{"status":"rejected","configuration":{"isBlocking":true,"type":{"id":"fa4e907d-c16b-4a4c-9dfa-4916e5d171ab","displayName":"Require a merge strategy"}}}]}' \
     > "$dir/ado-policies.json"
+}
+
+test_quiet_words_keep_ado_green_and_completion_guards() {
+  local dir scenario url rc
+  url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
+  for scenario in green red unreported waiver; do
+    dir=$(make_case "quiet-ado-$scenario")
+    add_ado_merge_mocks "$dir"
+    FM_AFK_MODE=quiet write_away_record "$dir" --words 'pr merge, approve and complete authority for devops and github'
+    set --
+    case "$scenario" in
+      red|waiver)
+        printf '%s\n' '{"value":[{"status":"rejected","configuration":{"isBlocking":true,"type":{"displayName":"Build"}}}]}' > "$dir/ado-policies.json"
+        ;;
+      unreported) printf '%s\n' '{"value":[{"status":"queued","configuration":{"isBlocking":true,"type":{"displayName":"Build"}}}]}' > "$dir/ado-policies.json" ;;
+    esac
+    [ "$scenario" != waiver ] || set -- --allow-red Build
+    set +e
+    FM_SUPERVISION_ACTOR=branch FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+      run_pr_merge "$dir" task-x1 "$url" "$@" </dev/null > "$dir/stdout" 2> "$dir/stderr"
+    rc=$?
+    set -e
+    if [ "$scenario" = green ]; then
+      expect_code 0 "$rc" "quiet Azure DevOps green completion"
+      [ -e "$dir/ado-complete" ] || fail "quiet Azure DevOps did not complete synchronously"
+      [ "$(sed -n 6p "$dir/state/task-x1.merge-authority")" = quiet ] || fail "quiet Azure DevOps lost its authority"
+      assert_grep "merge landed: task-x1 $url quiet" "$dir/state/.wake-queue" "quiet Azure DevOps outcome was not recorded"
+    else
+      if [ "$scenario" = waiver ]; then
+        expect_code 2 "$rc" "quiet Azure DevOps red waiver"
+      else
+        expect_code 1 "$rc" "quiet Azure DevOps $scenario policy"
+      fi
+      [ ! -e "$dir/ado-complete" ] || fail "quiet Azure DevOps completed with $scenario policies"
+    fi
+  done
+  pass "quiet words authorize only green, live-head synchronous Azure DevOps completion"
 }
 
 test_ado_headless_merge_and_refusals() {
@@ -4166,6 +4250,7 @@ test_allow_missing_follows_the_allow_red_rules() {
 
 test_gitlab_head_override_args_refuse_before_recording
 test_ado_headless_merge_and_refusals
+test_quiet_words_keep_ado_green_and_completion_guards
 test_ado_policy_gate_matches_ado_completion_semantics
 test_ado_completion_options_are_home_opt_ins
 test_ado_requests_are_bounded_and_keep_tokens_off_argv
@@ -4200,6 +4285,7 @@ test_undated_runs_never_supersede
 test_allow_red_still_waives_only_the_current_failure
 test_allow_red_is_refused_while_away
 test_quiet_record_keeps_merges_attended
+test_quiet_words_use_synchronous_live_head_authority
 test_allow_red_requires_one_separate_name
 test_away_record_permits_any_green_merge_under_away_authority
 test_away_branch_actor_merges_green_under_the_record

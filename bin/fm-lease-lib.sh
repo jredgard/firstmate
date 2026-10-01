@@ -76,7 +76,11 @@
 #     bin/fm-branch-prompt.sh "Postures" owns how the branch judges the
 #     captain's away words before invoking one. The
 #     relocation grants nothing beyond what main could do attended: it only
-#     changes which actor may reach the guarded script's own gate. An action
+#     changes which actor may reach the guarded script's own gate.
+#     PR merging also opts in with --record-pr-authority, using the authority
+#     reading owned by bin/fm-afk-contract.sh AWAY OR QUIET; local-only landing
+#     and all other role guards are unchanged.
+#     An action
 #     that has no record-side gate of its own - landing local-only work or
 #     retiring a secondmate - is never relocated and keeps refusing the branch
 #     in both postures. An archived, absent, unconfirmed, or unreadable record
@@ -266,8 +270,14 @@ fm_lease_forbid_branch() {
   local action=$1 relocatable=${2:-} actor
   actor=$(fm_lease_actor) || exit "$FM_LEASE_REFUSE_EXIT"
   [ "$actor" = branch ] || return 0
-  if [ "$relocatable" = --away-relocated ] && fm_lease_away_relocated; then
+  if { [ "$relocatable" = --away-relocated ] || [ "$relocatable" = --record-pr-authority ]; } \
+    && fm_lease_away_relocated; then
     echo "note: $action proceeds for the supervision branch under the away-posture record: main is parked and its standing authority is relocated; this script's own gate still applies (docs/pi-supervision-branch.md \"Postures\")" >&2
+    return 0
+  fi
+  if [ "$relocatable" = --record-pr-authority ] \
+    && FM_STATE_OVERRIDE="$STATE" "$FM_LEASE_LIB_DIR/fm-afk-contract.sh" validate >/dev/null 2>&1 \
+    && FM_STATE_OVERRIDE="$STATE" "$FM_LEASE_LIB_DIR/fm-afk-contract.sh" authority-present; then
     return 0
   fi
   echo "error: $action refused - the supervision branch never performs this action; report the outcome and leave it to main (role partition: docs/pi-supervision-branch.md)" >&2

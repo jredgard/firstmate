@@ -1115,18 +1115,32 @@ unit_supervision_host_quiet_statement() {
   printf 'claude\n' > "$st/config/supervision-host"
   out=$(FM_TEST_HARNESS=pi quiet_in "$st" "$LAUNCH" quiet-check); rc=$?
   [ "$rc" -eq 1 ] && [ -z "$out" ] || fail "quiet-check on a pi home must exit 1 silently (rc=$rc): $out"
+  for harness in pi pi-signed; do
+    out=$(FM_TEST_HARNESS=$harness quiet_in "$st" env FM_AFK_MODE=quiet "$LAUNCH" enter --words "stay quiet"); rc=$?
+    if [ "$rc" -ne 3 ] || [ -e "$st/state/.afk-contract" ] \
+      || ! printf '%s' "$out" | grep -F "quiet mode records nothing on a $harness primary" >/dev/null; then
+      fail "$harness: a quiet enter must refuse before writing any record (rc=$rc): $out"
+    fi
+  done
 
   for harness in claude cursor; do
     out=$(FM_TEST_HARNESS=$harness quiet_in "$st" "$LAUNCH" quiet-check); rc=$?
     quiet_expect 0 'Quiet mode needs nothing on this home' "$harness: quiet-check must say quiet mode needs nothing where the attended host runs"
   done
   out=$(quiet_in "$st" env FM_AFK_MODE=quiet "$LAUNCH" enter --words "stay quiet"); rc=$?
-  if [ "$rc" -ne 3 ] || [ -e "$st/state/.afk-contract" ] || [ -e "$st/state/.afk" ] \
-    || ! printf '%s' "$out" | grep -F 'quiet mode writes no away-posture record on this home' >/dev/null; then
-    fail "a quiet enter where the attended host runs must write no record that would park a present captain (rc=$rc): $out"
+  if [ "$rc" -ne 0 ] || [ ! -f "$st/state/.afk-contract" ] || [ -e "$st/state/.afk" ] \
+    || [ "$(quiet_in "$st" "$CONTRACT" words)" != 'stay quiet' ]; then
+    fail "a quiet enter where the attended host runs must record its words without a daemon (rc=$rc): $out"
   fi
+  out=$(quiet_in "$st" "$LAUNCH" quiet-check); rc=$?
+  quiet_expect 0 'Quiet mode recorded on this home' "quiet-check must report the live quiet record"
+  out=$(quiet_in "$st" "$LAUNCH" start-native); rc=$?
+  [ "$rc" -eq 1 ] && [ -f "$st/state/.afk-contract" ] && [ ! -e "$st/state/.afk" ] \
+    && [ ! -e "$st/state/.afk-daemon-terminal" ] || fail "a ready quiet host must refuse a daemon without archiving its record (rc=$rc): $out"
+  quiet_in "$st" "$LAUNCH" stop >/dev/null || fail "quiet stop must archive the record"
+  [ ! -e "$st/state/.afk-contract" ] || fail "quiet stop left authority live"
   [ ! -e "$st/state/.host-mirror-cursor.next" ] || fail "quiet-check must stage no mirror cursor"
-  pass "supervision host: /quiet is a statement where the attended host runs, and a quiet enter writes nothing there"
+  pass "supervision host: quiet words persist without a daemon and stop archives them"
 
   # The host's broken-session latch, as the host persists it after two engine
   # errors, under the engine library's own latch key.
@@ -1136,7 +1150,7 @@ unit_supervision_host_quiet_statement() {
   out=$(quiet_in "$st" "$LAUNCH" quiet-check); rc=$?
   quiet_expect 0 'paused after repeated engine errors: routine wakes reach this conversation until it recovers, and its next retry is due at' "quiet-check during the latch's cooldown must say the session is paused"
   out=$(quiet_in "$st" env FM_AFK_MODE=quiet "$LAUNCH" enter --words "stay quiet"); rc=$?
-  [ "$rc" -eq 3 ] && [ ! -e "$st/state/.afk-contract" ] || fail "a quiet enter while the latch holds must write nothing (rc=$rc): $out"
+  [ "$rc" -eq 0 ] && [ -f "$st/state/.afk-contract" ] || fail "a quiet enter while the latch holds must preserve the words (rc=$rc): $out"
   printf 'key=%s\nerrors=2\ncooldown=300\nretry_after=%s\n' "$key" "$(( $(date +%s) - 10 ))" > "$st/state/.supervision-host-health"
   out=$(quiet_in "$st" "$LAUNCH" quiet-check)
   printf '%s' "$out" | grep -F 'until it recovers, and its next wake retries it' >/dev/null \
@@ -1144,7 +1158,8 @@ unit_supervision_host_quiet_statement() {
   printf 'key=%s\nerrors=0\ncooldown=0\nretry_after=0\n' "$key" > "$st/state/.supervision-host-health"
   out=$(quiet_in "$st" "$LAUNCH" quiet-check)
   printf '%s' "$out" | grep -F 'Quiet mode needs nothing on this home' >/dev/null \
-    || fail "quiet-check once the latch clears must say quiet mode needs nothing again: $out"
+    || printf '%s' "$out" | grep -F 'Quiet mode recorded on this home' >/dev/null \
+    || fail "quiet-check once the latch clears must report the live quiet record: $out"
   [ ! -e "$st/state/.afk" ] && [ ! -e "$st/state/.afk-daemon-terminal" ] || fail "quiet-check must start nothing"
   pass "supervision host: quiet-check says the supervision session is paused while its latch holds, and starts nothing"
   rm -rf "$st"
@@ -1273,7 +1288,7 @@ unit_supervision_host_quiet_failed_start() {
   out=$(quiet_in "$st" "$LAUNCH" quiet-check); rc=$?
   quiet_expect 0 'Quiet mode needs nothing on this home' "once the mirror returns after a failed quiet start, the attended host must treat the captain as present"
   quiet_in "$st" env FM_AFK_MODE=quiet "$LAUNCH" enter --words "stay quiet" >/dev/null; rc=$?
-  [ "$rc" -eq 3 ] && [ ! -e "$st/state/.afk-contract" ] || fail "a quiet enter after a failed quiet start must again write nothing (rc=$rc)"
+  [ "$rc" -eq 0 ] && [ -f "$st/state/.afk-contract" ] || fail "a quiet enter after a failed quiet start must preserve its words (rc=$rc)"
   rm -f "$st/state/.host-mirror.jsonl"
   quiet_in "$st" env FM_AFK_MODE=quiet "$LAUNCH" enter --words "stay quiet" >/dev/null \
     || fail "a second quiet entry without the dialog mirror must record quiet mode"

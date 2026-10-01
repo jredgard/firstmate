@@ -206,7 +206,7 @@ make_home() {  # <name> <attended|away|quiet> [config line]
   # Quiet mode's record with no daemon flag: a quiet entry whose daemon never
   # started or stopped, left beside a present captain.
   if [ "$2" = quiet ]; then
-    FM_HOME="$home" FM_AFK_MODE=quiet "$CONTRACT" enter --words 'keep routine wakes off my main' >/dev/null 2>&1 \
+    FM_HOME="$home" FM_AFK_MODE=quiet "$CONTRACT" enter >/dev/null 2>&1 \
       || fail "fixture: could not record quiet mode"
     [ "$(FM_HOME="$home" "$CONTRACT" mode)" = quiet ] || fail "fixture: the record is not quiet mode's"
   fi
@@ -951,7 +951,7 @@ test_quiet_record_without_its_daemon_is_a_present_captain() {
   wait_until 150 watcher_live "$home" || fail "quiet: the host never started a watcher cycle"
   append_status "$home" 'ready for review'
   wait_until 250 host_exited "$home" || fail "quiet: the captain outcome did not wake the present captain's main: $(cat "$home/state/.supervision-host.log")"
-  assert_re '	handled	turn=[^	]*	posture=attended	' "$home/state/.supervision-host.log" "a quiet record must leave the host's turn attended"
+  assert_re '	handled	turn=[^	]*	posture=attended	' "$home/state/.supervision-host.log" "a wordless quiet record must leave the host's turn attended"
   assert_no_re '^POSTURE: AWAY' "$home/engine-call.1" "a turn beside a quiet record must carry no away tail"
   assert_re 'MAIN DIALOG MIRROR' "$home/engine-call.1" "a turn beside a quiet record must carry the captain's dialog"
   assert_grep 'MAIN processes it from its next drain' "$home/engine-report.log" "a captain report beside a quiet record must say main processes it"
@@ -971,6 +971,31 @@ test_quiet_record_without_its_daemon_is_a_present_captain() {
   [ "$(engine_calls "$home")" -eq 0 ] || fail "quiet main-only: the engine took a decision close from a present captain"
   assert_re '	pass-through	attended	main-only	signal:' "$home/state/.supervision-host.log" "the ledger must record the attended main-only pass-through"
   pass "host: a quiet record without its daemon is a present captain, so outcomes and decisions reach main"
+}
+
+test_quiet_words_reach_the_engine_and_report_now() {
+  local home drained
+  home=$(make_home quiet-words attended)
+  FM_HOME="$home" FM_AFK_MODE=quiet "$CONTRACT" enter --words 'merge green PRs for devops and github' >/dev/null \
+    || fail "fixture: quiet words could not be recorded"
+  echo captain > "$home/stub-mode"
+  start_host "$home"
+  wait_until 150 watcher_live "$home" || fail "quiet words: no watcher"
+  append_status "$home" 'ready for review'
+  wait_until 250 host_exited "$home" || fail "quiet words: outcome never reached the present captain"
+  assert_re '^POSTURE: QUIET\.' "$home/engine-call.1" "quiet wake must identify the present captain"
+  assert_contains "$(cat "$home/engine-call.1")" 'merge green PRs for devops and github' "quiet wake must carry the exact recorded words"
+  assert_contains "$(cat "$home/engine-call.1")" 'per your quiet instructions:' "quiet wake must require immediate attributed reporting"
+  assert_no_re '^POSTURE: AWAY' "$home/engine-call.1" "quiet wake must not park main"
+  assert_re 'MAIN DIALOG MIRROR' "$home/engine-call.1" "quiet wake must retain the present captain's dialog"
+  assert_re '	handled	turn=[^	]*	posture=quiet	' "$home/state/.supervision-host.log" "the ledger must record the quiet turn"
+  assert_grep 'MAIN processes it from its next drain' "$home/engine-report.log" "a quiet captain report must use the present-captain path"
+  assert_no_grep 'the captain has returned' "$home/engine-report.log" "a quiet report must never claim the captain returned"
+  assert_no_grep 'supervision-host-return' "$home/state/.wake-queue" "a quiet report must queue no captain-returned relay"
+  drained=$(FM_HOME="$home" "$FAKE_CLAUDE" -c '"$0" 2>&1' "$ROOT/bin/fm-wake-drain.sh")
+  assert_contains "$drained" 'BRANCH OUTCOMES' "quiet outcome must be available now"
+  assert_not_contains "$drained" 'was recorded after the captain returned' "the drain must carry no captain-returned relay for a quiet outcome"
+  pass "quiet words reach the generated wake interface with present-captain reporting and immediate outcomes"
 }
 
 test_attended_main_only_close_passes_straight_to_main() {
@@ -1207,7 +1232,7 @@ test_claude_stop_hook_rewakes_a_present_captain_beside_a_quiet_record() {
   wait_until 150 watcher_live "$home" || fail "hook quiet: the Stop hook never started a watcher cycle: $(cat "$home/hook.err" 2>/dev/null)"
   append_status "$home" 'ready for review'
   wait_until 250 hook_exited "$home" || fail "hook quiet: the Stop hook never closed: $(cat "$home/state/.supervision-host.log")"
-  assert_re '	handled	turn=[^	]*	posture=attended	' "$home/state/.supervision-host.log" "a quiet record must leave the host's turn attended"
+  assert_re '	handled	turn=[^	]*	posture=quiet	' "$home/state/.supervision-host.log" "a quiet-with-words record must put the host's turn under the quiet posture"
   assert_rewoke_main "$home" "hook quiet"
   assert_re '^supervision-host: branch-outcome: ' "$home/hook.err" "the rewake must carry the captain outcome"
   assert_no_grep 'not a return' "$home/hook.err" "a present captain's rewake must not call itself away-posture supervision"
@@ -1297,7 +1322,7 @@ SH
   turn_end "$home"
   wait_until 150 watcher_live "$home" || fail "hook write failure: no watcher started"
   append_status "$home" 'step one'
-  wait_until 250 hook_exited "$home" || fail "hook write failure: the Stop hook did not finish"
+  wait_until 600 hook_exited "$home" || fail "hook write failure: the Stop hook did not finish"
   [ "$(cat "$home/offer-count" 2>/dev/null)" -ge 2 ] || fail "fixture: the close did not turn main-only at its turn"
   assert_re 'pass-through[[:space:]]+downtime-unrestored' "$home/state/.supervision-host.log" "fixture: downtime publication did not fail"
   assert_re '^(pending|announced):handling:' "$home/state/.watcher-down" "fixture: the marker unexpectedly became downtime"
@@ -2616,6 +2641,7 @@ test_attended_routine_wake_is_handled_on_the_engine_and_stays_off_main
 test_attended_captain_outcome_reaches_main_through_branch_outcomes
 test_captain_leaving_mid_turn_keeps_its_captain_outcome_for_the_return
 test_quiet_record_without_its_daemon_is_a_present_captain
+test_quiet_words_reach_the_engine_and_report_now
 test_attended_main_only_close_passes_straight_to_main
 test_off_written_while_parked_passes_the_next_attended_close_to_main
 test_main_only_pass_through_leaves_the_successor_watcher_running

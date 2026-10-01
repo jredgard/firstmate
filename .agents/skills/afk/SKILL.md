@@ -14,7 +14,7 @@ Away mode is a POSTURE of the one supervision session, not a second architecture
 Being away changes exactly two things: how the captain is informed, and what happens at a captain-owned decision point (hold for return, or the answer the captain's away words already gave).
 It never changes the authority set.
 The posture is a file, `state/.afk-contract`, written only by `bin/fm-afk-contract.sh` in the same turn as `/afk`; nothing infers the posture from chat.
-A record carrying quiet mode (`bin/fm-afk-contract.sh mode`) is not this posture: the captain is present, so none of this skill's holds for a return apply to it (the `quiet` skill owns it).
+A record carrying quiet mode is not this posture: the captain is present, so none of this skill's holds for a return apply to it; `bin/fm-afk-contract.sh` AWAY OR QUIET owns its authority reading and the `quiet` skill owns entry.
 Typing `/afk` is itself the go: the captain may not look at the screen again, so entry never waits for a further human response, and no read-back gates it or asks for a go.
 Hold-for-return is the default and the only reach profile this release records: there is no phone channel, and the entry announcement says so aloud every time.
 
@@ -35,7 +35,7 @@ Hold-for-return is the default and the only reach profile this release records: 
    - **A home that runs the supervision host** (a Claude home unless `config/supervision-host-off` opts it out, or a Cursor, OpenCode, omp, Grok, or Codex home with `config/supervision-host` and no opt-out; `docs/configuration.md` "Supervision host"): nothing to launch for `/afk`; go on to the announcement.
      The supervision host (`docs/supervision-host.md`) is the away session there: it runs the branch's contract on a headless engine under the record while main is parked, and `bin/fm-afk-launch.sh start` and `start-native` refuse the away daemon on that home.
      If `enter` printed a `Supervision host: no engine ...` line, every away wake reaches this conversation instead; say so in the announcement.
-     `/quiet` enters nothing there where the attended host runs, and otherwise still launches the daemon below (the quiet skill's `quiet-check` decides).
+     `/quiet` records any words without a daemon where the attended host runs, and otherwise still launches the daemon below (the quiet skill's `quiet-check` decides).
    - **Harness WITH a native in-pane tracked-background tool** (claude's and grok's, on a home that does not run the supervision host): run `bin/fm-afk-launch.sh start-native`, then run `FM_AFK_STATE_PREPARED=1 bin/fm-afk-start.sh` through that native tool.
      This is a deliberate no-separate-terminal exception because the harness-hosted job creates no terminal or layout mutation, and a shell launcher cannot invoke a harness-native background tool.
      If the native launch fails, run `bin/fm-afk-launch.sh stop` to roll back the prepared lifecycle.

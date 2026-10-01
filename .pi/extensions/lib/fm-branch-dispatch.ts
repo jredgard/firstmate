@@ -66,6 +66,10 @@ export function awayPostureTailFor(readback: string): string {
   return `\n\n${AWAY_POSTURE_TAIL}\n${readback || "(the record's read-back could not be rendered; treat the captain's words as unavailable, act on standing authority only, and hold on doubt)"}`;
 }
 
+export function quietPostureTailFor(readback: string): string {
+  return `\n\nPOSTURE: QUIET. The captain is present and MAIN is not parked. Follow the quiet-record rules in the system prompt's Postures section, reporting every action under the words now, opening with "per your quiet instructions:" and naming the sentence acted on and the full PR URL for a merge. Nothing is held for a return. Without words, merge authority stays attended.\nThe record, verbatim:\n${readback || "(the record's read-back could not be rendered; the words are unavailable, so act on standing authority only and report doubt now)"}`;
+}
+
 // The read-only dialog mirror a host that is not Pi carries at the head of a
 // wake message, because its engine conversation receives nothing between
 // wakes; the Pi branch receives the same dialog as fm-main-mirror messages
