@@ -402,7 +402,7 @@ test_nm_dod_draft_check_is_scoped_to_github() {
 }
 
 test_nm_driving_preserves_provenance_budget_and_custody() {
-  local out
+  local out config
   out="$TMP_ROOT/nm-driving.md"
   fm_nm_driving_block github > "$out"
   assert_grep "subsection body, not its heading, plus any later words the captain actually said" "$out" \
@@ -418,6 +418,23 @@ test_nm_driving_preserves_provenance_budget_and_custody() {
   assert_grep 'follow the custody recovery steps below before publishing' "$out" \
     "Gerrit must recover unpublished gate fixes before publishing"
   assert_grep 'branch_sync.next_action' "$out" "Gerrit custody must follow the exact recovery command"
+  config="$TMP_ROOT/nm-driving-config"
+  mkdir -p "$config"
+  : > "$config/wait-no-turns"
+  CONFIG="$config" fm_nm_driving_block github > "$out"
+  assert_grep 'Drive the run with ONE foreground' "$out" \
+    "opted-in published runs must use the bounded foreground drive"
+  assert_grep 'under 900 characters' "$out" "foreground driving must retain the ADO description budget"
+  assert_grep 'Once the run reaches checks-passed or completed, branch custody is yours.' "$out" \
+    "foreground published runs must return branch custody"
+  assert_no_grep 'So background the drive call' "$out" "foreground driving must not retain background instructions"
+  CONFIG="$config" fm_nm_driving_block gerrit > "$out"
+  assert_grep 'Drive the run with ONE foreground' "$out" \
+    "opted-in Gerrit runs must use the bounded foreground drive"
+  assert_grep 'follow the custody recovery steps below before publishing' "$out" \
+    "foreground Gerrit runs must recover unpublished gate fixes before publishing"
+  assert_grep 'branch_sync.next_action' "$out" "foreground Gerrit custody must follow the exact recovery command"
+  assert_no_grep 'reports the green PR' "$out" "foreground Gerrit runs must not claim PR publication"
   pass "no-mistakes driving combines upstream provenance with the fork intent budget and forge-aware custody"
 }
 
