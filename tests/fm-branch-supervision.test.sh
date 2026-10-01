@@ -69,6 +69,10 @@ test_branch_prompt_is_byte_stable_and_above_cache_floor() {
     *"A second mate's status log is a relay channel for its child work"*"retiring a second mate is MAIN's alone"*"Report a second mate's signal wake from the status lines that wake newly presents"*"A second mate's stale wake is a liveness event: report it even when it presents no new status lines."*) ;;
     *) fail "branch prompt lost the second-mate relay, signal-span, or stale-liveness rule" ;;
   esac
+  case "$out_a" in
+    *"While attended, an instruction whose natural addressee is MAIN"*"its PR merge authority is yours, not parked with MAIN"*"every pull request in the lanes the words cover"*"A worker's still-running CI monitor is not a reason to wait"*"Report the verified merge as verdict captain"*) ;;
+    *) fail "emitted prompt lost the away-authority relocation and live-head merge instructions" ;;
+  esac
   pass "branch prompt is byte-stable across homes, cwd, timezone, and time, above the cache floor"
 }
 

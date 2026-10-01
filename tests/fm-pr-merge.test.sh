@@ -3481,9 +3481,18 @@ case "$method:$url" in
       fi
     fi
     [ ! -e "$FM_TEST_ADO_DIR/ado-post-active" ] || status=active
+    head=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    if [ -e "$FM_TEST_ADO_DIR/ado-moving-head" ]; then
+      reads=$(cat "$FM_TEST_ADO_DIR/ado-moving-head")
+      printf '%s\n' "$((reads + 1))" > "$FM_TEST_ADO_DIR/ado-moving-head"
+      [ "$reads" -eq 0 ] || head=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    fi
+    if [ "$status" = completed ] && [ -e "$FM_TEST_ADO_DIR/ado-wrong-head" ]; then
+      head=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    fi
     merge_status=succeeded
     [ ! -e "$FM_TEST_ADO_DIR/ado-conflict" ] || merge_status=conflicts
-    printf '{"pullRequestId":42,"status":"%s","mergeStatus":"%s","isDraft":false,"lastMergeSourceCommit":{"commitId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"repository":{"project":{"id":"11111111-1111-1111-1111-111111111111"}}}\n' "$status" "$merge_status"
+    printf '{"pullRequestId":42,"status":"%s","mergeStatus":"%s","isDraft":false,"lastMergeSourceCommit":{"commitId":"%s"},"repository":{"project":{"id":"11111111-1111-1111-1111-111111111111"}}}\n' "$status" "$merge_status" "$head"
     ;;
   GET:*'/_apis/policy/evaluations?'*) cat "$FM_TEST_ADO_DIR/ado-policies.json" ;;
   PUT:*'/reviewers/22222222-2222-2222-2222-222222222222?api-version=7.1')
@@ -3530,7 +3539,14 @@ test_ado_headless_merge_and_refusals() {
 
   dir=$(make_case ado-headless)
   add_ado_merge_mocks "$dir"
-  write_away_record "$dir" --words 'complete green Azure DevOps work'
+  write_away_record "$dir" --words 'pr merge, approve and complete authority for devops and github. Use recommended and sitrep when back. Ensure we move the needle and not wait on 1 pipeline hold'
+  printf 'run:\n  id: fixture-monitor\n  branch: fm/task-x1\n  status: running\n  steps[1]{name,status}:\n    ci,running\n' > "$dir/ci-monitor"
+  cat > "$dir/fakebin/no-mistakes" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FM_TEST_ADO_DIR/monitor-queries"
+cat "$FM_TEST_ADO_DIR/ci-monitor"
+SH
+  chmod +x "$dir/fakebin/no-mistakes"
   FM_SUPERVISION_ACTOR=branch FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
     run_pr_merge "$dir" task-x1 "$url" </dev/null > "$dir/stdout" 2> "$dir/stderr" \
     || fail "headless Azure DevOps merge failed: $(cat "$dir/stderr")"
@@ -3541,6 +3557,34 @@ test_ado_headless_merge_and_refusals() {
   grep -qF "verified: $url is completed" "$dir/stdout" || fail "Azure DevOps merge did not verify completion"
   grep -qF "merge landed: task-x1 $url away" "$dir/state/.wake-queue" \
     || fail "headless Azure DevOps merge was not attributed to away authority"
+  [ ! -e "$dir/monitor-queries" ] || fail "a green Azure DevOps merge waited on the worker's CI monitor"
+
+  dir=$(make_case ado-head-moved-after-recording)
+  add_ado_merge_mocks "$dir"
+  printf '0\n' > "$dir/ado-moving-head"
+  set +e
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    run_pr_merge "$dir" task-x1 "$url" </dev/null > "$dir/stdout" 2> "$dir/stderr"
+  rc=$?
+  set -e
+  expect_code 1 "$rc" "Azure DevOps head moved after recording"
+  grep -qF 'head changed after recording' "$dir/stderr" || fail "moving Azure DevOps head was not reported"
+  [ ! -e "$dir/ado-voted" ] && [ ! -e "$dir/ado-complete" ] || fail "a moved head was approved or completed"
+
+  dir=$(make_case ado-readback-wrong-head)
+  add_ado_merge_mocks "$dir"
+  touch "$dir/ado-wrong-head"
+  set +e
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    run_pr_merge "$dir" task-x1 "$url" </dev/null > "$dir/stdout" 2> "$dir/stderr"
+  rc=$?
+  set -e
+  expect_code 1 "$rc" "Azure DevOps completed at another head"
+  grep -qF 'unconfirmed' "$dir/stderr" || fail "wrong-head Azure DevOps completion was not reported"
+  [ -e "$dir/state/task-x1.pr-poll" ] || fail "wrong-head completion retired the merge poll"
+  if [ -e "$dir/state/.wake-queue" ]; then
+    assert_no_grep 'merge landed:' "$dir/state/.wake-queue" "wrong-head completion was reported as landed"
+  fi
 
   dir=$(make_case ado-delayed-completion)
   add_ado_merge_mocks "$dir"

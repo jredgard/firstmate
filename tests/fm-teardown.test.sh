@@ -823,12 +823,15 @@ test_no_mistakes_truly_unpushed_refuses() {
 }
 
 test_ado_pushed_but_active_pr_refuses_teardown() {
-  local case_dir rc url
+  local case_dir rc url head reported_head
   case_dir=$(make_case ado-pushed-active)
   url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
   write_meta "$case_dir" no-mistakes ship
   printf 'pr=%s\n' "$url" >> "$case_dir/state/task-x1.meta"
   wt_commit "$case_dir" "pushed Azure DevOps work"
+  head=$(git -C "$case_dir/wt" rev-parse HEAD)
+  printf 'pr_head=%s\n' "$head" >> "$case_dir/state/task-x1.meta"
+  printf '%s\n' "$head" > "$case_dir/ado-head"
   git -C "$case_dir/wt" push -q origin fm/task-x1
   git -C "$case_dir/project" fetch -q origin
   cat > "$case_dir/fakebin/az" <<'SH'
@@ -844,7 +847,8 @@ case "${*: -1}" in
 esac
 status=active
 [ ! -e "$FM_TEST_ADO_DIR/ado-completed" ] || status=completed
-printf '{"pullRequestId":42,"status":"%s"}\n' "$status"
+head=$(cat "$FM_TEST_ADO_DIR/ado-head")
+printf '{"pullRequestId":42,"status":"%s","lastMergeSourceCommit":{"commitId":"%s"}}\n' "$status" "$head"
 SH
   chmod +x "$case_dir/fakebin/az" "$case_dir/fakebin/curl"
   set +e
@@ -857,10 +861,33 @@ SH
   [ -f "$case_dir/state/task-x1.meta" ] && [ -d "$case_dir/wt" ] \
     || fail "active Azure DevOps PR teardown removed task state"
   touch "$case_dir/ado-completed"
+  for reported_head in bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb ''; do
+    printf '%s\n' "$reported_head" > "$case_dir/ado-head"
+    set +e
+    FM_TEST_ADO_DIR="$case_dir" run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+    rc=$?
+    set -e
+    expect_code 1 "$rc" "completed Azure DevOps PR with wrong or missing head"
+    [ -f "$case_dir/state/task-x1.meta" ] && [ -d "$case_dir/wt" ] \
+      || fail "unverified Azure DevOps head removed task state"
+  done
+  printf '%s\n' "$head" > "$case_dir/ado-head"
+  sed '/^pr_head=/d' "$case_dir/state/task-x1.meta" > "$case_dir/meta-without-head"
+  mv "$case_dir/meta-without-head" "$case_dir/state/task-x1.meta"
+  set +e
+  FM_TEST_ADO_DIR="$case_dir" run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+  expect_code 1 "$rc" "completed Azure DevOps PR without a recorded head"
+  [ -f "$case_dir/state/task-x1.meta" ] && [ -d "$case_dir/wt" ] \
+    || fail "missing recorded Azure DevOps head removed task state"
+  printf 'pr_head=%s\n' "$head" >> "$case_dir/state/task-x1.meta"
+  git -C "$case_dir/wt" push -q origin --delete fm/task-x1
+  git -C "$case_dir/wt" fetch -q --prune origin
   FM_TEST_ADO_DIR="$case_dir" run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" \
     || fail "completed Azure DevOps PR teardown refused: $(cat "$case_dir/stderr")"
   [ ! -f "$case_dir/state/task-x1.meta" ] || fail "completed Azure DevOps PR task was not retired"
-  pass "pushed Azure DevOps work is retained while PR is active and cleaned after completion"
+  pass "pushed Azure DevOps work is retained until its PR is completed at the recorded head"
 }
 
 test_squash_merged_branch_deleted_allows() {

@@ -110,7 +110,8 @@
 # stay off for GitHub parity unless FM_ADO_DELETE_SOURCE_BRANCH or
 # FM_ADO_TRANSITION_WORK_ITEMS is exactly "true", or is unset while the local
 # config/ado-delete-source-branch or config/ado-transition-work-items flag
-# file exists. A completed-status readback is required for a landed result.
+# file exists. A completed-status readback at the verified live head is required
+# for a landed result.
 # No prompt or extra forge arguments are accepted on that path.
 #
 # Before any forge merge, the task's existing per-task control lock
@@ -602,6 +603,10 @@ ado_verify_mergeable() {
     || ! fm_pr_head_valid "$head" || ! [[ "$project_id" =~ ^[0-9a-fA-F-]{36}$ ]]; then
     printf 'error: refusing to complete %s: status=%s mergeStatus=%s isDraft=%s head=%s projectId=%s\n' \
       "$URL" "$status" "$merge_status" "$draft" "$head" "$project_id" >&2
+    return 1
+  fi
+  if [ "$(grep '^pr_head=' "$META" | tail -1 | cut -d= -f2- || true)" != "$head" ]; then
+    echo "error: Azure DevOps head changed after recording $URL; retry to verify and record its current head" >&2
     return 1
   fi
   # An evaluation passes when ADO itself would complete past it: approved,
@@ -1432,7 +1437,7 @@ ado_completion_option() {
 ado_confirm_completed() {
   local attempt
   for attempt in 1 2 3 4; do
-    if fm_pr_ado_read_record "$URL" && [ "$FM_PR_RECORD_MERGED" = true ]; then
+    if fm_pr_ado_read_record "$URL" "$FM_PR_MERGE_HEAD" && [ "$FM_PR_RECORD_MERGED" = true ]; then
       return 0
     fi
     [ "$attempt" -eq 4 ] || sleep 1
