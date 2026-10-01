@@ -1,0 +1,528 @@
+FM_TEST_BEGIN 2026-10-01T12:36:00Z tests/fm-pr-merge.test.sh family=pr-forge expected_gate_skip=none
+ok - fm-pr-merge reports exact queue retry flags after a zero-exit false success
+ok - fm-pr-merge omits merge-queue retry guidance for a closed GitHub PR
+ok - fm-pr-merge aggregates agreeing merge-queue rules
+ok - fm-pr-merge reports ambiguity for conflicting merge-queue rules
+ok - fm-pr-merge records pr= and pr_head= for a verified GitHub merge
+ok - fm-pr-merge records pr= before the forge call can land the merge
+ok - fm-pr-merge propagates a real merge failure without silently succeeding
+ok - fm-pr-merge refuses a GitHub merge call that leaves the PR open and unqueued
+ok - fm-pr-merge retries a bounded number of times when mergeable is UNKNOWN and merges once it resolves
+ok - fm-pr-merge reports mergeability still pending after its bounded UNKNOWN retry is spent
+ok - fm-pr-merge refuses on the UNKNOWN re-check when a check turned red between reads
+ok - fm-pr-merge refuses a genuine mergeable conflict immediately, without retrying
+ok - fm-pr-merge keeps PR bookkeeping when it cannot read a successful merge call's outcome
+ok - fm-pr-merge refuses with the forge's own output quoted apart from its verdict
+ok - fm-pr-merge quotes the forge output when it cannot read the outcome either
+ok - fm-pr-merge does not echo back queue flags the caller already used
+ok - fm-pr-merge still names retry flags when the caller used a different method
+ok - fm-pr-merge names the queue requirement even when its method is unrecognised
+ok - fm-pr-merge distinguishes unreadable branch rules from a base with no merge queue
+ok - fm-pr-merge reads a plan-gated 403 on branch rules as no merge queue, not unreadable
+ok - fm-pr-merge says nothing about a merge queue when the base branch has no queue rule
+ok - fm-pr-merge accepts only a proved merge from the gh-axi fallback
+ok - fm-pr-merge explains an armed auto-merge that landed nothing on a queue-less base
+ok - fm-pr-merge never reports auto-merge as armed when the merge command failed
+ok - fm-pr-merge claims no acceptance for a failed merge command carrying queue flags
+ok - fm-pr-merge falls back to the gh-axi view when gh's read fails
+ok - fm-pr-merge names a landed state hiding behind a failed GitHub merge command
+ok - fm-pr-merge refuses a GitHub merge when gh is missing, before recording
+ok - fm-pr-merge refuses a GitHub merge when gh is missing rather than merging blind
+ok - fm-pr-merge verifies a genuinely merged GitHub pull request
+ok - fm-pr-merge refuses to claim a merge when poll recording fails
+ok - fm-pr-merge accepts and accurately reports a GitHub merge-queue entry
+ok - fm-pr-merge explains how to retry with the required GitHub merge queue method
+ok - fm-pr-merge refuses branch deletion unless --attended-override is passed
+ok - fm-pr-merge refuses before merging when task meta is missing
+ok - fm-pr-merge refuses malformed PR URLs before calling gh-axi
+ok - fm-pr-merge refuses unsafe PR URL segments before recording state
+ok - fm-pr-merge refuses repo override args before recording state
+ok - fm-pr-merge refuses a bundled short-option repo override and refuses -d unless attended
+ok - fm-pr-merge does not add default --squash when the caller passes an explicit merge method
+ok - fm-pr-merge respects --method=<value> as an explicit merge method
+ok - fm-pr-merge parses a GitHub PR URL into gh-axi number and --repo arguments
+ok - fm-pr-merge refuses a caller --sha on GitHub because the head comes from the live read
+ok - fm-pr-merge merges a GitLab merge request through glab instead of refusing it
+ok - fm-pr-merge takes the GitLab instance from the URL rather than assuming one
+ok - fm-pr-merge imposes no merge method on GitLab, leaving the project's own one
+ok - fm-pr-merge refuses GitLab source-branch deletion unless --attended-override is passed
+ok - fm-pr-merge propagates a real glab merge failure without silently succeeding
+ok - fm-pr-merge refuses on each GitLab pre-merge condition independently
+ok - fm-pr-merge reports every failing GitLab condition, not only the first
+ok - fm-pr-merge reports a stale recorded head and verifies the live one
+ok - fm-pr-merge refuses an unreadable GitLab merge request state rather than merging blind
+ok - fm-pr-merge refuses a GitLab head commit it cannot validate
+ok - fm-pr-merge refuses before recording anything when glab or jq is absent
+ok - fm-pr-merge refuses a GitLab head override before recording state
+ok - Azure DevOps green merge is headless and verifies vote, policies, head, and completion
+ok - quiet words authorize only green, live-head synchronous Azure DevOps completion
+ok - Azure DevOps policy gate passes notApplicable, non-blocking, and the merge-strategy type id, refusing the rest
+ok - Azure DevOps completion options default off and honor env and config opt-ins
+ok - Azure DevOps requests are bounded and deliver the token off argv
+ok - a merge a secondmate home performs itself is reported upward exactly once
+ok - a locally routed secondmate home reports the landed PR into its parent's own channel
+ok - a landed GitLab merge request is reported upward on the same channel
+ok - a queued GitLab merge stays silent and leaves confirmation to the armed poll
+ok - a refused or failed merge reports no outcome
+ok - a GitLab merge refused before the forge call reports no outcome
+ok - a merge a main home performs itself leaves one durable wake naming the PR
+ok - a queued GitHub merge stays silent and leaves confirmation to the armed poll
+ok - distinct merged PRs for one task retain distinct captain-facing wakes
+ok - an uncommitted marker retry preserves at least one durable outcome
+ok - a secondmate home that cannot report upward says so instead of merging in silence
+ok - fm-pr-merge proceeds when the home carries no backlog at all
+ok - fm-pr-merge refuses when the backlog exists but cannot be read
+ok - fm-pr-merge refuses when its configured backend cannot be read
+ok - fm-pr-merge refuses when its user backend configuration cannot be read
+ok - fm-pr-merge refuses when its user backend configuration directory cannot be traversed
+ok - fm-pr-merge proceeds once when its user configuration directory and backlog are genuinely absent
+ok - fm-pr-merge honors a backend override over an unreadable user configuration
+ok - fm-pr-merge refuses red GitHub checks and waives only a named --allow-red check
+ok - fm-pr-merge refuses a draft pull request and one with no boolean draft state
+ok - fm-pr-merge merges when a failed check run was replaced by a passing re-run
+ok - fm-pr-merge never lets a check run supersede a legacy status context
+ok - fm-pr-merge still refuses when a check's current run failed after an earlier pass
+ok - fm-pr-merge uses start order when the old success finishes last
+ok - fm-pr-merge supersedes an old cancellation that finishes last
+ok - fm-pr-merge keeps a check red while its re-run is still in flight
+ok - fm-pr-merge never lets one check's pass clear another check's failure
+ok - fm-pr-merge clears a failure only on a proven later pass of the same check
+ok - fm-pr-merge keeps --allow-red scoped to its named check beside a superseded failure
+ok - fm-pr-merge rechecks away presence before an attended red merge
+ok - fm-pr-merge keeps a quiet-mode home's merges attended, the named red-check waiver included
+ok - quiet words merge only a synchronous green live-head PR and refuse red, missing, waivers and queues
+ok - fm-pr-merge accepts exactly one separately named red-check waiver
+ok - while the away-posture record exists any green merge lands under away authority, yolo or not, and attended merges stay untagged
+ok - under the away-posture record the branch merges a green task, is refused on a red check with or without --allow-red, and is refused at the partition while attended
+ok - a branch merge refuses under the lock when the away record is archived during preflight
+ok - away posture permits immediate merges but refuses every asynchronous path
+ok - away merge proceeds on a plan-gated 403 because that repository cannot have a merge queue
+ok - the away record does not bypass red checks, and a recorded pr= must match the URL
+ok - an unreadable away-posture record refuses the merge instead of skipping the record
+ok - no away-record archive or replacement lands between the authority read and the merge
+ok - a record made unreadable before the merge's own authority read refuses the merge
+ok - a merge that cannot lock the away record refuses instead of merging unlocked
+ok - fm-pr-merge refuses --allow-red on GitLab
+ok - fm-pr-merge refuses when a required check from branch protection or a ruleset never reported
+ok - fm-pr-merge merges when every required check reported and is green
+ok - fm-pr-merge reports a red check and an unreported required check together with every other failure
+ok - fm-pr-merge refuses when the required checks cannot be read, and tells a plan without rules apart
+ok - fm-pr-merge --allow-missing waives only its named unreported check
+ok - fm-pr-merge --allow-missing is single use, attended-only, and GitHub-only like --allow-red
+ok - fm-pr-merge enforces required producer identity and named waivers
+ok - fm-pr-merge matches an app-bound required commit status by name
+ok - fm-pr-merge reports known missing checks and all independent read errors
+FM_TEST_END 2026-10-01T12:39:06Z tests/fm-pr-merge.test.sh exit=0 duration_ms=185585 gate_skip=false
+FM_TEST_BEGIN 2026-10-01T12:39:06Z tests/fm-teardown.test.sh family=pr-forge expected_gate_skip=none
+ok - a missing teardown startup source refuses before cleanup
+ok - an unreadable teardown startup source refuses before cleanup
+ok - a missing adapter sibling refuses before cleanup
+ok - a forced descendant with a missing adapter sibling refuses before cleanup
+ok - a forced secondmate with a missing own adapter sibling refuses before child cleanup
+ok - present required sources still reach the ordinary teardown refusal
+ok - local-only worktree with HEAD on a fork remote is torn down and the home summary is refreshed
+ok - teardown closes its own backlog item before reporting success
+ok - teardown closes a landed Gerrit task with its change URL as a note and a GitHub task with --pr
+ok - teardown honors config/backlog-backend=manual and still finishes cleanly
+ok - local-only worktree with truly unpushed work is refused (safety preserved)
+ok - local-only worktree with work merged into local main is torn down (no regression)
+ok - no-mistakes worktree with HEAD on origin is torn down (no regression)
+ok - no-mistakes worktree with genuinely unlanded work is refused (safety preserved)
+ok - pushed Azure DevOps work is retained until its PR is completed at the recorded head
+ok - local-only worktree with unpushed work is torn down under --force (escape hatch)
+ok - fm-pr-check publishes the PR-ready line on a secondmate's parent channel once
+ok - a secondmate home's teardown delivers the child's final line or refuses until it can
+ok - teardown completes when an exact busy-state sidecar is already absent
+ok - herdr teardown removes pane-owned escalation dedupe state
+ok - herdr flat teardown refuses before returning the isolated copy under lock contention and the retry completes cleanly
+ok - herdr flat teardown never erases records when pane presence is unparseable
+ok - herdr flat teardown preflight refuses before every destructive change
+ok - forced secondmate teardown preflights every Herdr child before cleanup mutation
+ok - forced secondmate teardown holds every descendant lifecycle and metadata lock
+ok - forced secondmate teardown retains Herdr child identity until exact pane disappearance
+ok - forced teardown retains a nested secondmate home and its grandchild's Herdr identity when the grandchild close is unconfirmed
+ok - herdr projection teardown retires its journal only after confirming the exact recorded pane is gone
+ok - herdr projection teardown retains every record when post-close presence is unknown
+ok - herdr projection teardown surfaces failed focus restoration without turning confirmed cleanup into a hard failure
+ok - teardown retires the task's own watcher markers and orphaned presentation journal, leaving other tasks' markers alone
+ok - teardown retains a presentation journal bound to a pane other than the closed endpoint
+ok - teardown retires a v1 presentation journal once its token workspace is confirmed gone
+ok - teardown retains a v1 presentation journal while its token workspace is still present
+ok - teardown retains a v1 presentation journal when the workspace query is ambiguous
+ok - squash-merged + deleted-branch worktree (PR merged) is torn down (the fix)
+ok - squash-merged PR accepts a local HEAD that is an ancestor of the final PR head
+ok - teardown discovers a merged PR by branch name and tears down when no pr= was ever recorded
+ok - squash-merged PR accepts replayed unpushed local patches contained in the PR head
+ok - merged PR does not allow teardown after a later local commit
+ok - squash-merged task whose local branch followed the pipeline rebase is torn down
+ok - squash-merged same-path different content still refuses
+ok - squash-merged rebased local still refuses a genuinely unlanded follow-up commit
+ok - squash-merged stale local still refuses when the forge is unreachable
+fm-contributions: data directory unavailable
+contributions: observation not armed; coverage is unconfirmed
+fm-contributions: data directory unavailable
+contributions: observation not armed; coverage is unconfirmed
+ok - fm-pr-check does not refresh PR head after HEAD moves
+fm-contributions: data directory unavailable
+contributions: observation not armed; coverage is unconfirmed
+ok - fm-pr-check records the remote PR head when the local worktree lags
+ok - worktree whose content already landed in the default branch is torn down (content fallback)
+ok - content fallback refreshes origin default before comparing trees
+ok - dirty worktree is refused even when its committed work has landed (dirty always wins)
+ok - gh lookup error with content not in default refuses (fail-safe)
+ok - a record predating spawn_gen refuses teardown until --legacy-record is passed
+ok - a windowless leftover with no spawn_gen and no worktree tears down without --legacy-record
+ok - a windowless leftover with no spawn_gen also tears down when --legacy-record is passed
+ok - a windowless leftover still refuses while its worktree holds unlanded work
+ok - a windowless record with a spawn_gen, a non-tmux backend or endpoint identity, no backlog validation, or ambiguous, foreign, or malformed identity still refuses
+ok - a windowless leftover retries its retained legacy stamp without --legacy-record
+ok - a landed legacy record with a dead endpoint tears down and logs its accepted incarnation
+ok - --legacy-record never relaxes the unlanded-work refusal
+ok - an endpoint that cannot be confidently read as dead refuses --legacy-record teardown
+ok - --legacy-record teardown rolls its stamp back when the close marker write fails
+ok - a legacy stamp a failed rollback left behind still faces the endpoint gate
+ok - a corrupt spawn_gen is never accepted as a legacy record
+ok - provably-stale worktree index.lock (old, no live holder) is cleared and teardown succeeds
+ok - live-held worktree index.lock is never removed and teardown refuses
+ok - lsof errors leave worktree index.lock in place and refuse teardown
+ok - stale lock cleanup rechecks and refuses dirty worktree before return
+ok - normal repo index.lock is resolved from the worktree and cleared when stale
+ok - lock mtime read failures leave worktree index.lock in place and refuse teardown
+ok - transient index.lock cleared after first failed return is retried successfully without force-remove
+ok - persistent index.lock exhausts retries and refuses without force-removing the lock
+ok - empty retry wait overrides use the default without aborting teardown
+ok - fractional legacy retry wait remains supported without arithmetic
+ok - a task's own parked no-mistakes run is aborted, not orphaned, before the worker is removed
+ok - a run that lands on passed-with-override after abort is still recognized as terminal
+ok - a run that lands on passed-with-skips after abort is still recognized as terminal
+ok - a parked run the pipeline advanced past the task copy is still concluded from the runs ledger, not orphaned
+ok - a ledger row for a different head never authorizes a parked-run abort
+ok - a malformed ledger row never authorizes a parked-run abort
+ok - an impossible ledger date never authorizes a parked-run abort
+ok - a terminal status with a stale gate never reaches ledger cleanup
+ok - an advanced head present locally aborts through the strict rule alone - the ledger fallback stays dormant
+ok - an unresolvable active row with no same-branch anchor is never concluded (conservative refusal)
+ok - an ancestor-only anchor never binds an advanced parked run to this task
+ok - a terminal unfetched-head row is stale history and never concludes a run
+ok - a terminal newest row anchored at this worktree's head never authorizes an abort
+ok - a resolvable diverged newer same-branch row makes every older row stale history; no run is concluded
+ok - consecutive unresolvable rows are ambiguous and never conclude a run
+ok - a ledger-proven continuation is still left alone while the run is autonomously active
+ok - teardown refuses before reap or removal when a task-owned run remains parked
+ok - a different run cannot confirm the targeted abort
+ok - empty post-abort status is not accepted as confirmation
+ok - the CLI's exact run-not-found signal confirms completion
+ok - a parked run on another branch is never aborted by this task's teardown (ownership is precise)
+ok - a task-owned autonomous running step is left alone rather than aborted
+ok - a leaked descendant process rooted under the task's worktree is reaped by teardown, not left surviving
+ok - a leaked descendant process rooted under the task's per-task tasktmp is reaped by teardown too
+ok - missing lsof falls back to reaping the tmux pane process group
+ok - an erroring lsof scan refuses teardown and preserves the task
+ok - a reused pid with a different start time is never force-killed
+ok - an exec change preserves birth identity and the process is reaped
+ok - a process spawned during grace is reaped on a later pass
+ok - persistent leaked processes refuse teardown after bounded retries
+ok - a process exiting during identity lookup does not block teardown
+ok - the run abort and the leaked-process reap both complete before the destructive worktree return
+FM_TEST_END 2026-10-01T12:41:20Z tests/fm-teardown.test.sh exit=0 duration_ms=134246 gate_skip=false
+FM_TEST_BEGIN 2026-10-01T12:41:20Z tests/fm-branch-supervision.test.sh family=standalone expected_gate_skip=none
+ok - branch prompt is byte-stable across homes, cwd, timezone, and time, above the cache floor
+ok - outcome store is append-only and refuses sequence reuse after a torn tail
+ok - outcome append refreshes a bounded, verbatim display tail of the newest rows without moving the cursor
+ok - the display tail keeps only whole newest rows within its 1 MiB budget, never shortening one
+ok - outcome seed-tail writes an absent display tail from a valid store's newest rows without moving a marker, and leaves an existing one to append
+ok - seed-tail validates and publishes only a bounded newest window, not old malformed history
+ok - routine task and fleet no-change outcomes stay stored and silent captain outcomes are refused
+ok - startup replay cannot advance the cursor across an unrendered captain outcome
+ok - malformed and ahead-of-store cursor state fail closed before any outcome can be skipped
+ok - cursor advancement refuses to legitimize an ahead processed marker
+ok - middle sequence conflicts fail closed for every store read and append
+ok - outcome lookup returns exact sequence rows and distinguishes missing receipts
+ok - outcome stores require terminated single-line JSON records
+ok - the processed marker is sequence-bound, never ahead of the read cursor, never backwards, and never adopts delivered history
+ok - outcome store: present shows each routine row once and each captain row until it is acknowledged
+ok - outcome store: present and unprocessed name each captain row's recorded age without writing it
+ok - lease exclusivity, same-actor refresh, release, staleness, and sweep hold
+ok - fm-control and fm-teardown refuse the other actor's live lease and pass through otherwise
+ok - PR merge, local landing, and new-task spawn refuse the branch actor and spare main
+ok - a home without a live branch lease takes no lock and clears leftover leases in any calling context
+ok - an unmarked main honors a live branch lease across processes and ignores a previous session's
+ok - a lease file makes an unmarked guard exclude a concurrent claim for the complete mutation
+ok - a host home's unmarked main excludes the host's first claim for its whole mutation, and other homes take no lock
+ok - lease liveness requires an exact valid session-lock pid
+ok - concurrent stale-lease claims serialize so exactly one actor succeeds
+ok - guard stale cleanup cannot race with or delete a newer lease claim
+ok - lease guard excludes a concurrent actor for the complete mutation
+ok - a claim naming the other actor fails loudly instead of silently impersonating it
+ok - release commands authorize the caller and bulk release drops only that actor's leases
+ok - the branch cannot force a teardown or bypass fm-control for a relaunch
+ok - the away-posture record relocates the PR merge and a spawn under the spend cap to the branch, never local landing, and only while confirmed, valid, and away
+ok - relocated branch spawn admits only already-queued dispatchable work, including on a manual-backend home
+ok - the away spend cap is rechecked under the task-set lock so concurrent spawns cannot both publish
+ok - a quiet-mode record never caps a present captain's spawn, while the away record's cap still binds
+FM_TEST_END 2026-10-01T12:41:32Z tests/fm-branch-supervision.test.sh exit=0 duration_ms=11402 gate_skip=false
+FM_TEST_BEGIN 2026-10-01T12:41:32Z tests/fm-afk-contract.test.sh family=afk expected_gate_skip=none
+ok - the read-back renders the words verbatim beside the expected return, spend cap, and reach line
+ok - words preserve their final newline shape in storage and read-back
+ok - one enter call writes a version 2 record, announces hold-for-return only, reads it back without asking for a go, and every read subcommand reflects it
+ok - the retired propose, confirm, and --proposal inputs are refused by name and write nothing
+ok - enter removes a proposal an older version left behind and records only the new words
+ok - a same-turn entry records never-set words verbatim, adds no authority field, and restates the never-set
+ok - a plain entry records no mandate in one step, and a refresh leaves the standing record untouched
+ok - new words archive the old words and keep the session start
+ok - a failed replacement keeps the standing posture live
+ok - a failed final replacement publication rolls back its superseded archive
+ok - validation and archive refuse damaged words blocks
+ok - a words line that lost its record prefix fails validate, read, read-back, and archive instead of truncating the mandate
+ok - archive keys the record by its entry time, empties the posture, and is idempotent
+ok - malformed inputs and foreign record versions are refused rather than guessed
+ok - retired clause fields, --grant, and the clause and grant subcommands are refused by name
+ok - a version 1 record validates, reads its words and scalars with the clause and grant sections ignored, refreshes untouched, and archives
+ok - new words over a live version 1 record archive it and write version 2 with the same session start
+ok - enter and archive refuse while the record is locked, and proceed once it clears
+ok - a quiet record announces, refreshes, and reads back as a present captain holding nothing, while an away record keeps hold-for-return
+fm-afk-contract: replaced the earlier quiet mode; its record is archived at /tmp/fm-afk-contract-tests.3930zH/authority-reading/state/afk-contracts/1790858499-superseded-1790858499.afk-contract
+ok - authority reading distinguishes quiet words, empty quiet, archive and away without interpreting words
+ok - an away entry over quiet mode records away, and a quiet entry never masks a standing away record
+FM_TEST_END 2026-10-01T12:41:40Z tests/fm-afk-contract.test.sh exit=0 duration_ms=7688 gate_skip=false
+FM_TEST_BEGIN 2026-10-01T12:41:40Z tests/fm-afk-launch.test.sh family=real-herdr-gated expected_gate_skip=herdr
+ok - clear-stale: removes escalations buffer, sidecar, wedge marker, and unknown-wake acknowledgements
+ok - clear-stale: leaves the durable wake-queue intact (no pending work dropped)
+ok - enter: one call writes the record with the words, expected return, and spend cap, reads it back without asking for a go, and launches no daemon
+ok - enter: the retired --grant flag is refused by name and leaves the standing record alone
+ok - enter: refuses while the prior return catch-up is pending
+ok - propose: the retired wait-for-go step is refused by name, writes nothing, and releases the launcher lock
+ok - confirm: the retired wait-for-go step is refused by name, writes nothing, and releases the launcher lock
+ok - pi: start refuses to launch the daemon and writes no state
+ok - pi: start-native refuses to prepare a daemon
+ok - pi-signed: start refuses to launch the daemon and writes no state
+ok - pi-signed: start-native refuses to prepare a daemon
+ok - FM_TEST_HARNESS seam is inert without the test marker
+ok - pi enter stop: reports that no daemon terminal was running
+ok - daemon entry: no daemon lifecycle starts without the away-posture record
+ok - daemon entry: enter then start-native run back to back with no confirmation between them
+ok - failed start: preserves the posture record enter wrote
+ok - stop: clears the away flag and archives the posture record under its entry time
+ok - launcher paths: relative home and state ignore CDPATH before daemon command construction
+ok - launcher paths: absolute symlink spellings are preserved
+ok - launcher paths: unresolved relative FM_HOME fails loudly
+ok - launcher paths: unresolved relative FM_STATE_OVERRIDE fails loudly
+ok - refresh: daemon already alive - stale artifacts preserved (current session's buffer kept)
+ok - mode: a fresh entry with FM_AFK_MODE=quiet writes quiet
+ok - mode: a fresh entry with FM_AFK_MODE unset defaults to away
+ok - mode: a bare refresh (FM_AFK_MODE unset) of an already-running quiet daemon preserves quiet, never resets to away
+ok - start: an unset-mode quiet refresh preserves the quiet record and flag
+ok - start: /afk over a running quiet daemon refreshes the flag to away
+ok - start-native: an unset-mode quiet refresh preserves the quiet record and flag
+ok - start-native: /afk over a running quiet daemon refreshes the flag to away
+ok - mode: an empty (legacy pre-mode) flag reads as away
+ok - mode: a bare-epoch-timestamp (legacy pre-mode) flag reads as away
+ok - mode: unrecognized content falls back to away
+ok - mode: a missing flag reads as away
+ok - stop-ordering: daemon SIGTERM'd while .afk still present (flush is not a no-op)
+ok - stop-ordering: .afk cleared last
+ok - stop-ordering: daemon-terminal record removed
+ok - stop identity: stale lock cannot signal an unrelated live process
+ok - failed start: away flag and delivery artifacts roll back
+ok - concurrent start: one serialized daemon terminal remains tracked
+ok - launcher lock: incomplete publication receives initialization grace
+ok - launcher signal: TERM exits and releases the lifecycle lock
+fm-afk-launch: daemon launched in non-visible herdr workspace ws-partial (pane lab:pane-exact), supervising lab:captain
+ok - herdr create: malformed response recovers durable exact ownership
+fm-afk-launch: herdr create failed after returning exact ids; closing lab:pane-exact
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+ok - herdr create error: unconfirmed exact id is persisted for reconciliation
+fm-afk-launch: failed to run daemon in herdr pane lab:pane-exact; closing it
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+ok - herdr run failure: unconfirmed exact id remains reconcilable
+ok - herdr daemon terminal: runs with the captain's primary harness
+ok - tmux daemon terminal: runs with the captain's primary harness
+fm-afk-launch: failed to persist daemon terminal record; closing tmux:exact-session
+ok - record failure: newly created terminal is closed by exact id
+fm-afk-launch: daemon did not become ready; closing tmux:exact-session
+ok - readiness failure: exact terminal and durable record roll back
+fm-afk-launch: daemon did not become ready; closing tmux:exact-session
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+ok - readiness failure: unconfirmed terminal retains its reconciliation id
+ok - tmux absence: clean missing differs from transport probe failure
+ok - native lifecycle: launcher owns state with no terminal
+ok - native lifecycle: uniform stop clears state without closing a terminal
+ok - supervision host: away start-native on a claude home (config file: -) refuses the daemon and keeps the record
+ok - supervision host: away start-native on a claude home (config file: empty) refuses the daemon and keeps the record
+ok - supervision host: quiet start-native and a plain refresh of the quiet daemon still prepare the daemon
+ok - supervision host: config/supervision-host-off keeps the away daemon on a claude home
+ok - supervision host: away mode on an opted-in cursor, opencode, omp, grok, or codex home launches no daemon
+ok - supervision host: enter names a missing engine on an opted-in home and says nothing otherwise
+ok - quiet entry: the daemon-backed quiet record announces a present captain with nothing held for a return
+ok - quiet entry: a later /afk entry turns the quiet record into the away posture, which holds for the return
+ok - supervision host: quiet words persist without a daemon and stop archives them
+ok - supervision host: quiet-check says the supervision session is paused while its latch holds, and starts nothing
+ok - supervision host: quiet-check names what the attended host lacks
+ok - supervision host: an unready host's quiet entry records its mode, which carries the daemon start
+ok - supervision host: /quiet under a live away record refuses and names it until the return
+ok - supervision host: /quiet under a live away record over a fallback quiet daemon refuses until the return
+ok - supervision host: a failed quiet start archives its quiet record so the present captain is not parked
+ok - supervision host: a failed away start keeps its away record
+ok - native entry: launcher-prepared lifecycle state is not rewritten
+fm-afk-launch: reconciling leaked daemon terminal tmux:exact-session
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+ok - teardown failure: exact terminal record is preserved
+ok - record publication: failed atomic rename preserves the complete prior record
+fm-afk-launch: daemon terminal record is malformed; refusing to act on it
+ok - record read: malformed record fails closed without acting on a partial id
+fm-afk-launch: daemon terminal record is malformed; refusing to act on it
+fm-afk-launch: malformed daemon terminal record; refusing to stop away mode
+ok - stop: malformed terminal record preserves away state and fails closed
+fm-afk-launch: failed to create detached tmux daemon session 'fm-afk-daemon-455736934-1187336-9369-1790858539'
+ok - tmux launch: planned exact target is recorded before creation and removed on failure
+fm-afk-launch: failed to create detached tmux daemon session 'fm-afk-daemon-259244357-1187372-23089-1790858539'
+ok - tmux launch: unique names eliminate collision teardown
+ok - stop validation: malformed record causes no daemon or state side effects
+ok - launcher lock: incomplete metadata fails acquisition and releases lock
+fm-afk-launch: failed to clear away-mode flag
+fm-afk-launch: away mode stopped; terminal teardown or the record archive remains recorded for retry
+ok - stop state: away-flag removal failure is surfaced
+fm-afk-launch: away-mode daemon did not exit after SIGTERM; preserving lifecycle state
+ok - stop liveness: captured live daemon preserves lifecycle state after lock release
+fm-afk-launch: an away-posture record is required; run enter before starting the daemon
+fm-afk-launch: an away-posture record is required; run enter before starting the daemon
+ok - refresh record: malformed terminal identity fails closed
+fm-afk-launch: an away-posture record is required; run enter before starting the daemon
+ok - clear failure: native entry aborts and restores prior state
+fm-afk-launch: reconciling leaked daemon terminal tmux:exact-session
+fm-afk-launch: terminal close command failed, but exact absence was confirmed
+ok - confirmed absence: cleanup succeeds and removes the stale record
+fm-afk-launch: rollback restoration incomplete; backup retained at /tmp/fm-afk-restore-fail.xlF9se/state/.afk-launch-backup.lWdj2l
+ok - rollback restore: incomplete restoration retains its recovery backup
+fm-afk-launch: an away-posture record is required; run enter before starting the daemon
+ok - flag failure: lifecycle aborts without active state
+ok - herdr e2e: captain tab pane count unchanged after start (no split)
+ok - herdr e2e: daemon launched in a separate non-visible workspace
+ok - herdr e2e: daemon pane is NOT in the captain's tab
+ok - herdr e2e: daemon terminal scoped to the lab session
+ok - herdr e2e: captain tab pane count restored after stop
+ok - herdr e2e: daemon workspace removed by exact id on stop
+ok - herdr e2e: record + .afk cleared on stop
+ok - tmux e2e: captain window pane count unchanged after start (no split-window)
+ok - tmux e2e: daemon launched in a separate detached session
+ok - tmux e2e: captain window pane count unchanged after stop
+ok - tmux e2e: daemon session killed by exact id on stop
+ok - tmux e2e: record + .afk cleared on stop
+FM_TEST_END 2026-10-01T12:42:20Z tests/fm-afk-launch.test.sh exit=0 duration_ms=40421 gate_skip=false
+FM_TEST_BEGIN 2026-10-01T12:42:20Z tests/fm-supervision-host.test.sh family=afk expected_gate_skip=none
+ok - host: parked child-exit sampling uses ordinary half-second sleeps
+ok - report surface: only the branch actor's current turn may report, and only on the tasks its wake names
+ok - report surface: visible late outcomes queue a relay, while silent outcomes remain stored without a wake or note
+(node:1193212) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/johannesr/.no-mistakes/worktrees/551ff26a6b1c/01M3VPTK4DP5PCA9C1VRD3FBAH/.pi/extensions/lib/fm-branch-dispatch.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/johannesr/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1193220) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/johannesr/.no-mistakes/worktrees/551ff26a6b1c/01M3VPTK4DP5PCA9C1VRD3FBAH/.pi/extensions/lib/fm-branch-dispatch.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/johannesr/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1193230) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/johannesr/.no-mistakes/worktrees/551ff26a6b1c/01M3VPTK4DP5PCA9C1VRD3FBAH/.pi/extensions/lib/fm-branch-dispatch.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/johannesr/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1193241) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/johannesr/.no-mistakes/worktrees/551ff26a6b1c/01M3VPTK4DP5PCA9C1VRD3FBAH/.pi/extensions/lib/fm-branch-dispatch.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/johannesr/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1193251) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/johannesr/.no-mistakes/worktrees/551ff26a6b1c/01M3VPTK4DP5PCA9C1VRD3FBAH/.pi/extensions/lib/fm-branch-dispatch.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/johannesr/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1193297) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/johannesr/.no-mistakes/worktrees/551ff26a6b1c/01M3VPTK4DP5PCA9C1VRD3FBAH/.pi/extensions/lib/fm-branch-dispatch.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/johannesr/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1193313) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/johannesr/.no-mistakes/worktrees/551ff26a6b1c/01M3VPTK4DP5PCA9C1VRD3FBAH/.pi/extensions/lib/fm-branch-dispatch.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/johannesr/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1193337) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/johannesr/.no-mistakes/worktrees/551ff26a6b1c/01M3VPTK4DP5PCA9C1VRD3FBAH/.pi/extensions/lib/fm-branch-dispatch.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/johannesr/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ok - dispatch entry: the host reads branch eligibility, the offer rule, and the wake prompt from the Pi branch's own owner
+ok - drain: BRANCH OUTCOMES runs on a Claude home by default and on another primary with the file, never with off, and never on Pi
+ok - drain: captain outcomes come first, and routine overflow collapses into a count one drain clears
+ok - drain: repeated captain outcomes collapse per task, and the byte cap presents only the run its acknowledgement covers
+ok - drain: a long away window costs one short drain, captain outcomes collapsed per task and routine overflow counted, and nothing from it is shown again
+ok - drain: the BRANCH OUTCOMES budgets count bytes, cutting multibyte summaries by whole characters in any locale
+ok - drain: branch outcomes stay unread when a projection of the store fails
+ok - drain: branch outcomes stay unread and the drain fails when jq is missing
+ok - drain: branch outcomes stay unread when the drain cannot print them
+ok - drain: a legacy backlog is presented with each outcome's age and a check-first instruction, never adopted
+ok - drain: a keyed decision survives acknowledgement through a newer outcome for its task
+ok - drain: an outcome carried across a switch off Pi comes back with its age, never adopted
+ok - drain: an outcome nothing has shown is presented until acknowledged, and a repeated acknowledgement changes nothing
+ok - drain: an outcome the host drain presented but main never acknowledged stays unprocessed across a switch to Pi
+ok - drain: an outcome the host drain presented but main never acknowledged survives an outcome index repair
+ok - host: an attended wake the branch may take is handled on the engine, and its routine outcome never wakes main
+ok - host: an attended captain outcome wakes main once and stays in its drain until main acknowledges it
+ok - host: a captain outcome recorded after the captain left waits for the return, then reaches main's drain
+ok - host: a quiet record without its daemon is a present captain, so outcomes and decisions reach main
+ok - quiet words reach the generated wake interface with present-captain reporting and immediate outcomes
+ok - host: an attended decision close stays main's exactly as the plain arm delivers it
+ok - host: an off written while the host is parked sends the next attended close to main, naming the opt-out
+ok - host: a main-only pass-through leaves the successor watcher running and the close undelivered for main
+ok - host: an attended close whose main session cannot be identified reaches main and runs no engine turn
+ok - host: a decision close accepted away whose turn starts attended still reaches main unchanged
+(node:1311009) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/johannesr/.no-mistakes/worktrees/551ff26a6b1c/01M3VPTK4DP5PCA9C1VRD3FBAH/.pi/extensions/lib/fm-branch-dispatch.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/johannesr/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ok - host: an attended close whose task turns main-only before its turn still reaches main unchanged
+ok - host+hook: an attended main-only pass-through rewakes main and keeps its successor watcher
+ok - host+hook: a captain outcome beside a quiet record rewakes the present captain with no away note
+ok - host+hook: a Claude home without config/supervision-host runs the host at the default engine, and an off file restores the plain arm
+ok - host+hook: a close that turns main-only at its turn rewakes main and keeps its successor watcher
+ok - host+hook: failed at-turn downtime write notifies main despite a healthy successor
+ok - host+hook: a successor close that lands during main's turn is delivered at the next turn end
+ok - host: a primary with no verified dialog mirror keeps every attended close on main, and its away posture still runs
+ok - host: each wake carries the captain's dialog since the last wake, without operational input
+ok - host: the dialog mirror, its feed, and the wake file are owner-only
+ok - host: dialog a turn never completed with its report (a park boundary, a stopped turn, no report) reaches the next turn
+ok - host: an attended wake whose mirror is missing, cannot be read (at the feed or at the prompt), or holds a malformed entry reaches main before any engine turn, and the cursor stays put
+ok - host: an away wake is handled on the engine through the branch contract and never reaches main
+ok - host: an engine turn that records no outcome hands its durable wake to main
+ok - host: a captain return during an engine turn hands that turn's outcomes to main
+ok - host: silent outcomes are excluded from both captain-return handoff paths
+ok - host: an early visible outcome survives more than 1,000 same-turn receipts
+ok - host: an outcome lookup failure forces a visible main handoff
+ok - host: an outcome recorded after the return reaches main even when its host dies at the turn's end
+ok - host: a killed predecessor's engine is reaped and the next host removes its turn files
+ok - host: a turn that reports but leaves its granted rows queued hands the wake to main
+ok - host: a captain return during a failed engine turn still hands that turn's outcomes to main
+ok - host: an engine turn whose result is incomplete hands its wake to main
+ok - host: two engine errors latch the session, main keeps every away wake in the cooldown, a failed probe doubles it up to its cap, and a report recovers it silently
+ok - host: an attended close in a latched session reaches main as the arm printed it and leaves the latch as it was, and a home that opted out with off never reads it
+ok - host: attended, two engine errors latch the session, main keeps every close unchanged in the cooldown, a failed probe doubles it up to its cap, and a routine probe's recovery stays in the ledger, off main
+ok - host: an engine turn is bounded, and tool processes outside its process group are reaped
+ok - host: a restarted host stops, by recorded identity, the cycle a killed predecessor left running
+ok - host: the park ends itself with a boundary wake and a stopped watcher
+ok - host: waiting closes cannot carry the park past its boundary
+ok - host: a close whose margin runs out while the successor starts reaches main at the boundary without a turn
+ok - host: the park's test clock is inert without the test marker
+ok - host: a park at or beyond the Stop-hook registration falls back to the default boundary
+ok - host: an owner's later park limit lets a turn outlive the boundary, and no other limit does
+ok - host: the first cycle's status streams once, --restart replaces a stale watcher, and an owner predecessor makes a handling successor
+ok - host: an unchanged held outcome reaches the captain once across cadences, and a later decision on the task still does
+ok - host: a home naming an unverified engine hands every away wake to main with the reason
+ok - host: a host outside the session-lock owner stands down without arming
+ok - host: a host under a superseded auto-arm generation stands down without touching the owner
+FM_TEST_END 2026-10-01T12:47:11Z tests/fm-supervision-host.test.sh exit=0 duration_ms=291273 gate_skip=false
+FM_TEST_SUMMARY total=6 failed=0 skipped_gate=0 duration_ms=671011
+FM_TEST_SUMMARY_FAMILY family=afk count=2 duration_ms=298961 failed=0
+FM_TEST_SUMMARY_FAMILY family=pr-forge count=2 duration_ms=319831 failed=0
+FM_TEST_SUMMARY_FAMILY family=real-herdr-gated count=1 duration_ms=40421 failed=0
+FM_TEST_SUMMARY_FAMILY family=standalone count=1 duration_ms=11402 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-supervision-host.test.sh duration_ms=291273
+FM_TEST_SLOWEST rank=2 script=tests/fm-pr-merge.test.sh duration_ms=185585
+FM_TEST_SLOWEST rank=3 script=tests/fm-teardown.test.sh duration_ms=134246
+FM_TEST_SLOWEST rank=4 script=tests/fm-afk-launch.test.sh duration_ms=40421
+FM_TEST_SLOWEST rank=5 script=tests/fm-branch-supervision.test.sh duration_ms=11402
+FM_TEST_SLOWEST rank=6 script=tests/fm-afk-contract.test.sh duration_ms=7688
+fm-test-run: wrote timing artifact: /home/johannesr/.no-mistakes/evidence/01M3VPTK4DP5PCA9C1VRD3FBAH/fork-capability-suites.json

@@ -1,0 +1,50 @@
+
+ ▐▛███▛█   Claude Code v2.1.286
+▝▜██████▀  Fable 5.1 with high effort · API Usage Billing
+ ▝▝   ▝▝   ~/.no-mistakes/worktrees/551ff26a6b1c/01M3VPTK4DP5PCA9C1VRD3FBAH
+
+
+❯ Captain here: in one short line, confirm whether the session-start digest is present in this session and whether the supervision host is active for this home. Do not spawn any crewmates.
+
+● Captain, I'll check the hook outputs and the home's runtime records read-only, then give you the one-line answer.
+
+  Ran 2 shell commands
+
+● Captain, neither is present: no session-start digest ran in this session (the startup hooks only reported the tool CLIs), and this home's runtime records are empty, so no supervision host is active. No workers were
+  spawned.
+
+✻ Baked for 37s · done 14:46
+
+❯ Captain here: the digest is missing, so run bin/fm-session-start.sh yourself now exactly once as AGENTS.md section 3 requires, then report in two lines: whether the lock was acquired, and what the digest says about
+  the supervision host for this home. Spawn nothing.
+
+● Aye, captain. Running the session-start command once now.
+
+  Ran 1 shell command
+
+● Captain, the lock was acquired by this session, and the digest ran clean with no queued notifications, no work under way, and all registry and preference files absent for this home. The digest says the supervision host
+  is on for this home, so a headless session will take routine wakes itself and hand the rest to me, with the deferred network checks still finishing in the background. No workers were spawned.
+
+✻ Cogitated for 17s · done 14:47
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ Captain here: report the finished network check result in one line
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents

@@ -1,0 +1,94 @@
+{
+  "families": [
+    {
+      "count": 2,
+      "duration_ms": 298961,
+      "failed": 0,
+      "name": "afk"
+    },
+    {
+      "count": 2,
+      "duration_ms": 319831,
+      "failed": 0,
+      "name": "pr-forge"
+    },
+    {
+      "count": 1,
+      "duration_ms": 40421,
+      "failed": 0,
+      "name": "real-herdr-gated"
+    },
+    {
+      "count": 1,
+      "duration_ms": 11402,
+      "failed": 0,
+      "name": "standalone"
+    }
+  ],
+  "finished_at": "2026-10-01T12:47:11Z",
+  "run_id": "fm-test-run-1790858160907-230401",
+  "scripts": [
+    {
+      "duration_ms": 185585,
+      "exit": 0,
+      "expected_gate_skip": "none",
+      "family": "pr-forge",
+      "gate_skip": false,
+      "gate_skip_reason": "",
+      "path": "tests/fm-pr-merge.test.sh"
+    },
+    {
+      "duration_ms": 134246,
+      "exit": 0,
+      "expected_gate_skip": "none",
+      "family": "pr-forge",
+      "gate_skip": false,
+      "gate_skip_reason": "",
+      "path": "tests/fm-teardown.test.sh"
+    },
+    {
+      "duration_ms": 11402,
+      "exit": 0,
+      "expected_gate_skip": "none",
+      "family": "standalone",
+      "gate_skip": false,
+      "gate_skip_reason": "",
+      "path": "tests/fm-branch-supervision.test.sh"
+    },
+    {
+      "duration_ms": 7688,
+      "exit": 0,
+      "expected_gate_skip": "none",
+      "family": "afk",
+      "gate_skip": false,
+      "gate_skip_reason": "",
+      "path": "tests/fm-afk-contract.test.sh"
+    },
+    {
+      "duration_ms": 40421,
+      "exit": 0,
+      "expected_gate_skip": "herdr",
+      "family": "real-herdr-gated",
+      "gate_skip": false,
+      "gate_skip_reason": "",
+      "path": "tests/fm-afk-launch.test.sh"
+    },
+    {
+      "duration_ms": 291273,
+      "exit": 0,
+      "expected_gate_skip": "none",
+      "family": "afk",
+      "gate_skip": false,
+      "gate_skip_reason": "",
+      "path": "tests/fm-supervision-host.test.sh"
+    }
+  ],
+  "selection": "scripts;jobs=4",
+  "started_at": "2026-10-01T12:36:00Z",
+  "summary": {
+    "duration_ms": 671011,
+    "failed": 0,
+    "skipped_gate": 0,
+    "total": 6
+  }
+}

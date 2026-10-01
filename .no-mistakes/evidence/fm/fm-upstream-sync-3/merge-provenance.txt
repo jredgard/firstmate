@@ -1,0 +1,20 @@
+$ git log --format="%H %P %s" -1 HEAD
+8dce6746c334e22f2e2b2ee0ba25615a895e877f dc1e554d504721c202664d46ebcc4a2fff4acc49 f593060312a48dab651138e6e705147358eba5ce Merge upstream main into the fork while preserving fork delivery authority
+
+$ git merge-base --is-ancestor dc1e554d... HEAD && git merge-base --is-ancestor f593060312... HEAD
+both parents are ancestors: history-preserving merge, no rebase
+
+$ net-new upstream commits (prior syncs carried through 23e55847):
+f593060 fix(bin): exclude a remote mate's own parent channel from self-home status scans (#5263)
+589ccec fix(bin): load backend sibling libraries when sourced under zsh (#6221)
+549e07f fix: reduce remote-job and supervision polling churn (#6255)
+aedb7bb fix(bin): close Gerrit-landed backlog items with the change URL as a note (#6140)
+fd325b1 feat(bin): add opt-in config/wait-no-turns so a waiting worker spends no turns (#4859)
+
+$ fork-parent byte-identical preservation:
+identical-to-fork: bin/fm-pr-lib.sh
+identical-to-fork: bin/fm-pr-check.sh
+identical-to-fork: bin/fm-pr-poll.sh
+identical-to-fork: bin/fm-teardown.sh
+identical-to-fork: bin/fm-spawn.sh
+identical-to-fork: bin/fm-pr-report-compact
