@@ -1,0 +1,11 @@
+# New regressions run against BASE commit fe05987 (product code at base, tests from target c7bda72)
+
+## tests/fm-branch-supervision.test.sh (base) -> exit 1
+not ok - emitted prompt lost the away-authority relocation and live-head merge instructions
+
+## tests/fm-pr-merge.test.sh (base) -> exit 1
+ok - fm-pr-merge refuses a GitLab head override before recording state
+not ok - moving Azure DevOps head was not reported
+
+## tests/fm-teardown.test.sh (base) -> exit 1
+not ok - completed Azure DevOps PR with wrong or missing head: expected exit 1, got 0

@@ -1,0 +1,13 @@
+# Target commit c7bda72: bin/fm-test-run.sh tests/fm-pr-merge.test.sh tests/fm-teardown.test.sh tests/fm-branch-supervision.test.sh (runner exit 0)
+FM_TEST_END 2026-10-01T07:41:14Z tests/fm-pr-merge.test.sh exit=0 duration_ms=166455 gate_skip=false
+FM_TEST_END 2026-10-01T07:43:23Z tests/fm-teardown.test.sh exit=0 duration_ms=128852 gate_skip=false
+FM_TEST_END 2026-10-01T07:43:35Z tests/fm-branch-supervision.test.sh exit=0 duration_ms=11443 gate_skip=false
+
+## Key behavior lines
+ok - Azure DevOps green merge is headless and verifies vote, policies, head, and completion
+ok - while the away-posture record exists any green merge lands under away authority, yolo or not, and attended merges stay untagged
+ok - under the away-posture record the branch merges a green task, is refused on a red check with or without --allow-red, and is refused at the partition while attended
+ok - away posture permits immediate merges but refuses every asynchronous path
+ok - the away record does not bypass red checks, and a recorded pr= must match the URL
+ok - pushed Azure DevOps work is retained until its PR is completed at the recorded head
+ok - branch prompt is byte-stable across homes, cwd, timezone, and time, above the cache floor

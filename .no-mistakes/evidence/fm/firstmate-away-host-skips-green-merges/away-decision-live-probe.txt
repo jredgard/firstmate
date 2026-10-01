@@ -1,0 +1,5 @@
+ok - away decision green (2.1.286 (Claude Code)): synchronous_merge
+ok - away decision red (2.1.286 (Claude Code)): hold
+ok - away decision unreported (2.1.286 (Claude Code)): hold
+ok - away decision other-lane (2.1.286 (Claude Code)): hold
+exit=0
