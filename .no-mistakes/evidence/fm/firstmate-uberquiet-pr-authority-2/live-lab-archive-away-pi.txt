@@ -1,0 +1,21 @@
+=== (g) /quiet off: stop archives the record and ends the authority ===
+fm-afk-launch: away-posture record archived at /tmp/fm-lab.SBZy4Q/state/afk-contracts/1790849858.afk-contract
+fm-afk-launch: away mode stopped; no daemon terminal was running, .afk cleared, and the posture record archived
+rc=0
+record gone from posture
+1790848338.afk-contract
+1790849858.afk-contract
+authority-present rc=1 (expect 1: archived words authorize nothing)
+
+=== (g) /afk entry over a quiet record rewrites it as away ===
+quiet re-enter rc=0
+mode=quiet
+away enter over quiet rc=0
+mode now=away
+away record still carries authority (rc 0)
+
+=== (e) Pi / pi-signed quiet enter refuses before writing (FM_TEST_SEAM harness pin) ===
+[pi] rc=3 (expect 3): fm-afk-launch: quiet mode records nothing on a pi primary: the attended branch reads no quiet record there, so a quiet enter refuses before writing (the quiet skill's step 0 enters nothing on Pi)
+[pi] no record written
+[pi-signed] rc=3 (expect 3): fm-afk-launch: quiet mode records nothing on a pi-signed primary: the attended branch reads no quiet record there, so a quiet enter refuses before writing (the quiet skill's step 0 enters nothing on Pi)
+[pi-signed] no record written

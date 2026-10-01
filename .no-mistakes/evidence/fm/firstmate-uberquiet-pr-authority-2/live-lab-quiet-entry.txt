@@ -1,0 +1,23 @@
+=== scenario a: quiet-check before any record ===
+Quiet mode is not already the ordinary posture on this home, because the main session could not be identified, so every attended wake reaches this conversation; quiet mode enters through the quiet daemon instead.
+rc=1
+
+=== scenario a: quiet enter with the uberquiet mandate words ===
+Quiet mode recorded at 2026-10-01T09:52:18Z: you are present, so nothing waits for your return; recorded words carry the authority described in bin/fm-branch-prompt.sh Postures, and without words merge authority stays attended. Only an explicit /quiet off ends it.
+Quiet mode (recorded):
+  entered: 2026-10-01T09:52:18Z
+  holds: none - you are present, so nothing waits for your return; recorded words carry the authority described in bin/fm-branch-prompt.sh Postures, and without words merge authority stays attended.
+  your words (verbatim):
+    pr merge, approve and complete authority for devops and github. Use recommended and sitrep when back. Ensure we move the needle and not wait on 1 pipeline hold
+rc=0
+
+=== record state: mode / words / authority-present / daemon artifacts ===
+mode: quiet
+words: pr merge, approve and complete authority for devops and github. Use recommended and sitrep when back. Ensure we move the needle and not wait on 1 pipeline hold
+authority-present rc=0
+no state/.afk (no daemon flag)
+no daemon terminal record
+
+=== scenario a: quiet-check now reports the live quiet record ===
+Quiet mode is not already the ordinary posture on this home, because the main session could not be identified, so every attended wake reaches this conversation; quiet mode enters through the quiet daemon instead.
+rc=1

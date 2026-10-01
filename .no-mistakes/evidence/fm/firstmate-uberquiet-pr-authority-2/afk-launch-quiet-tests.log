@@ -1,0 +1,32 @@
+ok - clear-stale: removes escalations buffer, sidecar, wedge marker, and unknown-wake acknowledgements
+ok - clear-stale: leaves the durable wake-queue intact (no pending work dropped)
+ok - enter: one call writes the record with the words, expected return, and spend cap, reads it back without asking for a go, and launches no daemon
+ok - enter: the retired --grant flag is refused by name and leaves the standing record alone
+ok - enter: refuses while the prior return catch-up is pending
+ok - propose: the retired wait-for-go step is refused by name, writes nothing, and releases the launcher lock
+ok - confirm: the retired wait-for-go step is refused by name, writes nothing, and releases the launcher lock
+ok - pi: start refuses to launch the daemon and writes no state
+ok - pi: start-native refuses to prepare a daemon
+ok - pi-signed: start refuses to launch the daemon and writes no state
+ok - pi-signed: start-native refuses to prepare a daemon
+ok - FM_TEST_HARNESS seam is inert without the test marker
+ok - pi enter stop: reports that no daemon terminal was running
+ok - daemon entry: no daemon lifecycle starts without the away-posture record
+ok - daemon entry: enter then start-native run back to back with no confirmation between them
+ok - failed start: preserves the posture record enter wrote
+ok - stop: clears the away flag and archives the posture record under its entry time
+ok - launcher paths: relative home and state ignore CDPATH before daemon command construction
+ok - launcher paths: absolute symlink spellings are preserved
+ok - launcher paths: unresolved relative FM_HOME fails loudly
+ok - launcher paths: unresolved relative FM_STATE_OVERRIDE fails loudly
+ok - refresh: daemon already alive - stale artifacts preserved (current session's buffer kept)
+ok - quiet entry: the daemon-backed quiet record announces a present captain with nothing held for a return
+ok - quiet entry: a later /afk entry turns the quiet record into the away posture, which holds for the return
+ok - supervision host: quiet words persist without a daemon and stop archives them
+ok - supervision host: quiet-check says the supervision session is paused while its latch holds, and starts nothing
+ok - supervision host: quiet-check names what the attended host lacks
+ok - supervision host: an unready host's quiet entry records its mode, which carries the daemon start
+ok - supervision host: /quiet under a live away record refuses and names it until the return
+ok - supervision host: /quiet under a live away record over a fallback quiet daemon refuses until the return
+ok - supervision host: a failed quiet start archives its quiet record so the present captain is not parked
+ok - supervision host: a failed away start keeps its away record

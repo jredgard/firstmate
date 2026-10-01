@@ -1,0 +1,37 @@
+### live lab: real claude primary holds the session lock (pid 2321475); gate worktree cannot host the mirror writer by design, so the empty mirror file is provisioned
+
+=== (a) quiet-check with attended host ready, no record ===
+Quiet mode needs nothing on this home: the ordinary supervision session already handles the wakes it can while the captain is present, never opens a turn here for a routine outcome, and hands this conversation only what needs it; enter quiet mode with words to record them without a daemon.
+rc=0
+
+=== (a) quiet enter carrying the uberquiet mandate ===
+Quiet mode recorded at 2026-10-01T10:17:38Z: you are present, so nothing waits for your return; recorded words carry the authority described in bin/fm-branch-prompt.sh Postures, and without words merge authority stays attended. Only an explicit /quiet off ends it.
+Quiet mode (recorded):
+  entered: 2026-10-01T10:17:38Z
+  holds: none - you are present, so nothing waits for your return; recorded words carry the authority described in bin/fm-branch-prompt.sh Postures, and without words merge authority stays attended.
+  your words (verbatim):
+    pr merge, approve and complete authority for devops and github. Use recommended and sitrep when back. Ensure we move the needle and not wait on 1 pipeline hold
+rc=0
+
+=== (a) record written, words verbatim, authority present, NO daemon ===
+mode=quiet
+words=pr merge, approve and complete authority for devops and github. Use recommended and sitrep when back. Ensure we move the needle and not wait on 1 pipeline hold
+authority-present: yes (rc 0)
+no state/.afk daemon flag
+no daemon terminal
+
+=== (a) quiet-check reports the live quiet record ===
+Quiet mode recorded on this home: the supervision host reads its words; the captain is present, outcomes reach this conversation now, and no daemon is launched.
+rc=0
+
+=== adversarial: start-native must refuse a daemon and keep the record ===
+fm-afk-launch: the away daemon is not launched on this claude home, which runs the supervision host (docs/supervision-host.md); the away-posture record is the posture here (run bin/fm-afk-launch.sh enter and stop)
+rc=1 (expect 1)
+quiet record SURVIVED the refused daemon start
+
+=== (c) read-back carried at the wake tail ===
+Quiet mode (recorded):
+  entered: 2026-10-01T10:17:38Z
+  holds: none - you are present, so nothing waits for your return; recorded words carry the authority described in bin/fm-branch-prompt.sh Postures, and without words merge authority stays attended.
+  your words (verbatim):
+    pr merge, approve and complete authority for devops and github. Use recommended and sitrep when back. Ensure we move the needle and not wait on 1 pipeline hold

@@ -1,0 +1,24 @@
+  section near the top of it governs what may still be read from disk.
+  exit=0
+
+  In short: this is an empty lab home with no projects, no backlog, no work
+  under way, and no queued notifications. The network checks were still running
+  when the digest printed. Per your standing instruction, the session stays
+  idle.
+
+✻ Cogitated for 52s · done 12:14
+
+❯ Standing instruction: pr merge, approve and complete authority for devops and
+  github. Acknowledge briefly and do nothing else.
+
+● Acknowledged, captain. You've granted standing authority to merge, approve,
+  and complete PRs on both Azure DevOps and GitHub. I'll still only act on
+  green, in-scope work and escalate anything destructive or security-sensitive.
+  The session otherwise stays idle.
+
+✻ Worked for 4s · done 12:14
+
+────────────────────────────────────────────────────────────────────────────────
+❯ Run bin/fm-wake-drain.sh with the Bash tool and show its output, then stop.
+────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents

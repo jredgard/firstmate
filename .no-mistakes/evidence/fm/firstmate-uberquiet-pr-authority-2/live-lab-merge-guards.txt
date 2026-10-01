@@ -1,0 +1,11 @@
+=== (b adversarial, live) --allow-red refused while the quiet record carries words ===
+error: --allow-red is attended-only; while the away or quiet-with-words record exists the green check is absolute
+rc=2 (expect 2)
+
+=== (b adversarial, live) --allow-missing refused ===
+error: --allow-missing is attended-only; while the away or quiet-with-words record exists every required check must report
+rc=2 (expect 2)
+
+=== (b adversarial, live) --auto asynchronous path refused ===
+error: --auto is attended-only; while the away or quiet-with-words record exists only a synchronous merge may run under its authority lock
+rc=2 (expect 2)
