@@ -39,7 +39,11 @@
 # the away-posture record state/.afk-contract, read at every close and again
 # when a turn starts: only an away record is away, and no record or quiet
 # mode's record (fm_afk_contract_away_present, bin/fm-afk-contract.sh AWAY OR
-# QUIET) is a present captain. On each actionable close:
+# QUIET) is a present captain. A quiet record with words
+# (fm_afk_contract_authority_present) keeps the attended acceptance rule below
+# but widens the offer and turn scope to the away row set and tags the turn
+# quiet; its captain outcomes reach main now, as attended ones do. On each
+# actionable close:
 #   - attended (no away record): the close reaches main exactly as the arm printed
 #     it, as without the host, unless the supervision session may take it: the
 #     home names a usable engine, its turns have every tool they need, this
@@ -69,14 +73,15 @@
 # (bin/fm-wake-grant.sh), runs one bounded headless engine turn
 # (bin/fm-supervision-engine-lib.sh) with the generated branch prompt
 # (bin/fm-branch-prompt.sh), the dialog-mirror feed (bin/fm-host-mirror.sh)
-# at the head of an attended wake and the away tail instead when away,
+# at the head of an attended or quiet wake, the away tail instead when away,
+# and the quiet tail with the record's read-back beside the mirror when quiet,
 # releases the branch's leases and grant, and counts the wake handled only
 # when that turn exited cleanly, recorded a durable report
 # (bin/fm-branch-report.sh), and left none of its granted rows in the wake
 # queue. A handled wake with only routine outcomes never wakes
 # main, and neither does any handled wake while away: captain outcomes wait in
 # the outcome store for the return drain's BRANCH OUTCOMES section. A handled
-# attended wake that recorded a captain outcome exits with one "supervision-host: branch-outcome:"
+# attended or quiet wake that recorded a captain outcome exits with one "supervision-host: branch-outcome:"
 # line naming its store rows, without the close it handled; main drains, where
 # the BRANCH OUTCOMES section (bin/fm-wake-drain.sh) presents every
 # unprocessed captain outcome until main acknowledges it. Otherwise the host
