@@ -1,0 +1,6 @@
+Base = git archive 4aa6c57 (pre-change); New = worktree at ce3d7a1. Each brief generated without --nm-skip in separate lab homes; same task id; home and script-root paths normalized.
+identical (136 lines): fm-brief.sh t1 plain --mode no-mistakes
+identical (157 lines): fm-brief.sh t2 gerritproj --mode no-mistakes --forge gerrit --shape squash
+identical (99 lines): fm-brief.sh t3 plain --mode direct-PR
+identical (108 lines): fm-brief.sh t4 gerritproj --mode direct-PR --forge gerrit --shape squash
+identical (96 lines): fm-brief.sh t5 plain --mode local-only

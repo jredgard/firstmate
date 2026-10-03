@@ -1,0 +1,119 @@
+Live lab: disposable FM_HOME /tmp/fm-lab.Pr8plu (bin/fm-lab-home.sh), real bin/fm-spawn.sh driven from a bash primary on private tmux socket -L fm-lab, TREEHOUSE_ROOT inside the lab, crewmate launch = raw command 'sleep 900'.
+Registry:
+# Projects
+- mosaiq [no-mistakes nmskip=lint] - CI build is the lint gate (added 2026-10-03)
+- gerritproj [forge=gerrit nmskip=lint no-mistakes] - gerrit fixture (added 2026-10-03)
+- plain [no-mistakes] - no skips (added 2026-10-03)
+- prodonly [no-mistakes-prod-only nmskip=lint] - prod-only (added 2026-10-03)
+- badtest [no-mistakes nmskip=test] - invalid (added 2026-10-03)
+- badlist [no-mistakes nmskip=lint,test] - invalid (added 2026-10-03)
+
+=== 1. spawn nmlint (brief skip=lint) WITHOUT --nm-skip -> refused
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.Pr8plu
+error: no-mistakes skip mismatch for nmlint: the brief says skip=lint but this spawn selected nm_skip=; correct --nm-skip or re-scaffold the brief so the worker's instructions and the task record agree
+EXIT=1
+state after: (no nmlint.meta written at that point)
+
+=== 2. spawn nmlint --nm-skip lint (matches registry nmskip=lint)
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.Pr8plu
+error: --relaunch reuses the task's recorded no-mistakes skips; --nm-skip cannot override them
+EXIT=1
+--- state/nmlint.meta:
+window=primary:fm-nmlint
+endpoint_task_id=nmlint
+worktree=/tmp/fm-lab.Pr8plu/treehouse/.treehouse/mosaiq-6ec4ef/1/mosaiq
+project=/tmp/fm-lab.Pr8plu/projects/mosaiq
+harness=sleep
+kind=ship
+mode=no-mistakes
+yolo=off
+branch=fm/nmlint
+nm_skip=lint
+tasktmp=/tmp/fm-nmlint
+model=default
+effort=default
+spawn_gen=s1791044335.427282.304
+--- data/nmlint/launch-brief.md (what the worker receives):
+101:Delivery contract: mode=no-mistakes skip=lint
+108:Pass `--skip lint` on every `no-mistakes axi run` for this task, and skip nothing else.
+130:Whenever a drive call returns without a gate or an outcome - its own wait elapsed, or it was killed or timed out - reattach at once by re-running `no-mistakes axi run` with `--skip lint`, backgrounded the same way; once checks are green it returns `checks-passed` immediately, and if it refuses because no run is active, read the finished outcome from `no-mistakes axi status`.
+
+=== 3. deviation-notice and recording matrix
+nmdev: mosaiq (nmskip=lint) no-mistakes task with explicit --nm-skip ''
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.Pr8plu
+notice: nmdev ships nm_skip= while mosaiq registers nmskip=lint - proceed only on a current explicit captain instruction or an intake judgment you can state
+spawned nmdev harness=sleep kind=ship mode=no-mistakes yolo=off window=primary:fm-nmdev worktree=/tmp/fm-lab.Pr8plu/treehouse/.treehouse/mosaiq-6ec4ef/2/mosaiq
+EXIT=0
+dprprod: prodonly (no-mistakes-prod-only nmskip=lint) direct-PR task
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.Pr8plu
+spawned dprprod harness=sleep kind=ship mode=direct-PR yolo=off window=primary:fm-dprprod worktree=/tmp/fm-lab.Pr8plu/treehouse/.treehouse/prodonly-5d6c87/1/prodonly
+EXIT=0
+dprmosaiq: mosaiq (nmskip=lint) direct-PR task
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.Pr8plu
+notice: dprmosaiq ships mode=direct-PR while the standing posture for mosaiq is no-mistakes - less rigor than the captain's standing posture; proceed only on a current explicit captain instruction or an intake judgment you can state
+spawned dprmosaiq harness=sleep kind=ship mode=direct-PR yolo=off window=primary:fm-dprmosaiq worktree=/tmp/fm-lab.Pr8plu/treehouse/.treehouse/mosaiq-6ec4ef/3/mosaiq
+EXIT=0
+nmgerrit: gerritproj (forge=gerrit nmskip=lint) no-mistakes --nm-skip lint
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.Pr8plu
+spawned nmgerrit harness=sleep kind=ship mode=no-mistakes yolo=off window=primary:fm-nmgerrit worktree=/tmp/fm-lab.Pr8plu/treehouse/.treehouse/gerritproj-d77e68/1/gerritproj
+EXIT=0
+nmnone: plain (no nmskip) no-mistakes, no --nm-skip
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.Pr8plu
+spawned nmnone harness=sleep kind=ship mode=no-mistakes yolo=off window=primary:fm-nmnone worktree=/tmp/fm-lab.Pr8plu/treehouse/.treehouse/plain-6603b8/1/plain
+EXIT=0
+--- recorded metadata:
+nmdev: mode=no-mistakes nm_skip= 
+dprprod: mode=direct-PR nm_skip= 
+dprmosaiq: mode=direct-PR nm_skip= 
+nmgerrit: mode=no-mistakes nm_skip=lint 
+nmnone: mode=no-mistakes nm_skip= 
+
+=== 4. adversarial spawn refusals
+### fm-spawn.sh advtest $FM_HOME/projects/mosaiq --mode no-mistakes --yolo off --nm-skip test 'sleep 900'
+error: fm-spawn.sh --nm-skip: invalid no-mistakes skip 'test'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+EXIT=1
+meta written: no
+### fm-spawn.sh advtest $FM_HOME/projects/mosaiq --mode no-mistakes --yolo off --nm-skip lint,test 'sleep 900'
+error: fm-spawn.sh --nm-skip: invalid no-mistakes skip 'lint,test'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+EXIT=1
+meta written: no
+### fm-spawn.sh advdpr $FM_HOME/projects/mosaiq --mode direct-PR --yolo off --nm-skip lint 'sleep 900'
+error: --nm-skip applies only to ship spawns with --mode no-mistakes
+EXIT=1
+meta written: no
+### fm-spawn.sh advscout $FM_HOME/projects/mosaiq --scout --nm-skip lint 'sleep 900'
+error: --nm-skip applies only to ship spawns with --mode no-mistakes
+EXIT=1
+meta written: no
+### fm-spawn.sh nmlint --relaunch --nm-skip '' 'sleep 900'
+error: --relaunch reuses the task's recorded no-mistakes skips; --nm-skip cannot override them
+EXIT=1
+meta written: yes
+
+=== 5. relaunch preserves nm_skip (sleep stopped, then bin/fm-spawn.sh nmlint --relaunch --harness 'sleep 901')
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.Pr8plu
+spawned nmlint harness=sleep kind=ship mode=no-mistakes yolo=off window=primary:fm-nmlint worktree=/tmp/fm-lab.Pr8plu/treehouse/.treehouse/mosaiq-6ec4ef/1/mosaiq
+EXIT=0
+meta diff before/after relaunch:
+14c14
+< spawn_gen=s1791044335.427282.304
+---
+> spawn_gen=s1791044406.470458.9794
+mode=no-mistakes
+nm_skip=lint
+launch-brief after relaunch:
+101:Delivery contract: mode=no-mistakes skip=lint
+108:Pass `--skip lint` on every `no-mistakes axi run` for this task, and skip nothing else.
+
+=== 6. relaunch of direct-PR task on nmskip=lint project emits no skip notice
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.Pr8plu
+spawned dprprod harness=sleep kind=ship mode=direct-PR yolo=off window=primary:fm-dprprod worktree=/tmp/fm-lab.Pr8plu/treehouse/.treehouse/prodonly-5d6c87/1/prodonly
+EXIT=0
+
+=== 7. tampered-metadata relaunch refusals
+### nmnone.meta tampered nm_skip=test, then fm-spawn.sh nmnone --relaunch
+error: /tmp/fm-lab.Pr8plu/state/nmnone.meta nm_skip: invalid no-mistakes skip 'test'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+EXIT=1
+### dprprod.meta (mode=direct-PR) tampered nm_skip=lint, then fm-spawn.sh dprprod --relaunch
+error: /tmp/fm-lab.Pr8plu/state/dprprod.meta records no-mistakes skips outside a no-mistakes ship
+EXIT=1

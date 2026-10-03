@@ -1,0 +1,55 @@
+$ bin/fm-project-mode.sh --nm-skip mosaiq
+lint
+[exit 0]
+$ bin/fm-project-mode.sh --nm-skip gerritproj
+lint
+[exit 0]
+$ bin/fm-project-mode.sh --nm-skip plain
+<empty line>
+[exit 0]
+$ bin/fm-project-mode.sh --nm-skip prodonly
+lint
+[exit 0]
+$ bin/fm-project-mode.sh --nm-skip unregistered
+warn: project "unregistered" not in registry; defaulting to no-mistakes off
+<empty line>
+[exit 0]
+$ bin/fm-project-mode.sh mosaiq
+no-mistakes off
+[exit 0]
+$ bin/fm-project-mode.sh --forge gerritproj
+gerrit
+[exit 0]
+$ bin/fm-project-mode.sh plain
+no-mistakes off
+[exit 0]
+$ bin/fm-project-mode.sh badtest
+error: /tmp/fm-lab.Pr8plu/data/projects.md entry for badtest (correct nmskip=): invalid no-mistakes skip 'test'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[exit 3]
+$ bin/fm-project-mode.sh --raw badtest
+error: /tmp/fm-lab.Pr8plu/data/projects.md entry for badtest (correct nmskip=): invalid no-mistakes skip 'test'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[exit 3]
+$ bin/fm-project-mode.sh --forge badtest
+error: /tmp/fm-lab.Pr8plu/data/projects.md entry for badtest (correct nmskip=): invalid no-mistakes skip 'test'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[exit 3]
+$ bin/fm-project-mode.sh --branch-prefix badtest
+error: /tmp/fm-lab.Pr8plu/data/projects.md entry for badtest (correct nmskip=): invalid no-mistakes skip 'test'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[exit 3]
+$ bin/fm-project-mode.sh --nm-skip badtest
+error: /tmp/fm-lab.Pr8plu/data/projects.md entry for badtest (correct nmskip=): invalid no-mistakes skip 'test'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[exit 3]
+$ bin/fm-project-mode.sh badlist
+error: /tmp/fm-lab.Pr8plu/data/projects.md entry for badlist (correct nmskip=): invalid no-mistakes skip 'lint,test'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[exit 3]
+$ bin/fm-project-mode.sh --raw badlist
+error: /tmp/fm-lab.Pr8plu/data/projects.md entry for badlist (correct nmskip=): invalid no-mistakes skip 'lint,test'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[exit 3]
+$ bin/fm-project-mode.sh --forge badlist
+error: /tmp/fm-lab.Pr8plu/data/projects.md entry for badlist (correct nmskip=): invalid no-mistakes skip 'lint,test'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[exit 3]
+$ bin/fm-project-mode.sh --branch-prefix badlist
+error: /tmp/fm-lab.Pr8plu/data/projects.md entry for badlist (correct nmskip=): invalid no-mistakes skip 'lint,test'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[exit 3]
+$ bin/fm-project-mode.sh --nm-skip badlist
+error: /tmp/fm-lab.Pr8plu/data/projects.md entry for badlist (correct nmskip=): invalid no-mistakes skip 'lint,test'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[exit 3]

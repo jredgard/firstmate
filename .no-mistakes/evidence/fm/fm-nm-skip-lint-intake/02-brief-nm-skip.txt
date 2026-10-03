@@ -1,0 +1,53 @@
+$ bin/fm-brief.sh nmlint mosaiq --mode no-mistakes --nm-skip lint
+scaffolded: /tmp/fm-lab.Pr8plu/data/nmlint/brief.md (ship, mode=no-mistakes; replace {TASK} and {FIRSTMATE_SPEC})
+[exit 0]
+--- relevant lines of generated brief data/nmlint/brief.md:
+67:     Only after ruling out socket refusal, if the run is still running or fixing, reattach and keep
+92:Delivery contract: mode=no-mistakes skip=lint
+99:Pass `--skip lint` on every `no-mistakes axi run` for this task, and skip nothing else.
+121:Whenever a drive call returns without a gate or an outcome - its own wait elapsed, or it was killed or timed out - reattach at once by re-running `no-mistakes axi run` with `--skip lint`, backgrounded the same way; once checks are green it returns `checks-passed` immediately, and if it refuses because no run is active, read the finished outcome from `no-mistakes axi status`.
+$ bin/fm-brief.sh nmgerrit gerritproj --mode no-mistakes --nm-skip lint --forge gerrit --shape squash
+scaffolded: /tmp/fm-lab.Pr8plu/data/nmgerrit/brief.md (ship, mode=no-mistakes forge=gerrit shape=squash; replace {TASK} and {FIRSTMATE_SPEC})
+[exit 0]
+--- relevant lines of generated brief data/nmgerrit/brief.md:
+67:     Only after ruling out socket refusal, if the run is still running or fixing, reattach and keep
+92:Delivery contract: mode=no-mistakes forge=gerrit shape=squash skip=lint
+95:The publication steps `push,pr,ci` are skipped alongside the intake-resolved steps; skipping Gerrit publication in the pipeline is a supported outcome, not a degraded one.
+101:Pass `--skip push,pr,ci,lint` on every `no-mistakes axi run` for this task, and skip nothing else.
+122:Whenever a drive call returns without a gate or an outcome - its own wait elapsed, or it was killed or timed out - reattach at once by re-running `no-mistakes axi run` with `--skip push,pr,ci,lint`, backgrounded the same way; if it refuses because no run is active, read the finished outcome from `no-mistakes axi status`.
+$ bin/fm-brief.sh nmnone plain --mode no-mistakes
+scaffolded: /tmp/fm-lab.Pr8plu/data/nmnone/brief.md (ship, mode=no-mistakes; replace {TASK} and {FIRSTMATE_SPEC})
+[exit 0]
+--- relevant lines of data/nmnone/brief.md:
+67:     Only after ruling out socket refusal, if the run is still running or fixing, reattach and keep
+92:Delivery contract: mode=no-mistakes
+120:Whenever a drive call returns without a gate or an outcome - its own wait elapsed, or it was killed or timed out - reattach at once by re-running `no-mistakes axi run` without flags, backgrounded the same way; once checks are green it returns `checks-passed` immediately, and if it refuses because no run is active, read the finished outcome from `no-mistakes axi status`.
+=== adversarial refusals ===
+$ bin/fm-brief.sh bad-test mosaiq --mode no-mistakes --nm-skip test
+error: fm-brief.sh --nm-skip: invalid no-mistakes skip 'test'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[exit 1]
+$ bin/fm-brief.sh bad-document mosaiq --mode no-mistakes --nm-skip document
+error: fm-brief.sh --nm-skip: invalid no-mistakes skip 'document'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[exit 1]
+$ bin/fm-brief.sh bad-review mosaiq --mode no-mistakes --nm-skip review
+error: fm-brief.sh --nm-skip: invalid no-mistakes skip 'review'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[exit 1]
+$ bin/fm-brief.sh bad-lint,test mosaiq --mode no-mistakes --nm-skip lint,test
+error: fm-brief.sh --nm-skip: invalid no-mistakes skip 'lint,test'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[exit 1]
+$ bin/fm-brief.sh bad-push mosaiq --mode no-mistakes --nm-skip push
+error: fm-brief.sh --nm-skip: invalid no-mistakes skip 'push'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[exit 1]
+$ bin/fm-brief.sh bad-dpr mosaiq --mode direct-PR --nm-skip lint
+error: --nm-skip applies only to ship briefs with --mode no-mistakes
+[exit 1]
+$ bin/fm-brief.sh bad-local mosaiq --mode local-only --nm-skip lint
+error: --nm-skip applies only to ship briefs with --mode no-mistakes
+[exit 1]
+$ bin/fm-brief.sh bad-scout mosaiq --scout --nm-skip lint
+error: --nm-skip applies only to ship briefs with --mode no-mistakes
+[exit 1]
+nmgerrit
+nmlint
+nmnone
+projects.md

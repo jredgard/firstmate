@@ -1,0 +1,33 @@
+### bin/fm-spawn.sh scoutg $FM_HOME/projects/gerritproj --scout 'sleep 900'
+spawned scoutg harness=sleep kind=scout window=primary:fm-scoutg worktree=/tmp/fm-lab.Pr8plu/treehouse/.treehouse/gerritproj-d77e68/2/gerritproj
+EXIT=0
+### bin/fm-promote.sh scoutg --mode direct-PR --yolo off --nm-skip lint
+error: --nm-skip applies only to promotion with --mode no-mistakes
+EXIT=1
+### bin/fm-promote.sh scoutg --mode no-mistakes --yolo off --nm-skip test
+error: fm-promote.sh --nm-skip: invalid no-mistakes skip 'test'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+EXIT=1
+kind after refusals: kind=scout
+### bin/fm-promote.sh scoutg --mode no-mistakes --yolo off --nm-skip lint
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  7 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+promoted scoutg to ship mode=no-mistakes yolo=off forge=gerrit (teardown protection restored)
+wrote ship instructions for mode=no-mistakes forge=gerrit: /tmp/fm-lab.Pr8plu/data/scoutg/ship-instructions.md
+next: FM_HOME=/tmp/fm-lab.Pr8plu bin/fm-send.sh fm-scoutg "$(cat /tmp/fm-lab.Pr8plu/data/scoutg/ship-instructions.md)"
+EXIT=0
+--- state/scoutg.meta delivery fields:
+kind=ship
+mode=no-mistakes
+yolo=off
+branch=fm/scoutg
+nm_skip=lint
+--- data/scoutg/ship-instructions.md skip lines:
+34:Delivery contract: mode=no-mistakes forge=gerrit shape=squash skip=lint
+37:The publication steps `push,pr,ci` are skipped alongside the intake-resolved steps; skipping Gerrit publication in the pipeline is a supported outcome, not a degraded one.
+43:Pass `--skip push,pr,ci,lint` on every `no-mistakes axi run` for this task, and skip nothing else.
+64:Whenever a drive call returns without a gate or an outcome - its own wait elapsed, or it was killed or timed out - reattach at once by re-running `no-mistakes axi run` with `--skip push,pr,ci,lint`, backgrounded the same way; if it refuses because no run is active, read the finished outcome from `no-mistakes axi status`.
