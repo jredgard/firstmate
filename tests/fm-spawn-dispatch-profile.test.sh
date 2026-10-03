@@ -1273,7 +1273,7 @@ test_claude_unbound_gateway_omits_settings_and_other_harnesses_ignore_binding() 
 
 test_claude_gateway_bad_bindings_refuse_before_launch() {
   local rec id binding projects url out status
-  for binding in unmapped ambiguous missing-dir invalid-url; do
+  for binding in unmapped ambiguous missing-dir invalid-url empty-url; do
     id="gateway-refused-$binding-z20"
     rec=$(make_spawn_case "$id" claude "$id")
     read_case_record "$rec"
@@ -1288,6 +1288,9 @@ test_claude_gateway_bad_bindings_refuse_before_launch() {
         url=http://localhost:4001 ;;
       missing-dir) projects="$CASE_DIR/missing" ;;
       invalid-url) url=not-a-gateway ;;
+      empty-url)
+        url=
+        printf 'LITELLM_PORT=4001\nLITELLM_MASTER_KEY=fixture-empty-url-key\n' > "$projects/clims/env" ;;
     esac
     out=$(FM_TEST_FWD_LITELLM_PROXY_URL="$url" FM_TEST_FWD_LITELLM_PROJECTS_DIR="$projects" \
       run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR")
@@ -1303,11 +1306,12 @@ test_claude_gateway_bad_bindings_refuse_before_launch() {
       missing-dir)
         assert_contains "$out" 'requires a readable LiteLLM projects directory' "missing directory refusal should identify the binding failure"
         assert_contains "$out" 'set LITELLM_PROJECTS_DIR' "missing directory refusal should identify the binding remedy" ;;
-      invalid-url)
+      invalid-url | empty-url)
         assert_contains "$out" 'LITELLM_PROXY_URL must have an explicit gateway port' "invalid URL refusal should identify the binding remedy" ;;
     esac
     [ ! -s "$LAUNCH_LOG" ] || fail "$binding refusal still delivered a launch"
     [ ! -e "$HOME_DIR/state/$id.meta" ] || fail "$binding refusal still published task metadata"
+    assert_not_contains "$out" fixture-empty-url-key "$binding refusal leaked a helper key"
   done
   pass "unmapped, ambiguous, malformed, and missing gateway bindings refuse before launch"
 }
