@@ -13,7 +13,7 @@ bash bin/fm-doc-audience-check.sh
 bash bin/fm-test-run.sh --check-coverage
 ```
 
-The radar suite covers committed, staged, unstaged and untracked paths, all three classes, documentation-named text ledgers, dependency text manifests, explicit registry ledgers, disjoint changes, index preservation, unreadable and empty worktrees, task/PR deduplication, GitHub and Azure pagination, rename-source paths, completion retention, teardown pruning, failed-read retention, local origin/HEAD bases, HTTPS userinfo normalization, bounded Git calls and corrupt-memory refusal.
+The radar suite covers committed, staged, unstaged and untracked paths, all three classes, documentation-named text ledgers, dependency text manifests, explicit registry ledgers, disjoint changes, index preservation, unreadable and empty worktrees, task/PR deduplication, GitHub and Azure pagination, one Azure token per run, PR-and-iteration file-list reuse, rename-source paths, completion retention, teardown pruning, failed-read retention, local origin/HEAD bases, HTTPS userinfo normalization, bounded Git calls and corrupt-memory refusal.
 The existing delivery suite checks that the registry query preserves delivery, forge and branch behavior.
 
 ## Observed result
@@ -23,5 +23,5 @@ The targeted behavior runner reported `FM_TEST_SUMMARY total=2 failed=0 skipped_
 The audience check and coverage guard reported `ok`, and full source-aware lint emitted no findings.
 A live GitHub read using gh-axi 0.1.35, with radar state confined to a disposable fixture home, reported `unmeasured=0`.
 That live observation exercised the installed gh-axi envelope and open-PR listing; no open PR file-list response was present, so changed-file pagination remains fixture-proven.
-Azure changed-file reads are fixture-proven, including bearer delivery through a private file descriptor, latest-iteration selection, base comparison and continuation offsets.
+Azure changed-file reads are fixture-proven, including bearer delivery through a private file descriptor, one token acquisition per run, latest-iteration selection, unchanged-iteration file-list reuse, base comparison and continuation offsets.
 No live Azure availability claim is made.
