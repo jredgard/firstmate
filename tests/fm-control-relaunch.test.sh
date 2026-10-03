@@ -1101,7 +1101,10 @@ test_spawn_relaunch_of_promoted_scout_uses_the_recorded_branch() {
 
 test_promoted_scout_relaunch_receives_the_current_delivery_contract() {
   local dir home id brief launch out mode rule
+  local -a skip_args
   for mode in no-mistakes direct-PR local-only; do
+    skip_args=()
+    [ "$mode" != no-mistakes ] || skip_args=(--nm-skip lint)
     id="rl-promoted-${mode}"
     dir=$(new_case "promoted-scout-$mode" "$id")
     home="$dir/home"
@@ -1127,7 +1130,7 @@ test_promoted_scout_relaunch_receives_the_current_delivery_contract() {
     printf '%s' "$dir/wt" > "$dir/fake/cwd"
 
     out=$(FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" \
-      "$PROMOTE" "$id" --mode "$mode" --yolo off 2>&1) \
+      "$PROMOTE" "$id" --mode "$mode" --yolo off "${skip_args[@]}" 2>&1) \
       || fail "$mode: scout promotion should succeed: $out"
     assert_grep 'This is a SCOUT task' "$brief" \
       "$mode: the reproduction fixture lost the original scout delivery text"
@@ -1160,6 +1163,12 @@ test_promoted_scout_relaunch_receives_the_current_delivery_contract() {
       "$mode: the replacement launch did not receive the carry-over boundary"
     assert_grep "Delivery contract: mode=$mode" "$launch" \
       "$mode: the replacement launch did not receive the actual ship delivery mode"
+    if [ "$mode" = no-mistakes ]; then
+      assert_grep 'Delivery contract: mode=no-mistakes skip=lint' "$launch" \
+        "relaunch lost the promoted no-mistakes skips"
+      [ "$(meta_field "$dir" "$id" nm_skip)" = lint ] || fail "relaunch lost its recorded skip value"
+      [ "$(grep -c '^nm_skip=' "$home/state/$id.meta")" -eq 1 ] || fail "relaunch duplicated the skip field"
+    fi
   done
   pass "fm-promote/fm-spawn --relaunch: the current ship contract supersedes stale scout delivery text"
 }
@@ -1801,6 +1810,9 @@ test_spawn_relaunch_refuses_contradicting_flags() {
   out=$(run_spawn "$dir" rl16 --relaunch --scout); rc=$?
   expect_code 1 "$rc" "--scout should be refused alongside --relaunch"
   assert_contains "$out" "recorded kind" "the refusal should name the recorded kind rule"
+  out=$(run_spawn "$dir" rl16 --relaunch --nm-skip lint); rc=$?
+  expect_code 1 "$rc" "--nm-skip should be refused alongside --relaunch"
+  assert_contains "$out" 'recorded no-mistakes skips' "relaunch did not identify the recorded skip contract"
   out=$(run_spawn "$dir" rl16 "$dir/proj" --relaunch); rc=$?
   expect_code 1 "$rc" "a project positional should be refused alongside --relaunch"
   assert_contains "$out" "takes the task id only" "the refusal should name the positional rule"

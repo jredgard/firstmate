@@ -1621,6 +1621,123 @@ EOF
   pass "fm-project-mode: --branch-prefix resolves order-independently and defaults to the legacy fm/ prefix"
 }
 
+test_project_mode_resolves_nm_skip() {
+  local home out status skip query number=0
+  home="$TMP_ROOT/project-nm-skip/home"
+  mkdir -p "$home/data"
+  printf '%s\n' \
+    '- proj [nmskip=lint,test,document branch= +yolo no-mistakes forge=gerrit] - fixture' \
+    '- plain [no-mistakes] - fixture' \
+    '- empty [nmskip= no-mistakes branch=fix/] - fixture' > "$home/data/projects.md"
+  out=$(FM_HOME="$home" "$PROJECT_MODE" --nm-skip proj) || fail "valid nmskip token did not resolve"
+  [ "$out" = lint,test,document ] || fail "order-independent skip parsing lost its value: $out"
+  out=$(FM_HOME="$home" "$PROJECT_MODE" --branch-prefix proj) || fail "skip token broke branch query"
+  [ -z "$out" ] || fail "skip token broke the empty branch override"
+  out=$(FM_HOME="$home" "$PROJECT_MODE" --forge proj) || fail "skip token broke forge query"
+  [ "$out" = gerrit ] || fail "skip token broke the forge binding"
+  out=$(FM_HOME="$home" "$PROJECT_MODE" plain) || fail "plain posture did not resolve"
+  [ "$out" = 'no-mistakes off' ] || fail "skip query changed legacy mode output"
+  for query in plain empty unregistered; do
+    out=$(FM_HOME="$home" "$PROJECT_MODE" --nm-skip "$query" 2>/dev/null) || fail "empty skip query refused"
+    [ -z "$out" ] || fail "$query should resolve to no skips"
+  done
+  out=$(FM_HOME="$TMP_ROOT/project-nm-skip/absent" "$PROJECT_MODE" --nm-skip proj 2>/dev/null)
+  status=$?
+  expect_code 0 "$status" "absent registry skip query must succeed"
+  [ -z "$out" ] || fail "absent registry guessed skips"
+  for skip in review push pr ci intent rebase bogus 'lint,' ',lint' 'lint,,test'; do
+    printf '%s\n' "- proj [no-mistakes nmskip=$skip] - fixture" > "$home/data/projects.md"
+    for query in '' --raw --forge --branch-prefix --nm-skip; do
+      number=$((number + 1))
+      # shellcheck disable=SC2086
+      out=$(FM_HOME="$home" "$PROJECT_MODE" $query proj 2>"$home/error-$number")
+      status=$?
+      expect_code 3 "$status" "registry accepted invalid nmskip=$skip through $query"
+      [ -z "$out" ] || fail "refused skip query printed a value"
+      assert_grep 'correct nmskip=' "$home/error-$number" "registry refusal did not name the repair"
+    done
+  done
+  pass "fm-project-mode: explicit nmskip tokens parse independently and invalid steps refuse every query"
+}
+
+test_spawn_nm_skip_agreement() {
+  local rec home proj fakebin id out status flags number=0
+  rec=$(make_home nm-skip-agreement '- proj [no-mistakes nmskip=lint] - fixture')
+  IFS='|' read -r home proj fakebin <<EOF
+$rec
+EOF
+  id=nm-skip-agree
+  FM_HOME="$home" "$BRIEF" "$id" proj --mode no-mistakes --nm-skip lint >/dev/null || fail "skip brief should scaffold"
+  fill_brief_subsections "$home/data/$id/brief.md" 'Skip the CI-backed lint step per run.' 'Preserve explicit delivery agreement.'
+  for flags in '' '--nm-skip test'; do
+    # shellcheck disable=SC2086
+    out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode no-mistakes --yolo off $flags)
+    status=$?
+    [ "$status" -ne 0 ] || fail "spawn accepted missing or different skips"
+    assert_contains "$out" 'no-mistakes skip mismatch' "spawn did not check the skip agreement"
+    assert_absent "$home/state/$id.meta" "skip mismatch wrote metadata"
+  done
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode no-mistakes --yolo off --nm-skip lint)
+  assert_not_contains "$out" 'skip mismatch' "matching skip was refused"
+  assert_not_contains "$out" 'registers nmskip=' "matching skip was announced as a deviation"
+  write_brief "$home" nm-skip-dev no-mistakes
+  out=$(run_spawn "$home" "$fakebin" nm-skip-dev "$proj" claude --mode no-mistakes --yolo off --nm-skip '')
+  assert_contains "$out" 'registers nmskip=lint' "explicit empty skip deviation was silent"
+  assert_not_contains "$out" 'skip mismatch' "explicit empty skip was refused"
+  for flags in '--scout' '--secondmate' '--relaunch' '--mode direct-PR --yolo off' '--mode local-only --yolo off'; do
+    number=$((number + 1))
+    # shellcheck disable=SC2086
+    out=$(run_spawn "$home" "$fakebin" "nm-skip-scope-$number" "$proj" claude $flags --nm-skip lint)
+    status=$?
+    [ "$status" -ne 0 ] || fail "spawn accepted skips with $flags"
+    assert_contains "$out" '--nm-skip' "skip scope refusal was not actionable"
+    assert_absent "$home/state/nm-skip-scope-$number.meta" "scope refusal wrote metadata"
+  done
+  for flags in review push pr ci intent rebase bogus 'lint,'; do
+    out=$(run_spawn "$home" "$fakebin" nm-skip-invalid "$proj" claude --mode no-mistakes --yolo off --nm-skip "$flags")
+    status=$?
+    [ "$status" -ne 0 ] || fail "spawn accepted invalid skip $flags"
+    assert_contains "$out" 'lint,test,document only' "spawn accepted or failed to identify an invalid skip"
+  done
+  pass "fm-spawn: explicit skip agreement, deviation notices, scope, and closed-set guards hold before launch"
+}
+
+test_promotion_carries_nm_skip() {
+  local home id meta instructions out status flags number=0
+  home="$TMP_ROOT/promote-nm-skip/home"
+  mkdir -p "$home/state" "$home/data" "$home/projects/proj"
+  printf '%s\n' '- proj [no-mistakes forge=gerrit nmskip=test] - fixture' > "$home/data/projects.md"
+  id=promote-nm-skip
+  meta="$home/state/$id.meta"
+  printf 'window=fm-%s\nkind=scout\nworktree=/tmp/wt\nproject=%s\n' "$id" "$home/projects/proj" > "$meta"
+  FM_HOME="$home" "$BRIEF" "$id" proj --scout >/dev/null || fail "skip promotion scout should scaffold"
+  fill_brief_subsections "$home/data/$id/brief.md" 'Skip CI-backed lint for this task.' 'Keep promotion and relaunch contracts aligned.'
+  for flags in '--mode direct-PR --yolo off --nm-skip lint' '--mode local-only --yolo off --nm-skip lint' '--mode no-mistakes --yolo off --nm-skip review'; do
+    number=$((number + 1))
+    # shellcheck disable=SC2086
+    out=$(FM_HOME="$home" "$PROMOTE" "$id" $flags 2>&1)
+    status=$?
+    [ "$status" -ne 0 ] || fail "promotion accepted invalid skips: $flags"
+    assert_contains "$out" 'nm-skip' "promotion skip refusal was not actionable"
+    assert_grep 'kind=scout' "$meta" "refused promotion changed kind"
+    assert_absent "$home/data/$id/ship-instructions.md" "refused promotion published instructions"
+  done
+  out=$(FM_HOME="$home" "$PROMOTE" "$id" --mode no-mistakes --yolo off --nm-skip=lint 2>&1) \
+    || fail "skip promotion should succeed: $out"
+  instructions="$home/data/$id/ship-instructions.md"
+  assert_grep 'nm_skip=lint' "$meta" "promotion lost its explicit skip metadata"
+  assert_grep 'Delivery contract: mode=no-mistakes forge=gerrit shape=squash skip=lint' "$instructions" \
+    "promotion did not render its explicit skip contract"
+  assert_grep 'Delivery contract: mode=no-mistakes forge=gerrit shape=squash skip=lint' "$home/data/$id/brief.md" \
+    "promotion did not persist the skip contract for relaunch"
+  assert_grep "Pass \`--skip push,pr,ci,lint\`" "$instructions" "promotion did not merge Gerrit skips"
+  assert_no_grep 'skip=test' "$instructions" "promotion guessed skips from the registry"
+  pass "fm-promote: validated intake skips reach worker instructions and relaunch metadata without a registry lookup"
+}
+
+test_project_mode_resolves_nm_skip
+test_spawn_nm_skip_agreement
+test_promotion_carries_nm_skip
 test_ship_spawn_requires_a_valid_delivery_contract
 test_scout_and_secondmate_refuse_delivery_flags
 test_spawn_refuses_a_brief_mode_mismatch

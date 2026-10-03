@@ -439,6 +439,23 @@ test_nm_driving_preserves_provenance_budget_and_custody() {
 }
 
 test_nm_driving_preserves_provenance_budget_and_custody
+test_nm_skip_renderer_refuses_before_output() {
+  local mode out status
+  for mode in direct-PR local-only; do
+    out=$(fm_dod_block "$mode" skip-guard fm/skip-guard none lint 2>"$TMP_ROOT/skip-error")
+    status=$?
+    [ "$status" -ne 0 ] || fail "renderer accepted no-mistakes skips for $mode"
+    [ -z "$out" ] || fail "renderer emitted a partial contract before refusing $mode skips"
+  done
+  out=$(fm_dod_block no-mistakes skip-guard fm/skip-guard gerrit review 2>"$TMP_ROOT/skip-error")
+  status=$?
+  [ "$status" -ne 0 ] || fail "renderer accepted skipping review"
+  [ -z "$out" ] || fail "renderer emitted a partial contract before refusing review skip"
+  assert_grep 'lint,test,document only' "$TMP_ROOT/skip-error" "renderer refusal omitted allowed steps"
+  pass "no-mistakes skip renderer refuses invalid modes and steps before emitting a contract"
+}
+
+test_nm_skip_renderer_refuses_before_output
 test_scout_done_is_not_gated
 test_unpushed_ship_done_is_refused
 test_no_mistakes_prevalidation_done_is_not_gated
