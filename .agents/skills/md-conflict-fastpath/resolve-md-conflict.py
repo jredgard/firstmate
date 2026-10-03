@@ -23,8 +23,11 @@ env:   ADO_ORG (default https://dev.azure.com/tuvsud01), ADO_PROJECT (default DS
 list exits: 0 no conflicts or doc-only candidates, 1 mechanical candidates, 2 code/non-editEdit.
 apply exits: 0 merge succeeded, 1 unresolved conflicts remain, 3 resolution/merge
 failed, 4 merge result still pending after bounded polling.
+Both commands exit 5 for usage, authentication, REST, malformed response, file I/O
+or subprocess errors, with a concise diagnostic on stderr.
 Classification is a path hint only; the owner skill requires inspecting use and hunks.
 """
+import http.client
 import json
 import os
 import subprocess
@@ -45,11 +48,14 @@ MECH_NAMES = ("directory.packages.props", "directory.build.props", "global.json"
 
 
 def token():
-    return os.environ.get("ADO_TOKEN") or subprocess.check_output(
+    access_token = os.environ.get("ADO_TOKEN") or subprocess.check_output(
         ["az", "account", "get-access-token", "--resource",
          "499b84ac-1321-427f-aa17-267ca6975798", "--query", "accessToken", "--output", "tsv"],
-        text=True,
+        text=True, stderr=subprocess.PIPE,
     ).strip()
+    if not access_token:
+        raise ValueError("Azure CLI returned an empty access token")
+    return access_token
 
 
 def req(url, method="GET", body=None, raw=False):
@@ -59,7 +65,20 @@ def req(url, method="GET", body=None, raw=False):
         request.data = json.dumps(body).encode()
     with urllib.request.urlopen(request) as response:
         data = response.read()
-    return data if raw else json.loads(data)
+    if raw:
+        return data
+    response = json.loads(data)
+    if not isinstance(response, dict):
+        raise ValueError("REST response must be a JSON object")
+    if response.get("mergeStatus") is not None and not isinstance(response["mergeStatus"], str):
+        raise ValueError("PR mergeStatus must be a string")
+    merge_commit = response.get("lastMergeCommit")
+    if merge_commit is not None and (
+        not isinstance(merge_commit, dict)
+        or (merge_commit.get("commitId") is not None and not isinstance(merge_commit["commitId"], str))
+    ):
+        raise ValueError("PR lastMergeCommit must be an object with a string commitId")
+    return response
 
 
 def base(repo):
@@ -67,7 +86,13 @@ def base(repo):
 
 
 def conflicts(repo, pr):
-    return req(f"{base(repo)}/pullRequests/{pr}/conflicts?{API}&includeObsolete=false")["value"]
+    entries = req(f"{base(repo)}/pullRequests/{pr}/conflicts?{API}&includeObsolete=false")["value"]
+    if not isinstance(entries, list) or any(not isinstance(entry, dict) for entry in entries):
+        raise ValueError("conflicts response value must be an array of objects")
+    for entry in entries:
+        if not isinstance(entry["resolutionStatus"], str):
+            raise ValueError("conflict resolutionStatus must be a string")
+    return entries
 
 
 def blob(repo, object_id):
@@ -104,6 +129,8 @@ def cmd_list(repo, pr):
              str(directory / "source"), str(directory / "base"), str(directory / "target")],
             capture_output=True, text=True,
         )
+        if merge.returncode < 0 or merge.returncode > 127:
+            raise subprocess.CalledProcessError(merge.returncode, merge.args, stderr=merge.stderr)
         (directory / "three-way").write_text(merge.stdout)
         print(f"  files: {directory}/base {directory}/source {directory}/target  three-way (with markers): {directory}/three-way")
         lines = merge.stdout.splitlines()
@@ -130,11 +157,13 @@ def cmd_list(repo, pr):
 
 def cmd_apply(repo, pr, conflict_id, path):
     content = list(Path(path).read_bytes())
-    pull_request_url = f"{base(repo)}/pullRequests/{pr}?api-version=7.1"
-    previous_merge_commit = (req(pull_request_url).get("lastMergeCommit") or {}).get("commitId")
     body = {"conflictId": int(conflict_id), "conflictType": "editEdit", "resolutionStatus": "resolved",
             "resolution": {"mergeType": "userMerged", "userMergedContent": content}}
+    pull_request_url = f"{base(repo)}/pullRequests/{pr}?api-version=7.1"
+    previous_merge_commit = (req(pull_request_url).get("lastMergeCommit") or {}).get("commitId")
     response = req(f"{base(repo)}/pullRequests/{pr}/conflicts/{conflict_id}?{API}", "PATCH", body)
+    if not isinstance(response["resolutionStatus"], str):
+        raise ValueError("resolution response resolutionStatus must be a string")
     print("resolution:", response.get("resolutionStatus"), response.get("resolutionError"))
     if response.get("resolutionStatus") != "resolved" or response.get("resolutionError") not in (None, 0, "none"):
         return 3
@@ -158,9 +187,14 @@ def cmd_apply(repo, pr, conflict_id, path):
 
 if __name__ == "__main__":
     arguments = sys.argv[1:]
-    if len(arguments) == 3 and arguments[0] == "list":
-        sys.exit(cmd_list(arguments[1], arguments[2]))
-    if len(arguments) == 5 and arguments[0] == "apply":
-        sys.exit(cmd_apply(arguments[1], arguments[2], arguments[3], arguments[4]))
-    print(__doc__)
-    sys.exit(1)
+    try:
+        if len(arguments) == 3 and arguments[0] == "list":
+            sys.exit(cmd_list(arguments[1], arguments[2]))
+        if len(arguments) == 5 and arguments[0] == "apply":
+            sys.exit(cmd_apply(arguments[1], arguments[2], arguments[3], arguments[4]))
+        print(__doc__)
+        raise ValueError("expected list <repo> <prId> or apply <repo> <prId> <conflictId> <resolvedFile>")
+    except (OSError, ValueError, KeyError, TypeError, AttributeError,
+            subprocess.SubprocessError, http.client.HTTPException) as error:
+        print(f"error: {type(error).__name__}: {' '.join(str(error).splitlines())}", file=sys.stderr)
+        sys.exit(5)

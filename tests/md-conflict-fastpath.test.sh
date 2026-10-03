@@ -29,7 +29,9 @@ class ConflictCliTests(unittest.TestCase):
         cls.fakebin = cls.root / "bin"
         cls.fakebin.mkdir()
         az = cls.fakebin / "az"
-        az.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$AZ_ARGS"\nprintf "stub-token\\n"\n')
+        az.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$AZ_ARGS"\n'
+                      'if [ "${AZ_EXIT:-0}" != 0 ]; then printf "token failed\\n" >&2; exit "$AZ_EXIT"; fi\n'
+                      'printf "%s\\n" "${AZ_TOKEN-stub-token}"\n')
         az.chmod(0o700)
         cls.entries = []
         cls.requests = []
@@ -43,6 +45,8 @@ class ConflictCliTests(unittest.TestCase):
                 route = urlsplit(self.path)
                 query = parse_qs(route.query)
                 cls.requests.append(("GET", route.path, query, self.headers.get("Authorization"), None))
+                if self.inject_response():
+                    return
                 if route.path == "/fixture/_apis/git/repositories/repo/pullRequests/7/conflicts":
                     self.reply(json.dumps({"count": len(cls.entries), "value": cls.entries}).encode())
                 elif route.path.startswith("/fixture/_apis/git/repositories/repo/blobs/"):
@@ -60,6 +64,8 @@ class ConflictCliTests(unittest.TestCase):
                 payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 cls.requests.append(("PATCH", route.path, parse_qs(route.query),
                                      self.headers.get("Authorization"), payload))
+                if self.inject_response():
+                    return
                 if route.path == f"/fixture/_apis/git/repositories/repo/pullRequests/7/conflicts/{payload['conflictId']}":
                     if cls.resolution["resolutionStatus"] == "resolved" and cls.resolution.get("resolutionError") in (None, 0, "none"):
                         for entry in cls.entries:
@@ -74,6 +80,15 @@ class ConflictCliTests(unittest.TestCase):
                 self.send_header("Content-Length", str(len(content)))
                 self.end_headers()
                 self.wfile.write(content)
+
+            def inject_response(self):
+                if len(cls.requests) != cls.override_request:
+                    return False
+                if cls.override_status:
+                    self.send_error(cls.override_status)
+                else:
+                    self.reply(cls.override_body)
+                return True
 
         cls.server = HTTPServer(("127.0.0.1", 0), Handler)
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
@@ -92,6 +107,9 @@ class ConflictCliTests(unittest.TestCase):
         type(self).blobs = {"base": b"before\n", "source": b"source fact\n", "target": b"target fact\n"}
         type(self).resolution = {"resolutionStatus": "resolved", "resolutionError": None}
         type(self).pull_requests = [{"mergeStatus": "succeeded", "lastMergeCommit": {"commitId": "0123456789abcdef"}}]
+        type(self).override_request = None
+        type(self).override_status = None
+        type(self).override_body = b"{}"
         self.environment = os.environ.copy()
         self.environment.update({
             "ADO_ORG": f"http://127.0.0.1:{self.server.server_port}",
@@ -102,7 +120,7 @@ class ConflictCliTests(unittest.TestCase):
             "TMPDIR": str(self.root),
         })
 
-    def invoke(self, *arguments, fast_poll=False):
+    def invoke(self, *arguments, fast_poll=False, error=False):
         command = [sys.executable, HELPER, *arguments]
         if fast_poll:
             command = [sys.executable, "-c",
@@ -111,7 +129,13 @@ class ConflictCliTests(unittest.TestCase):
                        HELPER, *arguments]
         result = subprocess.run(command, env=self.environment,
                                 capture_output=True, text=True, timeout=10)
-        self.assertEqual(result.stderr, "")
+        if error:
+            self.assertEqual(result.returncode, 5)
+            self.assertTrue(result.stderr.startswith("error: "), result.stderr)
+            self.assertEqual(len(result.stderr.splitlines()), 1)
+            self.assertNotIn("Traceback", result.stderr)
+        else:
+            self.assertEqual(result.stderr, "")
         for request in self.requests:
             self.assertEqual(request[3], "Bearer stub-token")
         return result
@@ -125,6 +149,97 @@ class ConflictCliTests(unittest.TestCase):
             for conflict_id, path in enumerate(paths, 1)
         ]
         return self.invoke("list", "repo", "7")
+
+    def test_usage_errors_do_not_return_conflict_codes(self):
+        for arguments in ((), ("unknown",), ("list", "repo"), ("list", "repo", "7", "extra"),
+                          ("apply", "repo", "7", "1"), ("apply", "repo", "7", "1", "file", "extra")):
+            with self.subTest(arguments=arguments):
+                result = self.invoke(*arguments, error=True)
+                self.assertIn("expected list", result.stderr)
+                self.assertEqual(self.requests, [])
+        resolution = self.root / "resolution.md"
+        resolution.write_bytes(b"merged facts\n")
+        result = self.invoke("apply", "repo", "7", "not-a-number", str(resolution), error=True)
+        self.assertIn("ValueError", result.stderr)
+        self.assertEqual(self.requests, [])
+
+    def test_rest_errors_at_every_list_and_apply_request(self):
+        self.list_conflicts(["/README.md"])
+        resolution = self.root / "resolution.md"
+        resolution.write_bytes(b"merged facts\n")
+        for command in (("list", "repo", "7"), ("apply", "repo", "7", "1", str(resolution))):
+            for request_number in range(1, 5):
+                for status in (401, 500):
+                    with self.subTest(command=command[0], request=request_number, status=status):
+                        type(self).requests = []
+                        type(self).override_request = request_number
+                        type(self).override_status = status
+                        result = self.invoke(*command, error=True)
+                        self.assertIn(f"HTTP Error {status}", result.stderr)
+                        self.assertEqual(len(self.requests), request_number)
+                        self.assertNotIn("verdict:", result.stdout)
+                        self.assertNotIn("conflicts remaining", result.stdout)
+                        self.assertNotIn("mergeStatus:", result.stdout)
+                        if command[0] == "apply" and request_number > 2:
+                            self.assertEqual(self.entries[0]["resolutionStatus"], "resolved")
+
+    def test_malformed_responses_are_operational_errors(self):
+        resolution = self.root / "resolution.md"
+        resolution.write_bytes(b"merged facts\n")
+        for command, request_number, body in (
+            (("list", "repo", "7"), 1, b"not-json"),
+            (("list", "repo", "7"), 1, b"[]"),
+            (("list", "repo", "7"), 1, b"null"),
+            (("list", "repo", "7"), 1, b"{}"),
+            (("list", "repo", "7"), 1, b'{"value": null}'),
+            (("list", "repo", "7"), 1, b'{"value": {}}'),
+            (("list", "repo", "7"), 1, b'{"value": [null]}'),
+            (("list", "repo", "7"), 1, b'{"value": [{}]}'),
+            (("apply", "repo", "7", "1", str(resolution)), 1, b"not-json"),
+            (("apply", "repo", "7", "1", str(resolution)), 1, b'{"lastMergeCommit": "invalid"}'),
+            (("apply", "repo", "7", "1", str(resolution)), 1, b'{"lastMergeCommit": {"commitId": 7}}'),
+            (("apply", "repo", "7", "1", str(resolution)), 2, b"{}"),
+            (("apply", "repo", "7", "1", str(resolution)), 2, b'{"resolutionStatus": null}'),
+            (("apply", "repo", "7", "1", str(resolution)), 3, b'{"value": [null]}'),
+            (("apply", "repo", "7", "1", str(resolution)), 4, b"not-json"),
+            (("apply", "repo", "7", "1", str(resolution)), 4, b'{"mergeStatus": []}'),
+            (("apply", "repo", "7", "1", str(resolution)), 4, b'{"lastMergeCommit": {"commitId": []}}'),
+        ):
+            with self.subTest(command=command[0], request=request_number, body=body):
+                type(self).requests = []
+                type(self).override_request = request_number
+                type(self).override_body = body
+                self.invoke(*command, error=True)
+                self.assertEqual(len(self.requests), request_number)
+
+    def test_token_command_failures_are_operational_errors(self):
+        self.environment.pop("ADO_TOKEN")
+        self.environment["AZ_EXIT"] = "7"
+        resolution = self.root / "resolution.md"
+        resolution.write_bytes(b"merged facts\n")
+        for command in (("list", "repo", "7"), ("apply", "repo", "7", "1", str(resolution))):
+            with self.subTest(command=command[0]):
+                result = self.invoke(*command, error=True)
+                self.assertIn("CalledProcessError", result.stderr)
+                self.assertEqual(self.requests, [])
+        self.environment.pop("AZ_EXIT")
+        self.environment["AZ_TOKEN"] = ""
+        result = self.invoke("list", "repo", "7", error=True)
+        self.assertIn("empty access token", result.stderr)
+        self.assertEqual(self.requests, [])
+
+    def test_file_and_merge_subprocess_failures_are_operational_errors(self):
+        for path in (self.root / "missing-resolution.md", self.root):
+            with self.subTest(path=path):
+                self.invoke("apply", "repo", "7", "1", str(path), error=True)
+                self.assertEqual(self.requests, [])
+        self.list_conflicts(["/README.md"])
+        type(self).requests = []
+        type(self).blobs = dict.fromkeys(("base", "source", "target"), b"\0binary\n")
+        result = self.invoke("list", "repo", "7", error=True)
+        self.assertIn("CalledProcessError", result.stderr)
+        self.assertNotIn("verdict:", result.stdout)
+        self.assertEqual(len(self.requests), 4)
 
     def test_document_extensions_and_three_way_output(self):
         for path in ("/README.MD", "/guide.markdown", "/guide.rst", "/notes.txt", "/guide.adoc",
