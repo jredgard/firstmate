@@ -51,7 +51,7 @@ If any conflict touches code, config, infrastructure, a lockfile, or is not `edi
    An aborted run releases branch custody; nothing is discarded.
 2. **Inspect.**
    `python3 .agents/skills/md-conflict-fastpath/resolve-md-conflict.py list <repo> <pr>` prints each conflict with its three blob files and the three-way diff hunks (`git merge-file`).
-   Union output is shown as a hint only; it duplicates table rows and bullets, so never apply it blindly.
+   The `three-way` file keeps the conflict markers and is an inspection aid only; never apply it as the resolution.
 3. **Write the resolution.**
    Save the full resolved file.
    Combine both sides' facts in one line where they describe the same thing (for example `Service Bus, Redis; opt-in PostgreSQL`).
