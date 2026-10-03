@@ -1,0 +1,406 @@
+### S0 setup: registry with ledgers= token, two ship worktrees
+
+$ bash /home/johannesr/.no-mistakes/worktrees/551ff26a6b1c/01M417A74P080K415RWEAYZW0G/bin/fm-project-mode.sh --ledgers firstmate
+docs/verification/conflict-radar.md,docs/scripts.md
+[exit 0]
+
+$ bash /home/johannesr/.no-mistakes/worktrees/551ff26a6b1c/01M417A74P080K415RWEAYZW0G/bin/fm-project-mode.sh firstmate
+no-mistakes off
+[exit 0]
+
+### S1 two ships, no edits yet; real open PRs #21/#23 overlap each other only (external-only)
+
+$ bash /home/johannesr/.no-mistakes/worktrees/551ff26a6b1c/01M417A74P080K415RWEAYZW0G/bin/fm-conflict-radar.sh firstmate
+firstmate: no overlap
+[exit 0]
+{
+  "unmeasured": [],
+  "prs": [
+    {
+      "id": "pr:https://github.com/jredgard/firstmate/pull/23",
+      "task_ids": [],
+      "n": 12,
+      "measurement": "measured"
+    },
+    {
+      "id": "pr:https://github.com/jredgard/firstmate/pull/21",
+      "task_ids": [],
+      "n": 15,
+      "measurement": "measured"
+    }
+  ],
+  "external_overlaps": [
+    {
+      "path": ".agents/skills/harness-adapters/references/harness/pi.md",
+      "class": "ledger",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/21",
+        "pr:https://github.com/jredgard/firstmate/pull/23"
+      ],
+      "shared": false
+    },
+    {
+      "path": "tests/fm-calm-pi-extension.test.sh",
+      "class": "code",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/21",
+        "pr:https://github.com/jredgard/firstmate/pull/23"
+      ],
+      "shared": false
+    }
+  ]
+}
+
+### S2 concurrent wave edits (committed, staged, unstaged, untracked) across classes
+
+$ bash /home/johannesr/.no-mistakes/worktrees/551ff26a6b1c/01M417A74P080K415RWEAYZW0G/bin/fm-conflict-radar.sh firstmate
+firstmate: code "CMakeLists.txt" sources=task:alpha,task:beta
+firstmate: ledger "NOTES.txt" sources=task:alpha,task:beta
+firstmate: ledger "README.md" sources=task:alpha,task:beta
+firstmate: code "bin/fm-spawn.sh" sources=pr:https://github.com/jredgard/firstmate/pull/23,task:alpha,task:beta
+firstmate: ledger "docs/verification/conflict-radar.md" sources=pr:https://github.com/jredgard/firstmate/pull/21,task:alpha,task:beta
+firstmate: mechanical "package-lock.json" sources=task:alpha,task:beta
+firstmate: mechanical "requirements.txt" sources=task:alpha,task:beta
+firstmate: code "tests/fm-calm-pi-extension.test.sh" sources=pr:https://github.com/jredgard/firstmate/pull/21,pr:https://github.com/jredgard/firstmate/pull/23,task:alpha
+[exit 0]
+{
+  "ledgers": [
+    "docs/verification/conflict-radar.md",
+    "docs/scripts.md"
+  ],
+  "unmeasured": [],
+  "shared": [
+    {
+      "path": "CMakeLists.txt",
+      "class": "code",
+      "participants": [
+        "task:alpha",
+        "task:beta"
+      ]
+    },
+    {
+      "path": "NOTES.txt",
+      "class": "ledger",
+      "participants": [
+        "task:alpha",
+        "task:beta"
+      ]
+    },
+    {
+      "path": "README.md",
+      "class": "ledger",
+      "participants": [
+        "task:alpha",
+        "task:beta"
+      ]
+    },
+    {
+      "path": "bin/fm-spawn.sh",
+      "class": "code",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/23",
+        "task:alpha",
+        "task:beta"
+      ]
+    },
+    {
+      "path": "docs/verification/conflict-radar.md",
+      "class": "ledger",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/21",
+        "task:alpha",
+        "task:beta"
+      ]
+    },
+    {
+      "path": "package-lock.json",
+      "class": "mechanical",
+      "participants": [
+        "task:alpha",
+        "task:beta"
+      ]
+    },
+    {
+      "path": "requirements.txt",
+      "class": "mechanical",
+      "participants": [
+        "task:alpha",
+        "task:beta"
+      ]
+    },
+    {
+      "path": "tests/fm-calm-pi-extension.test.sh",
+      "class": "code",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/21",
+        "pr:https://github.com/jredgard/firstmate/pull/23",
+        "task:alpha"
+      ]
+    }
+  ],
+  "not_shared": [
+    {
+      "path": ".agents/skills/conflict-radar/SKILL.md",
+      "class": "ledger",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/21"
+      ]
+    },
+    {
+      "path": ".agents/skills/harness-adapters/references/harness/pi.md",
+      "class": "ledger",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/21",
+        "pr:https://github.com/jredgard/firstmate/pull/23"
+      ]
+    },
+    {
+      "path": ".agents/skills/operational-home-layout/SKILL.md",
+      "class": "ledger",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/21"
+      ]
+    },
+    {
+      "path": ".agents/skills/project-management/SKILL.md",
+      "class": "ledger",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/21"
+      ]
+    },
+    {
+      "path": ".agents/skills/ship-landing/SKILL.md",
+      "class": "ledger",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/21"
+      ]
+    },
+    {
+      "path": ".agents/skills/validation-supervision/SKILL.md",
+      "class": "ledger",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/21"
+      ]
+    },
+    {
+      "path": "alpha-only.sh",
+      "class": "code",
+      "participants": [
+        "task:alpha"
+      ]
+    },
+    {
+      "path": "bin/fm-claude-gateway-lib.sh",
+      "class": "code",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/23"
+      ]
+    },
+    {
+      "path": "bin/fm-conflict-radar.sh",
+      "class": "code",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/21"
+      ]
+    },
+    {
+      "path": "bin/fm-control.sh",
+      "class": "code",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/23"
+      ]
+    },
+    {
+      "path": "bin/fm-pr-lib.sh",
+      "class": "code",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/21"
+      ]
+    },
+    {
+      "path": "bin/fm-project-mode.sh",
+      "class": "code",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/21"
+      ]
+    },
+    {
+      "path": "docs/agent-control.md",
+      "class": "ledger",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/23"
+      ]
+    },
+    {
+      "path": "docs/configuration.md",
+      "class": "ledger",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/23"
+      ]
+    },
+    {
+      "path": "docs/documentation-audiences.json",
+      "class": "code",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/21"
+      ]
+    },
+    {
+      "path": "docs/scripts.md",
+      "class": "ledger",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/21"
+      ]
+    },
+    {
+      "path": "tests/fixtures.sh",
+      "class": "code",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/23"
+      ]
+    },
+    {
+      "path": "tests/fm-conflict-radar.test.sh",
+      "class": "code",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/21"
+      ]
+    },
+    {
+      "path": "tests/fm-control-relaunch.test.sh",
+      "class": "code",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/23"
+      ]
+    },
+    {
+      "path": "tests/fm-pi-branch-extension.test.sh",
+      "class": "code",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/21"
+      ]
+    },
+    {
+      "path": "tests/fm-spawn-dispatch-profile.test.sh",
+      "class": "code",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/23"
+      ]
+    },
+    {
+      "path": "tests/fm-test-fixtures.test.sh",
+      "class": "code",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/23"
+      ]
+    },
+    {
+      "path": "tests/lib.sh",
+      "class": "code",
+      "participants": [
+        "pr:https://github.com/jredgard/firstmate/pull/23"
+      ]
+    }
+  ]
+}
+
+--- read-only check: refs, HEADs, status and index hashes before vs after radar runs
+IDENTICAL (radar wrote nothing into the project or its worktrees)
+--- radar memory files under lab state:
+/tmp/fm-lab.cww7OD/state/conflict-radar/firstmate.json
+--- untracked/ignored files in project checkout:
+{
+  "schema_version": 1,
+  "project": "firstmate",
+  "project_path": "/tmp/fm-lab.cww7OD/projects/firstmate",
+  "timestamp": "2026-10-03T18:31:52Z",
+  "ledgers": [
+    "docs/verification/conflict-radar.md",
+    "docs/scripts.md"
+  ],
+  "n_sources": 4,
+  "n_matrix": 31
+}
+
+### S3 unreadable worktree retains remembered paths and never claims no overlap
+
+$ bash /home/johannesr/.no-mistakes/worktrees/551ff26a6b1c/01M417A74P080K415RWEAYZW0G/bin/fm-conflict-radar.sh firstmate
+firstmate: unmeasured: task:beta: worktree or base unreadable
+firstmate: code "CMakeLists.txt" sources=task:alpha,task:beta
+firstmate: ledger "NOTES.txt" sources=task:alpha,task:beta
+firstmate: ledger "README.md" sources=task:alpha,task:beta
+firstmate: code "bin/fm-spawn.sh" sources=pr:https://github.com/jredgard/firstmate/pull/23,task:alpha,task:beta
+firstmate: ledger "docs/verification/conflict-radar.md" sources=pr:https://github.com/jredgard/firstmate/pull/21,task:alpha,task:beta
+firstmate: mechanical "package-lock.json" sources=task:alpha,task:beta
+firstmate: mechanical "requirements.txt" sources=task:alpha,task:beta
+firstmate: code "tests/fm-calm-pi-extension.test.sh" sources=pr:https://github.com/jredgard/firstmate/pull/21,pr:https://github.com/jredgard/firstmate/pull/23,task:alpha
+[exit 0]
+{
+  "id": "task:beta",
+  "measurement": "unmeasured",
+  "observed_at": "2026-10-03T18:31:52Z",
+  "paths": [
+    "CMakeLists.txt",
+    "NOTES.txt",
+    "README.md",
+    "bin/fm-spawn.sh",
+    "docs/verification/conflict-radar.md",
+    "package-lock.json",
+    "requirements.txt"
+  ]
+}
+
+### S4 later worker steered: beta drops redundant ledger edit -> fresh measurement replaces memory
+
+$ bash /home/johannesr/.no-mistakes/worktrees/551ff26a6b1c/01M417A74P080K415RWEAYZW0G/bin/fm-conflict-radar.sh firstmate
+firstmate: code "bin/fm-spawn.sh" sources=pr:https://github.com/jredgard/firstmate/pull/23,task:alpha,task:beta
+firstmate: ledger "docs/verification/conflict-radar.md" sources=pr:https://github.com/jredgard/firstmate/pull/21,task:alpha
+firstmate: code "tests/fm-calm-pi-extension.test.sh" sources=pr:https://github.com/jredgard/firstmate/pull/21,pr:https://github.com/jredgard/firstmate/pull/23,task:alpha
+[exit 0]
+
+### S5 task teardown prunes its memory; single remaining ship
+
+$ bash /home/johannesr/.no-mistakes/worktrees/551ff26a6b1c/01M417A74P080K415RWEAYZW0G/bin/fm-conflict-radar.sh
+no overlap (no project with multiple tracked ships)
+[exit 0]
+
+$ bash /home/johannesr/.no-mistakes/worktrees/551ff26a6b1c/01M417A74P080K415RWEAYZW0G/bin/fm-conflict-radar.sh firstmate
+firstmate: code "bin/fm-spawn.sh" sources=pr:https://github.com/jredgard/firstmate/pull/23,task:alpha
+firstmate: ledger "docs/verification/conflict-radar.md" sources=pr:https://github.com/jredgard/firstmate/pull/21,task:alpha
+firstmate: code "tests/fm-calm-pi-extension.test.sh" sources=pr:https://github.com/jredgard/firstmate/pull/21,pr:https://github.com/jredgard/firstmate/pull/23,task:alpha
+[exit 0]
+[
+  {
+    "id": "task:alpha",
+    "kind": "task"
+  },
+  {
+    "id": "pr:https://github.com/jredgard/firstmate/pull/23",
+    "kind": "pr"
+  },
+  {
+    "id": "pr:https://github.com/jredgard/firstmate/pull/21",
+    "kind": "pr"
+  }
+]
+
+### S6 forge unreadable (origin repo does not exist) is unmeasured, never 'no overlap'
+
+$ bash /home/johannesr/.no-mistakes/worktrees/551ff26a6b1c/01M417A74P080K415RWEAYZW0G/bin/fm-conflict-radar.sh firstmate
+firstmate: unmeasured: forge: origin unsupported/unreadable or open PR listing failed
+firstmate: unmeasured: pr:https://github.com/jredgard/firstmate/pull/23: previous PR completion unmeasured
+firstmate: unmeasured: pr:https://github.com/jredgard/firstmate/pull/21: previous PR completion unmeasured
+firstmate: overlap unmeasured (no measured shared paths)
+[exit 0]
+
+$ bash /home/johannesr/.no-mistakes/worktrees/551ff26a6b1c/01M417A74P080K415RWEAYZW0G/bin/fm-conflict-radar.sh firstmate
+firstmate: no overlap
+[exit 0]
+
+### S7 corrupt memory is refused, not silently overwritten
+
+$ bash /home/johannesr/.no-mistakes/worktrees/551ff26a6b1c/01M417A74P080K415RWEAYZW0G/bin/fm-conflict-radar.sh firstmate
+jq: parse error: Invalid numeric literal at line 2, column 0
+error: malformed radar memory /tmp/fm-lab.cww7OD/state/conflict-radar/firstmate.json
+[exit 1]
+garbage

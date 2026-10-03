@@ -1,0 +1,10 @@
+Skill: conflict-radar
+Bash: ls bin | grep -i -E 'radar|conflict'; echo "FM_HOME=$FM_HOME"; ls -d projects data state 2>&1 | head; git worktree list | head -20
+Bash: sed -n 1,80p bin/fm-conflict-radar.sh; echo ===HELP===; bin/fm-conflict-radar.sh --help 2>&1 | head -80
+Bash: ls -la /tmp/fm-lab.cww7OD/ 2>&1; echo ===; for d in data state config projects; do echo "--- $d"; ls -la /tmp/fm-lab.cww7OD/$d 2>&1 | head -40; done; echo ===REGISTRY; cat /tmp/fm-lab.cww7OD/data/projects.md 2>&1 |
+Bash: cd /tmp/fm-lab.cww7OD; for d in config data projects state state/* tmux worktrees worktrees/*; do echo "--- $d"; ls -la "$d" 2>&1 | head -40; done; echo "--- .fm-lab-home"; cat .fm-lab-home; echo; echo "--- registr
+Bash: cd /tmp/fm-lab.cww7OD; echo "--- task metas"; for f in state/*.meta state/*.json state/*.status; do [ -e "$f" ] || continue; echo "== $f"; cat "$f"; echo; done 2>&1 | head -150; echo "--- radar memory"; ls -la stat
+Bash: bin/fm-conflict-radar.sh --help 2>&1 | sed -n 1,5p; echo "--- ledgers help"; grep -n -A6 -- '--ledgers' bin/fm-project-mode.sh | head -40
+Bash: cd /tmp/fm-lab.cww7OD; echo "--- alpha.meta"; cat state/alpha.meta; echo; echo "--- beta.meta"; cat state/beta.meta; echo; echo "--- projects/firstmate HEAD"; git -C projects/firstmate log --oneline -3; git -C proj
+Bash: cd /tmp/fm-lab.cww7OD; for w in alpha beta; do echo "===== $w"; git -C worktrees/$w branch --show-current; git -C worktrees/$w log --oneline origin/HEAD..HEAD 2>&1 | head; echo "-- status"; git -C worktrees/$w stat
+Bash: echo "--- human"; FM_HOME=/tmp/fm-lab.cww7OD bin/fm-conflict-radar.sh firstmate 2>&1; echo "exit=$?"; echo "--- json"; FM_HOME=/tmp/fm-lab.cww7OD bin/fm-conflict-radar.sh --json firstmate 2>&1 | jq '.projects[0] | 
