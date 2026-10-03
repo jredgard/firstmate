@@ -13,8 +13,8 @@
 # The optional third argument is the task's full ship-branch name (a project's
 # registered prefix may replace the legacy `fm/` one); it defaults to `fm/<task-id>`
 # and is the immutable task branch rendered in every delivery contract.
-# The optional fifth argument is the intake-resolved comma-list of lint, test,
-# and document skips; it is refused outside no-mistakes. The contract records
+# The optional fifth argument is the intake-resolved lint skip;
+# it is refused outside no-mistakes. The contract records
 # skip=<list> and the driving block carries the exact per-run --skip argument,
 # merged with push,pr,ci when Gerrit requires publication outside the pipeline.
 # Callers of the gate are bin/fm-crew-state.sh (current-state done),
@@ -145,21 +145,12 @@ fm_forge_valid_for_mode() {  # <forge> <mode> <caller>
 }
 
 fm_nm_skip_valid() {
-  local remaining=$1 caller=$2 step
-  [ -n "$remaining" ] || return 0
-  while :; do
-    step=${remaining%%,*}
-    case "$step" in
-      lint|test|document) ;;
-      *)
-        echo "error: $caller: invalid no-mistakes skip step '$step' in '$1'; use a comma-list of lint,test,document only; review and delivery steps cannot be skipped at intake" >&2
-        return 1 ;;
-    esac
-    case "$remaining" in
-      *,*) remaining=${remaining#*,} ;;
-      *) return 0 ;;
-    esac
-  done
+  case "$1" in
+    ''|lint) return 0 ;;
+    *)
+      echo "error: $2: invalid no-mistakes skip '$1'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake" >&2
+      return 1 ;;
+  esac
 }
 
 fm_ship_rule_one() {  # <no-mistakes|direct-PR|local-only> <task-id> [branch] [<forge>]

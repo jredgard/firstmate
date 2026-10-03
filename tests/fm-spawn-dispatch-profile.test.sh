@@ -1958,14 +1958,14 @@ test_batch_forwards_nm_skip() {
   rec=$(make_spawn_case nm-skip-batch claude "$id1" "$id2")
   read_case_record "$rec"
   for id in "$id1" "$id2"; do
-    printf '\nDelivery contract: mode=no-mistakes skip=lint,test,document\n' >> "$HOME_DIR/data/$id/brief.md"
+    printf '\nDelivery contract: mode=no-mistakes skip=lint\n' >> "$HOME_DIR/data/$id/brief.md"
   done
   out=$(run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" \
-    "$id1=$PROJ_DIR" "$id2=$PROJ_DIR" --nm-skip=lint,test,document)
+    "$id1=$PROJ_DIR" "$id2=$PROJ_DIR" --nm-skip=lint)
   status=$?
   expect_code 0 "$status" "batch with explicit shared skips should succeed: $out"
   for id in "$id1" "$id2"; do
-    assert_grep 'nm_skip=lint,test,document' "$HOME_DIR/state/$id.meta" "batch lost skips for $id"
+    assert_grep 'nm_skip=lint' "$HOME_DIR/state/$id.meta" "batch lost the lint skip for $id"
   done
   pass "fm-spawn: batch dispatch forwards explicit skips to every pair"
 }

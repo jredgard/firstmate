@@ -59,7 +59,7 @@
 # standing per-project preference, and firstmate resolves it per task at intake
 # and passes the explicit flag. Refused on --scout and --secondmate: a scout
 # makes no branch and a charter is not a delivery contract.
-# --nm-skip is an explicit intake-resolved comma-list, valid only for no-mistakes
+# --nm-skip is an explicit intake-resolved value, valid only for no-mistakes
 # ship briefs; this script never reads the registry for it. bin/fm-dod-lib.sh
 # owns the accepted steps, machine-readable skip field, and per-run instruction.
 # --forge names the project's forge, defaults to none, and is orthogonal to --mode

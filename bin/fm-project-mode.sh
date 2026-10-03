@@ -36,10 +36,10 @@
 #   left over is the mode. <prefix> must not contain a space; an empty override
 #   ("branch=") resolves to "" for a bare "<task-id>" ship branch instead of the
 #   legacy "fm/<task-id>".
-#   nmskip=<list> accepts only a comma-list of lint, test, and document; absent
+#   nmskip=<list> accepts only lint; absent
 #   or empty means no intake skips. Invalid steps refuse every query with an
-#   actionable error and exit status 3. Review and delivery are never skippable
-#   through this token. Firstmate resolves the list at intake and passes --nm-skip
+#   actionable error and exit status 3. All other steps are never skippable
+#   through this token. Firstmate resolves the value at intake and passes --nm-skip
 #   explicitly to brief, spawn, and promotion; no consumer guesses task skips.
 #
 # Registered modes:

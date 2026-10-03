@@ -1424,7 +1424,7 @@ test_nm_skip_contract() {
   local home id brief forge wait_setting expected
   home="$TMP_ROOT/nm-skip/home"
   mkdir -p "$home/data" "$home/config"
-  printf '%s\n' '- proj [no-mistakes nmskip=test] - fixture' > "$home/data/projects.md"
+  printf '%s\n' '- proj [no-mistakes nmskip=lint] - fixture' > "$home/data/projects.md"
   for forge in none gerrit; do
     for wait_setting in background foreground; do
       id="nm-skip-$forge-$wait_setting"
@@ -1434,16 +1434,15 @@ test_nm_skip_contract() {
         rm -f "$home/config/wait-no-turns"
       fi
       FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" proj --mode no-mistakes \
-        --forge "$forge" --nm-skip lint,document >/dev/null 2>&1 \
+        --forge "$forge" --nm-skip lint >/dev/null 2>&1 \
         || fail "nm-skip brief should scaffold for $forge/$wait_setting"
       brief="$home/data/$id/brief.md"
-      assert_grep 'skip=lint,document' "$brief" "brief lost the explicit skip list"
-      expected=lint,document
-      [ "$forge" != gerrit ] || expected=push,pr,ci,lint,document
+      assert_grep 'skip=lint' "$brief" "brief lost the explicit lint skip"
+      expected=lint
+      [ "$forge" != gerrit ] || expected=push,pr,ci,lint
       grep -Fx "Pass \`--skip $expected\` on every \`no-mistakes axi run\` for this task, and skip nothing else." "$brief" >/dev/null \
         || fail "brief did not render the single merged per-run skip instruction"
       assert_no_grep 'without flags' "$brief" "reattach instruction contradicts per-run skips"
-      assert_no_grep 'skip=test' "$brief" "brief guessed skips from the registry"
       [ "$(grep -c '^Pass `--skip ' "$brief")" -eq 1 ] \
         || fail "brief rendered conflicting skip instructions"
     done
@@ -1470,12 +1469,12 @@ test_nm_skip_refusals() {
     assert_contains "$out" '--nm-skip applies only' "refusal did not identify the skip scope"
     assert_absent "$home/data/nm-skip-refuse-$number/brief.md" "refusal wrote a brief"
   done
-  for skip in review push pr ci intent rebase bogus ',lint' 'lint,' 'lint,,test' 'lint test'; do
+  for skip in test document 'lint,test' 'lint,document' 'lint,lint' review push pr ci intent rebase bogus ',lint' 'lint,' 'lint,,test' 'lint test'; do
     number=$((number + 1))
     out=$(FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "nm-skip-refuse-$number" proj --mode no-mistakes --nm-skip="$skip" 2>&1)
     status=$?
     [ "$status" -ne 0 ] || fail "brief accepted invalid skip '$skip'"
-    assert_contains "$out" 'lint,test,document only' "invalid skip refusal did not name the allowed steps"
+    assert_contains "$out" 'use lint only, or an empty value for no skips' "invalid skip refusal did not name the repair"
     assert_absent "$home/data/nm-skip-refuse-$number/brief.md" "invalid skip wrote a brief"
   done
   out=$(FM_HOME="$home" "$ROOT/bin/fm-brief.sh" nm-skip-missing proj --mode no-mistakes --nm-skip 2>&1)
