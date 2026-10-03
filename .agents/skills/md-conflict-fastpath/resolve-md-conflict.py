@@ -2,12 +2,17 @@
 """List or resolve documentation-only Azure DevOps PR conflicts on the forge.
 
 Owner: .agents/skills/md-conflict-fastpath/SKILL.md.
-Mechanical classification taxonomy owner: bin/fm-conflict-radar.sh; this helper
-mirrors its .NET package/lock and simple key-value settings subset for tier 4.
+Path classification taxonomy owner: bin/fm-conflict-radar.sh; this helper mirrors
+its documentation text basenames and dependency text manifests alongside the
+approved .NET package/lock and simple key-value settings subset for tier 4.
 GET pullRequests/{prId}/conflicts?includeObsolete=false lists conflicts;
 GET blobs/{objectId} retrieves the base, source and target bytes;
 PATCH pullRequests/{prId}/conflicts/{conflictId} submits a UserMerged resolution;
-GET pullRequests/{prId} polls mergeStatus after applying it.
+the JSON body uses mergeType="userMerged", resolutionStatus="resolved" and
+userMergedContent as an array of file bytes.
+GET pullRequests/{prId} records lastMergeCommit before PATCH and polls mergeStatus
+only after re-listing conflicts confirms no unresolved entries remain.
+An unchanged conflicts status may be stale; poll at most 30 times, two seconds apart.
 The conflicts API uses api-version=7.1-preview.1; blobs and PR reads use 7.1.
 
 usage: resolve-md-conflict.py list  <repo> <prId>
@@ -15,7 +20,9 @@ usage: resolve-md-conflict.py list  <repo> <prId>
 env:   ADO_ORG (default https://dev.azure.com/tuvsud01), ADO_PROJECT (default DS_mosaiq-poc),
        ADO_TOKEN, otherwise az account get-access-token --resource
        499b84ac-1321-427f-aa17-267ca6975798 --query accessToken --output tsv.
-list exits: 0 no conflicts or doc-only, 1 mechanical candidates, 2 code/non-editEdit.
+list exits: 0 no conflicts or doc-only candidates, 1 mechanical candidates, 2 code/non-editEdit.
+apply exits: 0 merge succeeded, 1 unresolved conflicts remain, 3 resolution/merge
+failed, 4 merge result still pending after bounded polling.
 Classification is a path hint only; the owner skill requires inspecting use and hunks.
 """
 import json
@@ -30,7 +37,8 @@ from pathlib import Path
 ORG = os.environ.get("ADO_ORG", "https://dev.azure.com/tuvsud01")
 PROJ = os.environ.get("ADO_PROJECT", "DS_mosaiq-poc")
 API = "api-version=7.1-preview.1"
-DOC_EXT = (".md", ".markdown", ".rst", ".txt", ".adoc")
+DOC_EXT = (".md", ".markdown", ".rst", ".adoc")
+DOC_TEXT_NAMES = ("readme.txt", "index.txt", "changelog.txt", "notes.txt", "verify.txt", "build-status.txt")
 MECH_EXT = (".csproj", ".lock", ".properties", ".ini", ".env")
 MECH_NAMES = ("directory.packages.props", "directory.build.props", "global.json", "packages.lock.json",
               ".env", ".editorconfig", ".npmrc", ".yarnrc")
@@ -77,8 +85,11 @@ def cmd_list(repo, pr):
         path = conflict["conflictPath"]
         filename = path.rsplit("/", 1)[-1].lower()
         conflict_type = conflict["conflictType"]
-        doc = conflict_type == "editEdit" and path.lower().endswith(DOC_EXT)
-        mechanical = conflict_type == "editEdit" and (path.lower().endswith(MECH_EXT) or filename in MECH_NAMES)
+        doc = conflict_type == "editEdit" and (path.lower().endswith(DOC_EXT) or filename in DOC_TEXT_NAMES)
+        mechanical = conflict_type == "editEdit" and (
+            path.lower().endswith(MECH_EXT) or filename in MECH_NAMES
+            or (filename.startswith(("requirements", "constraints")) and filename.endswith(".txt"))
+        )
         doc_only &= doc
         mechanical_only &= doc or mechanical
         kind = "doc" if doc else ("mechanical" if mechanical else "CODE")
@@ -100,7 +111,7 @@ def cmd_list(repo, pr):
         while line_index < len(lines):
             if lines[line_index].startswith("<<<<<<<"):
                 end_index = line_index
-                while not lines[end_index].startswith(">>>>>>>"):
+                while end_index < len(lines) and not lines[end_index].startswith(">>>>>>>"):
                     end_index += 1
                 print("  hunk at line", line_index + 1)
                 for line in lines[line_index:end_index + 1]:
@@ -108,7 +119,7 @@ def cmd_list(repo, pr):
                 line_index = end_index
             line_index += 1
     if doc_only:
-        print("verdict: doc-only, eligible for forge-side resolution (tier 1)")
+        print("verdict: doc-only candidate, eligible for forge-side resolution (tier 1) after verifying no code or tooling reads these files")
         return 0
     if mechanical_only:
         print("verdict: mechanical (package/lock/config lines), eligible for the skip-test,document rerun (tier 4) if the hunks hold no code")
@@ -119,17 +130,28 @@ def cmd_list(repo, pr):
 
 def cmd_apply(repo, pr, conflict_id, path):
     content = list(Path(path).read_bytes())
+    pull_request_url = f"{base(repo)}/pullRequests/{pr}?api-version=7.1"
+    previous_merge_commit = (req(pull_request_url).get("lastMergeCommit") or {}).get("commitId")
     body = {"conflictId": int(conflict_id), "conflictType": "editEdit", "resolutionStatus": "resolved",
             "resolution": {"mergeType": "userMerged", "userMergedContent": content}}
     response = req(f"{base(repo)}/pullRequests/{pr}/conflicts/{conflict_id}?{API}", "PATCH", body)
     print("resolution:", response.get("resolutionStatus"), response.get("resolutionError"))
-    for _ in range(30):
-        pull_request = req(f"{base(repo)}/pullRequests/{pr}?api-version=7.1")
+    if response.get("resolutionStatus") != "resolved" or response.get("resolutionError") not in (None, 0, "none"):
+        return 3
+    remaining = sum(conflict.get("resolutionStatus") != "resolved" for conflict in conflicts(repo, pr))
+    if remaining:
+        print(f"{remaining} conflicts remaining")
+        return 1
+    for attempt in range(30):
+        pull_request = req(pull_request_url)
         merge_status = pull_request.get("mergeStatus")
-        if merge_status not in ("queued", "notSet", None):
-            print("mergeStatus:", merge_status, "lastMergeCommit:", (pull_request.get("lastMergeCommit") or {}).get("commitId", "")[:8])
+        merge_commit = (pull_request.get("lastMergeCommit") or {}).get("commitId")
+        stale_conflicts = merge_status == "conflicts" and (not merge_commit or merge_commit == previous_merge_commit)
+        if merge_status not in ("queued", "notSet", None) and not stale_conflicts:
+            print("mergeStatus:", merge_status, "lastMergeCommit:", (merge_commit or "")[:8])
             return 0 if merge_status == "succeeded" else 3
-        time.sleep(2)
+        if attempt < 29:
+            time.sleep(2)
     print("mergeStatus still pending")
     return 4
 

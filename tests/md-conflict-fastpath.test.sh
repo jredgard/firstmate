@@ -34,7 +34,6 @@ class ConflictCliTests(unittest.TestCase):
         cls.entries = []
         cls.requests = []
         cls.blobs = {"base": b"before\n", "source": b"source fact\n", "target": b"target fact\n"}
-        cls.merge_status = "succeeded"
 
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, *_arguments):
@@ -49,8 +48,10 @@ class ConflictCliTests(unittest.TestCase):
                 elif route.path.startswith("/fixture/_apis/git/repositories/repo/blobs/"):
                     self.reply(cls.blobs[route.path.rsplit("/", 1)[1]])
                 elif route.path == "/fixture/_apis/git/repositories/repo/pullRequests/7":
-                    self.reply(json.dumps({"mergeStatus": cls.merge_status,
-                                           "lastMergeCommit": {"commitId": "0123456789abcdef"}}).encode())
+                    pull_request = cls.pull_requests[0]
+                    if len(cls.pull_requests) > 1:
+                        cls.pull_requests.pop(0)
+                    self.reply(json.dumps(pull_request).encode())
                 else:
                     self.send_error(404)
 
@@ -59,8 +60,12 @@ class ConflictCliTests(unittest.TestCase):
                 payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 cls.requests.append(("PATCH", route.path, parse_qs(route.query),
                                      self.headers.get("Authorization"), payload))
-                if route.path == "/fixture/_apis/git/repositories/repo/pullRequests/7/conflicts/1":
-                    self.reply(b'{"resolutionStatus": "resolved", "resolutionError": null}')
+                if route.path == f"/fixture/_apis/git/repositories/repo/pullRequests/7/conflicts/{payload['conflictId']}":
+                    if cls.resolution["resolutionStatus"] == "resolved" and cls.resolution.get("resolutionError") in (None, 0, "none"):
+                        for entry in cls.entries:
+                            if entry["conflictId"] == payload["conflictId"]:
+                                entry["resolutionStatus"] = "resolved"
+                    self.reply(json.dumps(cls.resolution).encode())
                 else:
                     self.send_error(404)
 
@@ -84,7 +89,9 @@ class ConflictCliTests(unittest.TestCase):
     def setUp(self):
         type(self).requests = []
         type(self).entries = []
-        type(self).merge_status = "succeeded"
+        type(self).blobs = {"base": b"before\n", "source": b"source fact\n", "target": b"target fact\n"}
+        type(self).resolution = {"resolutionStatus": "resolved", "resolutionError": None}
+        type(self).pull_requests = [{"mergeStatus": "succeeded", "lastMergeCommit": {"commitId": "0123456789abcdef"}}]
         self.environment = os.environ.copy()
         self.environment.update({
             "ADO_ORG": f"http://127.0.0.1:{self.server.server_port}",
@@ -95,8 +102,14 @@ class ConflictCliTests(unittest.TestCase):
             "TMPDIR": str(self.root),
         })
 
-    def invoke(self, *arguments):
-        result = subprocess.run([sys.executable, HELPER, *arguments], env=self.environment,
+    def invoke(self, *arguments, fast_poll=False):
+        command = [sys.executable, HELPER, *arguments]
+        if fast_poll:
+            command = [sys.executable, "-c",
+                       "import runpy, sys; from unittest.mock import patch; sys.argv = sys.argv[1:]\n"
+                       "with patch('time.sleep'): runpy.run_path(sys.argv[0], run_name='__main__')",
+                       HELPER, *arguments]
+        result = subprocess.run(command, env=self.environment,
                                 capture_output=True, text=True, timeout=10)
         self.assertEqual(result.stderr, "")
         for request in self.requests:
@@ -114,14 +127,16 @@ class ConflictCliTests(unittest.TestCase):
         return self.invoke("list", "repo", "7")
 
     def test_document_extensions_and_three_way_output(self):
-        for path in ("/README.MD", "/guide.markdown", "/guide.rst", "/notes.txt", "/guide.adoc"):
+        for path in ("/README.MD", "/guide.markdown", "/guide.rst", "/notes.txt", "/guide.adoc",
+                     "/readme.txt", "/index.txt", "/changelog.txt", "/verify.txt", "/build-status.txt",
+                     "NOTES.TXT", "/docs/README.TXT", "/docs/BUILD-STATUS.TXT"):
             with self.subTest(path=path):
                 result = self.list_conflicts([path])
                 self.assertEqual(result.returncode, 0)
                 self.assertEqual(result.stdout.splitlines()[0],
                                  f"conflict 1 editEdit {path} status=unresolved class=doc")
                 self.assertTrue(result.stdout.endswith(
-                    "verdict: doc-only, eligible for forge-side resolution (tier 1)\n"))
+                    "verdict: doc-only candidate, eligible for forge-side resolution (tier 1) after verifying no code or tooling reads these files\n"))
                 files = re.search(r"^  files: (\S+)/base \1/source \1/target  three-way \(with markers\): \1/three-way$",
                                   result.stdout, re.MULTILINE)
                 self.assertIsNotNone(files)
@@ -143,7 +158,9 @@ class ConflictCliTests(unittest.TestCase):
                      "/global.json", "/.editorconfig", "/settings.properties", "/settings.ini",
                      "/settings.env", "/.env", "/.npmrc", "/.yarnrc",
                      "Directory.Build.props", "src/Directory.Packages.props", "/src/GLOBAL.JSON",
-                     "/src/APP.CSPROJ", "/config/.EDITORCONFIG", "/config/SETTINGS.INI"):
+                     "/src/APP.CSPROJ", "/config/.EDITORCONFIG", "/config/SETTINGS.INI",
+                     "/requirements.txt", "/constraints.txt", "/deps/requirements-dev.txt",
+                     "/deps/constraints-test.txt", "REQUIREMENTS.TXT", "/deps/CONSTRAINTS-TEST.TXT"):
             with self.subTest(path=path):
                 result = self.list_conflicts([path])
                 self.assertEqual(result.returncode, 1)
@@ -151,6 +168,19 @@ class ConflictCliTests(unittest.TestCase):
                 self.assertIn("  hunk at line 1\n", result.stdout)
                 self.assertIn("skip-test,document rerun (tier 4) if the hunks hold no code", result.stdout)
                 self.assertNotIn("skip-review", result.stdout)
+
+    def test_literal_conflict_markers_cannot_crash_hunk_scanning(self):
+        for path in ("/README.md", "/settings.ini"):
+            for content, hunk_count in ((b"example\n<<<<<<< unmatched\nlast line\n", 1),
+                                        (b"<<<<<<< at EOF", 1),
+                                        (b"<<<<<<< matched\n=======\n>>>>>>> end\n<<<<<<< unmatched\n", 2),
+                                        (b">>>>>>> orphan\n", 0)):
+                with self.subTest(path=path, content=content):
+                    type(self).blobs = dict.fromkeys(("base", "source", "target"), content)
+                    result = self.list_conflicts([path])
+                    self.assertEqual(result.returncode, 0 if path.endswith(".md") else 1)
+                    self.assertEqual(result.stdout.count("  hunk at line"), hunk_count)
+                    self.assertIn("verdict:", result.stdout)
 
     def test_lock_candidates_never_fetch_mergeable_blobs(self):
         for path in ("/packages.lock.json", "/yarn.lock", "packages.lock.json",
@@ -170,7 +200,9 @@ class ConflictCliTests(unittest.TestCase):
                      "/app.yarnrc", "/Custom.Directory.Build.props", "/Directory.Other.props",
                      "appglobal.json", "/src/CUSTOM.PROPS", "/src/BUILD.TARGETS",
                      "/src/TEST.RUNSETTINGS", "/src/APPGLOBAL.JSON",
-                     "/src/APPPACKAGES.LOCK.JSON", "/src/APP.EDITORCONFIG"):
+                     "/src/APPPACKAGES.LOCK.JSON", "/src/APP.EDITORCONFIG",
+                     "/CMakeLists.txt", "/docs/guide.txt", "/deps/myrequirements.txt",
+                     "/docs/not-readme.txt", "CMAKELISTS.TXT", "/src/CONFIG.TXT"):
             with self.subTest(path=path):
                 result = self.list_conflicts([path])
                 self.assertEqual(result.returncode, 2)
@@ -179,7 +211,7 @@ class ConflictCliTests(unittest.TestCase):
                 self.assertEqual(len(self.requests), 1)
         for conflict_type in ("editDelete", "renameRename"):
             for path in ("/README.md", "/Directory.Build.props", "/App.csproj", "/settings.ini",
-                         "/packages.lock.json"):
+                         "/packages.lock.json", "/notes.txt", "/requirements.txt"):
                 with self.subTest(conflict_type=conflict_type, path=path):
                     result = self.list_conflicts([path], conflict_type)
                     self.assertEqual(result.returncode, 2)
@@ -197,13 +229,20 @@ class ConflictCliTests(unittest.TestCase):
         for paths in (("/Directory.Build.props", "/custom.props"),
                       ("/custom.props", "/Directory.Build.props"),
                       ("/packages.lock.json", "/apppackages.lock.json"),
-                      ("/README.md", "/build.targets")):
+                      ("/README.md", "/build.targets"), ("/notes.txt", "/CMakeLists.txt"),
+                      ("/CMakeLists.txt", "/notes.txt"), ("/requirements.txt", "/guide.txt")):
             with self.subTest(paths=paths):
                 result = self.list_conflicts(paths)
                 self.assertEqual(result.returncode, 2)
                 self.assertIn("class=CODE\n", result.stdout)
                 self.assertTrue(result.stdout.endswith(
                     "verdict: CODE conflict, use the ordinary branch-sync procedure and full validation\n"))
+        for paths in (("/notes.txt", "/requirements.txt"), ("/constraints.txt", "/notes.txt")):
+            with self.subTest(paths=paths):
+                result = self.list_conflicts(paths)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("class=doc\n", result.stdout)
+                self.assertIn("class=mechanical\n", result.stdout)
         result = self.list_conflicts([])
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "no conflicts\n")
@@ -222,17 +261,113 @@ class ConflictCliTests(unittest.TestCase):
         result = self.invoke("apply", "repo", "7", "1", str(resolution))
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "resolution: resolved None\nmergeStatus: succeeded lastMergeCommit: 01234567\n")
-        self.assertEqual(len(self.requests), 2)
-        self.assertEqual(self.requests[0][0], "PATCH")
-        self.assertEqual(self.requests[0][2], {"api-version": ["7.1-preview.1"]})
-        self.assertEqual(self.requests[0][4],
+        self.assertEqual(len(self.requests), 4)
+        self.assertEqual([request[0] for request in self.requests], ["GET", "PATCH", "GET", "GET"])
+        self.assertEqual(self.requests[1][2], {"api-version": ["7.1-preview.1"]})
+        self.assertEqual(self.requests[1][4],
                          {"conflictId": 1, "conflictType": "editEdit", "resolutionStatus": "resolved",
                           "resolution": {"mergeType": "userMerged", "userMergedContent": list(resolution.read_bytes())}})
-        self.assertEqual(self.requests[1][2], {"api-version": ["7.1"]})
-        type(self).merge_status = "conflicts"
+        self.assertEqual(self.requests[0][2], {"api-version": ["7.1"]})
+        self.assertEqual(self.requests[2][2], {"api-version": ["7.1-preview.1"], "includeObsolete": ["false"]})
+        self.assertEqual(self.requests[3][2], {"api-version": ["7.1"]})
+
+    def test_apply_accepts_no_error_resolution_encodings(self):
+        resolution = self.root / "resolution.md"
+        resolution.write_bytes(b"merged facts\n")
+        for response in ({"resolutionStatus": "resolved"},
+                         {"resolutionStatus": "resolved", "resolutionError": "none"},
+                         {"resolutionStatus": "resolved", "resolutionError": 0}):
+            with self.subTest(response=response):
+                type(self).requests = []
+                type(self).resolution = response
+                result = self.invoke("apply", "repo", "7", "1", str(resolution))
+                self.assertEqual(result.returncode, 0)
+                self.assertIn("mergeStatus: succeeded", result.stdout)
+                self.assertEqual(len(self.requests), 4)
+
+    def test_apply_multiple_conflicts_reports_remaining_before_polling(self):
+        self.list_conflicts(["/README.md", "/notes.txt", "/guide.md"])
+        type(self).requests = []
+        type(self).entries[2]["resolutionStatus"] = "resolved"
+        type(self).pull_requests = [{"mergeStatus": "conflicts", "lastMergeCommit": {"commitId": "old"}}]
+        resolution = self.root / "resolution.md"
+        resolution.write_bytes(b"merged facts\n")
         result = self.invoke("apply", "repo", "7", "1", str(resolution))
-        self.assertEqual(result.returncode, 3)
-        self.assertIn("mergeStatus: conflicts", result.stdout)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, "resolution: resolved None\n1 conflicts remaining\n")
+        self.assertEqual(len(self.requests), 3)
+        self.assertTrue(self.requests[-1][1].endswith("/conflicts"))
+        self.assertEqual([entry["resolutionStatus"] for entry in self.entries], ["resolved", "unresolved", "resolved"])
+        type(self).requests = []
+        type(self).pull_requests = [
+            {"mergeStatus": "conflicts", "lastMergeCommit": {"commitId": "old"}},
+            {"mergeStatus": "succeeded", "lastMergeCommit": {"commitId": "new"}},
+        ]
+        result = self.invoke("apply", "repo", "7", "2", str(resolution))
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("mergeStatus: succeeded", result.stdout)
+        self.assertNotIn("conflicts remaining", result.stdout)
+        self.assertEqual(len(self.requests), 4)
+
+    def test_apply_tolerates_stale_and_pending_merge_status(self):
+        resolution = self.root / "resolution.md"
+        resolution.write_bytes(b"merged facts\n")
+        for previous_commit in (None, {"commitId": "old"}):
+            with self.subTest(previous_commit=previous_commit):
+                type(self).requests = []
+                type(self).pull_requests = [
+                    {"mergeStatus": "conflicts", "lastMergeCommit": previous_commit},
+                    {"mergeStatus": "conflicts", "lastMergeCommit": previous_commit},
+                    {"mergeStatus": "conflicts"},
+                    {"mergeStatus": "queued", "lastMergeCommit": previous_commit},
+                    {"mergeStatus": "notSet", "lastMergeCommit": previous_commit},
+                    {"lastMergeCommit": previous_commit},
+                    {"mergeStatus": "succeeded", "lastMergeCommit": {"commitId": "new"}},
+                ]
+                result = self.invoke("apply", "repo", "7", "1", str(resolution), fast_poll=True)
+                self.assertEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "resolution: resolved None\nmergeStatus: succeeded lastMergeCommit: new\n")
+                self.assertEqual(len(self.requests), 9)
+
+    def test_apply_reports_changed_conflicts_or_terminal_failure(self):
+        resolution = self.root / "resolution.md"
+        resolution.write_bytes(b"merged facts\n")
+        for merge_status in ("conflicts", "failure", "rejectedByPolicy"):
+            with self.subTest(merge_status=merge_status):
+                type(self).requests = []
+                type(self).pull_requests = [
+                    {"mergeStatus": "conflicts", "lastMergeCommit": {"commitId": "old"}},
+                    {"mergeStatus": merge_status, "lastMergeCommit": {"commitId": "new"}},
+                ]
+                result = self.invoke("apply", "repo", "7", "1", str(resolution))
+                self.assertEqual(result.returncode, 3)
+                self.assertIn(f"mergeStatus: {merge_status}", result.stdout)
+                self.assertEqual(len(self.requests), 4)
+
+    def test_apply_failed_patch_does_not_poll_merge(self):
+        resolution = self.root / "resolution.md"
+        resolution.write_bytes(b"merged facts\n")
+        for response in ({"resolutionStatus": "unresolved", "resolutionError": None},
+                         {"resolutionStatus": "resolved", "resolutionError": "invalid resolution"}):
+            with self.subTest(response=response):
+                type(self).requests = []
+                type(self).resolution = response
+                result = self.invoke("apply", "repo", "7", "1", str(resolution))
+                self.assertEqual(result.returncode, 3)
+                self.assertEqual(len(self.requests), 2)
+                self.assertNotIn("mergeStatus:", result.stdout)
+
+    def test_apply_polling_is_bounded_for_stale_or_pending_results(self):
+        resolution = self.root / "resolution.md"
+        resolution.write_bytes(b"merged facts\n")
+        for merge_status in ("conflicts", "queued", "notSet", None):
+            with self.subTest(merge_status=merge_status):
+                type(self).requests = []
+                type(self).pull_requests = [{"mergeStatus": merge_status, "lastMergeCommit": {"commitId": "old"}}]
+                result = self.invoke("apply", "repo", "7", "1", str(resolution), fast_poll=True)
+                self.assertEqual(result.returncode, 4)
+                self.assertEqual(result.stdout, "resolution: resolved None\nmergeStatus still pending\n")
+                self.assertEqual(len(self.requests), 33)
 
 
 unittest.main(verbosity=2)
