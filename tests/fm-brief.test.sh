@@ -1448,7 +1448,7 @@ test_nm_skip_contract() {
     done
   done
   FM_HOME="$home" "$ROOT/bin/fm-brief.sh" nm-skip-empty proj --mode no-mistakes --nm-skip '' >/dev/null 2>&1 \
-    || fail "an explicitly empty skip list should scaffold"
+    || fail "an explicitly empty skip value should scaffold"
   brief="$home/data/nm-skip-empty/brief.md"
   grep -qx 'Delivery contract: mode=no-mistakes' "$brief" || fail "empty skip changed the delivery line"
   assert_no_grep "Pass \`--skip " "$brief" "empty skip rendered a skip instruction"
@@ -1481,7 +1481,7 @@ test_nm_skip_refusals() {
   status=$?
   [ "$status" -ne 0 ] || fail "brief accepted --nm-skip without a value"
   assert_contains "$out" '--nm-skip requires a value' "missing skip refusal was not actionable"
-  pass "fm-brief.sh: skip scope, closed set, malformed lists, and missing values refuse before scaffolding"
+  pass "fm-brief.sh: skip scope, closed set, invalid values, and missing values refuse before scaffolding"
 }
 
 test_nm_skip_contract

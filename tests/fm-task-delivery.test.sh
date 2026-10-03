@@ -1706,6 +1706,38 @@ EOF
   pass "fm-spawn: explicit skip agreement, deviation notices, scope, and closed-set guards hold before launch"
 }
 
+test_spawn_nm_skip_notice_scope() {
+  local rec home proj fakebin id out status mode posture skip number=0
+  for posture in no-mistakes no-mistakes-prod-only direct-PR local-only; do
+    for mode in direct-PR local-only; do
+      number=$((number + 1))
+      id="skip-notice-$number"
+      rec=$(make_home "$id" "- proj [$posture nmskip=lint] - fixture")
+      IFS='|' read -r home proj fakebin <<EOF
+$rec
+EOF
+      printf '#!/bin/sh\nprintf "backend reached\\n" >&2\nexit 1\n' > "$fakebin/tmux"
+      write_brief "$home" "$id" "$mode"
+      out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode "$mode" --yolo off)
+      status=$?
+      [ "$status" -ne 0 ] || fail "refusing backend unexpectedly launched $id"
+      assert_contains "$out" 'backend reached' "$posture/$mode: spawn did not reach the backend"
+      assert_not_contains "$out" 'registers nmskip=' "$posture/$mode: irrelevant skip deviation notice"
+      assert_absent "$home/state/$id.meta" "refusing backend wrote metadata"
+      for skip in test document 'lint,test' 'lint,document'; do
+        printf '%s\n' "- proj [$posture nmskip=$skip] - fixture" > "$home/data/projects.md"
+        out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode "$mode" --yolo off)
+        status=$?
+        [ "$status" -ne 0 ] || fail "$posture/$mode: invalid registry skip was accepted"
+        assert_contains "$out" 'use lint only, or an empty value for no skips' "registry refusal omitted accepted values"
+        assert_not_contains "$out" 'backend reached' "invalid registry skip reached the backend"
+        assert_absent "$home/state/$id.meta" "invalid registry skip wrote metadata"
+      done
+    done
+  done
+  pass "fm-spawn: non-no-mistakes tasks omit skip notices and still refuse invalid registry skips"
+}
+
 test_promotion_carries_nm_skip() {
   local home id meta instructions out status flags number=0
   home="$TMP_ROOT/promote-nm-skip/home"
@@ -1743,6 +1775,7 @@ test_promotion_carries_nm_skip() {
 
 test_project_mode_resolves_nm_skip
 test_spawn_nm_skip_agreement
+test_spawn_nm_skip_notice_scope
 test_promotion_carries_nm_skip
 test_ship_spawn_requires_a_valid_delivery_contract
 test_scout_and_secondmate_refuse_delivery_flags

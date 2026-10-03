@@ -35,10 +35,10 @@
 # its value against the registry; bin/fm-project-mode.sh's header owns the
 # binding and bin/fm-dod-lib.sh owns what it changes for the worker, including
 # the refusal of a forge on local-only.
-# --nm-skip carries the explicitly resolved no-mistakes skips into the ship
+# --nm-skip carries the explicitly resolved lint skip into the ship
 # contract and nm_skip= metadata; it never reads the registry for this choice
 # and is refused for other modes. bin/fm-dod-lib.sh owns the accepted steps.
-# Usage: fm-promote.sh <task-id> --mode <no-mistakes|direct-PR|local-only> --yolo <on|off> [--branch-prefix <prefix>] [--nm-skip <list>]
+# Usage: fm-promote.sh <task-id> --mode <no-mistakes|direct-PR|local-only> --yolo <on|off> [--branch-prefix <prefix>] [--nm-skip lint]
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

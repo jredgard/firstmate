@@ -15,7 +15,7 @@
 # and is the immutable task branch rendered in every delivery contract.
 # The optional fifth argument is the intake-resolved lint skip;
 # it is refused outside no-mistakes. The contract records
-# skip=<list> and the driving block carries the exact per-run --skip argument,
+# skip=lint and the driving block carries the exact per-run --skip argument,
 # merged with push,pr,ci when Gerrit requires publication outside the pipeline.
 # Callers of the gate are bin/fm-crew-state.sh (current-state done),
 # bin/fm-pr-check.sh (PR registration), and bin/fm-inactive-reconcile.sh

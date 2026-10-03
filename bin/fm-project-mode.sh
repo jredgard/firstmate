@@ -9,7 +9,7 @@
 # With --forge it prints one word instead: the project's registered forge,
 # none|gerrit. The forge is asked for explicitly, so the default output stays
 # the same two words for every project, bound or not.
-# --nm-skip prints the registered per-task no-mistakes skip list or an empty line.
+# --nm-skip prints the registered per-task lint skip or an empty line.
 #
 # MECHANICAL CONSUMERS ONLY. This answers "what posture did the captain register
 # for this project", never "how does this task ship". A task's delivery mode,
@@ -31,12 +31,12 @@
 #   - <name> [<mode> forge=gerrit] - <desc> (added <date>)           -> <mode> off, --forge gerrit
 #   - <name> [<mode> nmskip=lint] - <desc> (added <date>)            -> --nm-skip lint
 #   <name> may contain spaces; it ends at the literal " [" or " - " that follows it.
-#   Bracket tokens are order-independent: +yolo, branch=<prefix>, forge=<value>, and nmskip=<list>
+#   Bracket tokens are order-independent: +yolo, branch=<prefix>, forge=<value>, and nmskip=lint
 #   are recognized by their own shape wherever they appear, and whichever token is
 #   left over is the mode. <prefix> must not contain a space; an empty override
 #   ("branch=") resolves to "" for a bare "<task-id>" ship branch instead of the
 #   legacy "fm/<task-id>".
-#   nmskip=<list> accepts only lint; absent
+#   nmskip=lint selects the lint skip; absent
 #   or empty means no intake skips. Invalid steps refuse every query with an
 #   actionable error and exit status 3. All other steps are never skippable
 #   through this token. Firstmate resolves the value at intake and passes --nm-skip
@@ -90,7 +90,7 @@
 # `nmskip` resolves as it did before the forge existed, and in the mode slot it
 # is read as an unknown mode. A key one or two edits from `forge` (such as
 # `forg=` or `Forge=`) is still ignored, with one stderr warning naming the token
-# and the forge=gerrit spelling. Apart from invalid nmskip lists, a malformed forge binding - a
+# and the forge=gerrit spelling. Apart from invalid nmskip values, a malformed forge binding - a
 # `forge=` token whose value is empty or outside the closed set - which is
 # REFUSED in the default and --forge output forms: nothing on stdout, exit
 # status 3, the token named. Resolving it to "no registered forge" would hand a
@@ -100,7 +100,7 @@
 # to the forge binding, so it prints even when the forge token is malformed;
 # every path that reads the forge binding (default, --forge, and spawn's
 # forge-agreement check) still refuses. --nm-skip likewise answers only its
-# registered axis; invalid nmskip lists still refuse every query.
+# registered axis; invalid nmskip values still refuse every query.
 # Usage: fm-project-mode.sh [--raw|--branch-prefix|--forge|--nm-skip] <project-name>
 set -eu
 
@@ -169,7 +169,7 @@ parsed=$(awk -v n="$NAME" '
       for (i=1; i<=nk; i++) { s = s (s==""?"":" ") rest[i]; if (rest[i] ~ /\]$/) break }
       gsub(/^\[|\]$/, "", s);           # strip the surrounding brackets
       k = split(s, a, " ");
-      # Tokens are order-independent: +yolo, branch=<prefix>, forge=<value>, and nmskip=<list>
+      # Tokens are order-independent: +yolo, branch=<prefix>, forge=<value>, and nmskip=lint
       # are recognized by their own shape wherever they appear, keyed tokens
       # that are neither are ignored (with a near-miss warning for the forge
       # spelling), and the first token left over is the mode.

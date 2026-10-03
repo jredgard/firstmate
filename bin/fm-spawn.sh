@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Spawn a direct report: a crewmate in a treehouse or Orca worktree, or a
 # secondmate in its isolated firstmate home.
-# Usage: fm-spawn.sh <task-id> <project-dir> --mode <no-mistakes|direct-PR|local-only> --yolo <on|off> [--branch-prefix <prefix>] [--nm-skip <list>] [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--backend <name>]
+# Usage: fm-spawn.sh <task-id> <project-dir> --mode <no-mistakes|direct-PR|local-only> --yolo <on|off> [--branch-prefix <prefix>] [--nm-skip lint] [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--backend <name>]
 #        fm-spawn.sh <task-id> <project-dir> --scout [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--backend <name>]
 #        fm-spawn.sh <task-id> [<firstmate-home>] [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--backend <name>] --secondmate
 #   --mode and --yolo are this task's delivery contract, REQUIRED for every ship
@@ -38,10 +38,11 @@
 #   prints a one-line deviation notice and continues, because the registered
 #   prefix is the captain's standing preference and the brief agreement above
 #   already guarantees the worker's instructions match the branch.
-#   --nm-skip carries the intake-resolved no-mistakes skips, agrees exactly with
+#   --nm-skip carries the intake-resolved lint skip, agrees exactly with
 #   the brief's skip= field, and records nm_skip= in ship metadata. It is refused
 #   on scouts, secondmates, relaunches, and non-no-mistakes ships; relaunch reads
-#   the recorded value instead. A registry deviation is announced, not refused.
+#   the recorded value instead. A no-mistakes task's registry skip deviation is
+#   announced, not refused.
 #   bin/fm-dod-lib.sh owns the closed set and the worker's per-run instruction.
 #   Ship/scout launches always put fm-dod-lib.sh's current worker role scope
 #   first in the private launch-brief overlay, including the exact task-owned
@@ -3228,12 +3229,8 @@ if [ "$KIND" = ship ]; then
   if [ "$BRANCH" != "$STANDING_BRANCH$ID" ]; then
     echo "notice: $ID ships branch=$BRANCH while $PROJ_NAME registers the ship-branch prefix '$STANDING_BRANCH' (branch $STANDING_BRANCH$ID) - the task's branch and PR will read as firstmate-authored; proceed only on a current explicit captain instruction or an intake judgment you can state" >&2
   fi
-  if ! STANDING_NM_SKIP=$("$FM_ROOT/bin/fm-project-mode.sh" --nm-skip "$PROJ_NAME" 2>/dev/null); then
-    "$FM_ROOT/bin/fm-project-mode.sh" --nm-skip "$PROJ_NAME" >/dev/null || true
-    echo "error: $ID cannot resolve registered no-mistakes skips for $PROJ_NAME; correct data/projects.md and spawn again" >&2
-    exit 1
-  fi
-  if [ "$NM_SKIP" != "$STANDING_NM_SKIP" ]; then
+  STANDING_NM_SKIP=$("$FM_ROOT/bin/fm-project-mode.sh" --nm-skip "$PROJ_NAME" 2>/dev/null)
+  if [ "$MODE" = no-mistakes ] && [ "$NM_SKIP" != "$STANDING_NM_SKIP" ]; then
     echo "notice: $ID ships nm_skip=$NM_SKIP while $PROJ_NAME registers nmskip=$STANDING_NM_SKIP - proceed only on a current explicit captain instruction or an intake judgment you can state" >&2
   fi
 fi
