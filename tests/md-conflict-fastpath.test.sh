@@ -140,7 +140,10 @@ class ConflictCliTests(unittest.TestCase):
 
     def test_mechanical_candidates_keep_review(self):
         for path in ("/App.csproj", "/Directory.Packages.props", "/Directory.Build.props",
-                     "/global.json", "/.editorconfig", "/test.runsettings"):
+                     "/global.json", "/.editorconfig", "/settings.properties", "/settings.ini",
+                     "/settings.env", "/.env", "/.npmrc", "/.yarnrc",
+                     "Directory.Build.props", "src/Directory.Packages.props", "/src/GLOBAL.JSON",
+                     "/src/APP.CSPROJ", "/config/.EDITORCONFIG", "/config/SETTINGS.INI"):
             with self.subTest(path=path):
                 result = self.list_conflicts([path])
                 self.assertEqual(result.returncode, 1)
@@ -150,7 +153,8 @@ class ConflictCliTests(unittest.TestCase):
                 self.assertNotIn("skip-review", result.stdout)
 
     def test_lock_candidates_never_fetch_mergeable_blobs(self):
-        for path in ("/packages.lock.json", "/yarn.lock"):
+        for path in ("/packages.lock.json", "/yarn.lock", "packages.lock.json",
+                     "/src/PACKAGES.LOCK.JSON", "/src/YARN.LOCK"):
             with self.subTest(path=path):
                 result = self.list_conflicts([path])
                 self.assertEqual(result.returncode, 1)
@@ -160,7 +164,13 @@ class ConflictCliTests(unittest.TestCase):
 
     def test_code_and_non_edit_conflicts_are_not_fasttracked(self):
         for path in ("/App.cs", "/App.ts", "/infra.tf", "/azure-pipelines.yml", "/ci.yaml",
-                     "/Dockerfile", "/README.md.cs", "/settings.json"):
+                     "/Dockerfile", "/README.md.cs", "/settings.json", "/build.targets",
+                     "/custom.props", "/test.runsettings", "/appglobal.json",
+                     "/apppackages.lock.json", "/app.editorconfig", "/app.npmrc",
+                     "/app.yarnrc", "/Custom.Directory.Build.props", "/Directory.Other.props",
+                     "appglobal.json", "/src/CUSTOM.PROPS", "/src/BUILD.TARGETS",
+                     "/src/TEST.RUNSETTINGS", "/src/APPGLOBAL.JSON",
+                     "/src/APPPACKAGES.LOCK.JSON", "/src/APP.EDITORCONFIG"):
             with self.subTest(path=path):
                 result = self.list_conflicts([path])
                 self.assertEqual(result.returncode, 2)
@@ -168,11 +178,13 @@ class ConflictCliTests(unittest.TestCase):
                 self.assertIn("ordinary branch-sync procedure and full validation", result.stdout)
                 self.assertEqual(len(self.requests), 1)
         for conflict_type in ("editDelete", "renameRename"):
-            with self.subTest(conflict_type=conflict_type):
-                result = self.list_conflicts(["/README.md"], conflict_type)
-                self.assertEqual(result.returncode, 2)
-                self.assertIn(f"conflict 1 {conflict_type} /README.md status=unresolved class=CODE\n", result.stdout)
-                self.assertEqual(len(self.requests), 1)
+            for path in ("/README.md", "/Directory.Build.props", "/App.csproj", "/settings.ini",
+                         "/packages.lock.json"):
+                with self.subTest(conflict_type=conflict_type, path=path):
+                    result = self.list_conflicts([path], conflict_type)
+                    self.assertEqual(result.returncode, 2)
+                    self.assertIn(f"conflict 1 {conflict_type} {path} status=unresolved class=CODE\n", result.stdout)
+                    self.assertEqual(len(self.requests), 1)
 
     def test_mixed_conflicts_and_empty_response(self):
         result = self.list_conflicts(["/README.md", "/packages.lock.json"])
@@ -182,6 +194,16 @@ class ConflictCliTests(unittest.TestCase):
         result = self.list_conflicts(["/README.md", "/App.cs"])
         self.assertEqual(result.returncode, 2)
         self.assertIn("class=CODE\n", result.stdout)
+        for paths in (("/Directory.Build.props", "/custom.props"),
+                      ("/custom.props", "/Directory.Build.props"),
+                      ("/packages.lock.json", "/apppackages.lock.json"),
+                      ("/README.md", "/build.targets")):
+            with self.subTest(paths=paths):
+                result = self.list_conflicts(paths)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("class=CODE\n", result.stdout)
+                self.assertTrue(result.stdout.endswith(
+                    "verdict: CODE conflict, use the ordinary branch-sync procedure and full validation\n"))
         result = self.list_conflicts([])
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "no conflicts\n")

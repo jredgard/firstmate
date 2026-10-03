@@ -2,6 +2,8 @@
 """List or resolve documentation-only Azure DevOps PR conflicts on the forge.
 
 Owner: .agents/skills/md-conflict-fastpath/SKILL.md.
+Mechanical classification taxonomy owner: bin/fm-conflict-radar.sh; this helper
+mirrors its .NET package/lock and simple key-value settings subset for tier 4.
 GET pullRequests/{prId}/conflicts?includeObsolete=false lists conflicts;
 GET blobs/{objectId} retrieves the base, source and target bytes;
 PATCH pullRequests/{prId}/conflicts/{conflictId} submits a UserMerged resolution;
@@ -29,7 +31,9 @@ ORG = os.environ.get("ADO_ORG", "https://dev.azure.com/tuvsud01")
 PROJ = os.environ.get("ADO_PROJECT", "DS_mosaiq-poc")
 API = "api-version=7.1-preview.1"
 DOC_EXT = (".md", ".markdown", ".rst", ".txt", ".adoc")
-MECH_EXT = (".csproj", ".props", ".targets", "packages.lock.json", ".lock", "global.json", ".editorconfig", ".runsettings")
+MECH_EXT = (".csproj", ".lock", ".properties", ".ini", ".env")
+MECH_NAMES = ("directory.packages.props", "directory.build.props", "global.json", "packages.lock.json",
+              ".env", ".editorconfig", ".npmrc", ".yarnrc")
 
 
 def token():
@@ -71,14 +75,15 @@ def cmd_list(repo, pr):
     mechanical_only = True
     for conflict in entries:
         path = conflict["conflictPath"]
+        filename = path.rsplit("/", 1)[-1].lower()
         conflict_type = conflict["conflictType"]
         doc = conflict_type == "editEdit" and path.lower().endswith(DOC_EXT)
-        mechanical = conflict_type == "editEdit" and path.lower().endswith(MECH_EXT)
+        mechanical = conflict_type == "editEdit" and (path.lower().endswith(MECH_EXT) or filename in MECH_NAMES)
         doc_only &= doc
         mechanical_only &= doc or mechanical
         kind = "doc" if doc else ("mechanical" if mechanical else "CODE")
         print(f"conflict {conflict['conflictId']} {conflict_type} {path} status={conflict.get('resolutionStatus')} class={kind}")
-        if not (doc or mechanical) or path.lower().endswith(("packages.lock.json", ".lock")):
+        if not (doc or mechanical) or filename == "packages.lock.json" or path.lower().endswith(".lock"):
             continue
         directory = Path(tempfile.mkdtemp(prefix="mdconflict-"))
         for side in ("base", "source", "target"):

@@ -24,7 +24,8 @@ Applied as four tiers, cheapest first:
 3. **Doc-only conflict where the forge path is unavailable** (for example the worker must rebase because the PR is not open yet) - rerun with `no-mistakes axi run --skip test,lint --intent ...` so only rebase, review, document, push, PR and CI run; review stays because push requires a review-approved head.
    If the trusted repo config refuses the skip, fall back to tier 2 on a fresh branch.
 
-4. **Mechanical conflict** (captain, 2026-10-03, PR 57630: "simple lines in config"): every conflicting path is a `.csproj`, `Directory.Packages.props`, `Directory.Build.props`, `packages.lock.json`, `*.lock`, `global.json` or a simple key-value settings file, and the hunks are package or version lines, not code.
+4. **Mechanical conflict** (captain, 2026-10-03, PR 57630: "simple lines in config"): path candidates use the approved .NET package/lock and simple key-value settings subset of [`bin/fm-conflict-radar.sh`](../../../bin/fm-conflict-radar.sh)'s taxonomy, mirrored by the helper, and the hunks are package or version lines, not code.
+   Arbitrary `.props`, `.targets` and `.runsettings` files are not eligible.
    The worker aborts the run before the pipeline's own repair reruns review, rebases onto current dev taking dev's package set and keeping its own additions, regenerates every conflicting lock file with `dotnet restore <solution> --force-evaluate` (never hand-merges a lock), builds once, then reruns with `no-mistakes axi run --skip test,document --intent ...` so only rebase, review, lint, push, PR and CI run; CI still runs the bounded tests.
    Review can never be skipped: the push step refuses without a durably review-approved head (observed 2026-10-03 on PR 57630).
    If the pipeline's repair has already passed review, let it finish instead: aborting then costs more than the skip saves.
