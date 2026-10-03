@@ -1,0 +1,50 @@
+$ resolve-md-conflict.py list repo 101
+conflict 1 editEdit /README.md status=unresolved class=doc
+  files: /tmp/mdconflict-boyyosk2/base /tmp/mdconflict-boyyosk2/source /tmp/mdconflict-boyyosk2/target  three-way (with markers): /tmp/mdconflict-boyyosk2/three-way
+  hunk at line 5
+    <<<<<<< PR branch
+    Backends: Service Bus; opt-in PostgreSQL.
+    =======
+    Backends: Service Bus, Redis.
+    >>>>>>> target branch
+verdict: doc-only candidate, eligible for forge-side resolution (tier 1) after verifying no code or tooling reads these files
+[exit 0]
+--- three-way file /tmp/mdconflict-boyyosk2/three-way:
+# Product
+
+## Messaging
+
+<<<<<<< PR branch
+Backends: Service Bus; opt-in PostgreSQL.
+=======
+Backends: Service Bus, Redis.
+>>>>>>> target branch
+
+## Notes
+
+End.
+$ resolve-md-conflict.py apply repo 101 1 README.resolved.md
+resolution: resolved none
+mergeStatus: succeeded lastMergeCommit: bbbbbbbb
+[exit 0]
+--- content the forge received for conflict 1:
+# Product
+
+## Messaging
+
+Backends: Service Bus, Redis; opt-in PostgreSQL.
+
+## Notes
+
+End.
+$ resolve-md-conflict.py list repo 101  (after apply)
+conflict 1 editEdit /README.md status=resolved class=doc
+  files: /tmp/mdconflict-nv5pbpgi/base /tmp/mdconflict-nv5pbpgi/source /tmp/mdconflict-nv5pbpgi/target  three-way (with markers): /tmp/mdconflict-nv5pbpgi/three-way
+  hunk at line 5
+    <<<<<<< PR branch
+    Backends: Service Bus; opt-in PostgreSQL.
+    =======
+    Backends: Service Bus, Redis.
+    >>>>>>> target branch
+verdict: doc-only candidate, eligible for forge-side resolution (tier 1) after verifying no code or tooling reads these files
+[exit 0]

@@ -1,0 +1,27 @@
+test_apply_accepts_no_error_resolution_encodings (__main__.ConflictCliTests.test_apply_accepts_no_error_resolution_encodings) ... ok
+test_apply_failed_patch_does_not_poll_merge (__main__.ConflictCliTests.test_apply_failed_patch_does_not_poll_merge) ... ok
+test_apply_multiple_conflicts_reports_remaining_before_polling (__main__.ConflictCliTests.test_apply_multiple_conflicts_reports_remaining_before_polling) ... ok
+test_apply_polling_is_bounded_for_stale_or_pending_results (__main__.ConflictCliTests.test_apply_polling_is_bounded_for_stale_or_pending_results) ... ok
+test_apply_reports_changed_conflicts_or_terminal_failure (__main__.ConflictCliTests.test_apply_reports_changed_conflicts_or_terminal_failure) ... ok
+test_apply_sends_file_bytes_and_reports_merge_result (__main__.ConflictCliTests.test_apply_sends_file_bytes_and_reports_merge_result) ... ok
+test_apply_tolerates_stale_and_pending_merge_status (__main__.ConflictCliTests.test_apply_tolerates_stale_and_pending_merge_status) ... ok
+test_code_and_non_edit_conflicts_are_not_fasttracked (__main__.ConflictCliTests.test_code_and_non_edit_conflicts_are_not_fasttracked) ... ok
+test_document_extensions_and_three_way_output (__main__.ConflictCliTests.test_document_extensions_and_three_way_output) ... ok
+test_file_and_merge_subprocess_failures_are_operational_errors (__main__.ConflictCliTests.test_file_and_merge_subprocess_failures_are_operational_errors) ... ok
+test_literal_conflict_markers_cannot_crash_hunk_scanning (__main__.ConflictCliTests.test_literal_conflict_markers_cannot_crash_hunk_scanning) ... ok
+test_lock_candidates_never_fetch_mergeable_blobs (__main__.ConflictCliTests.test_lock_candidates_never_fetch_mergeable_blobs) ... ok
+test_malformed_responses_are_operational_errors (__main__.ConflictCliTests.test_malformed_responses_are_operational_errors) ... ok
+test_mechanical_candidates_keep_review (__main__.ConflictCliTests.test_mechanical_candidates_keep_review) ... ok
+test_merge_failure_keeps_first_nonempty_diagnostic_and_redacts_tokens (__main__.ConflictCliTests.test_merge_failure_keeps_first_nonempty_diagnostic_and_redacts_tokens) ... ok
+test_mixed_conflicts_and_empty_response (__main__.ConflictCliTests.test_mixed_conflicts_and_empty_response) ... ok
+test_rest_errors_at_every_list_and_apply_request (__main__.ConflictCliTests.test_rest_errors_at_every_list_and_apply_request) ... ok
+test_token_command_failures_are_operational_errors (__main__.ConflictCliTests.test_token_command_failures_are_operational_errors) ... ok
+test_token_failure_keeps_first_nonempty_diagnostic_without_stdout (__main__.ConflictCliTests.test_token_failure_keeps_first_nonempty_diagnostic_without_stdout) ... ok
+test_token_is_fetched_with_azure_cli_when_not_supplied (__main__.ConflictCliTests.test_token_is_fetched_with_azure_cli_when_not_supplied) ... ok
+test_usage_errors_do_not_return_conflict_codes (__main__.ConflictCliTests.test_usage_errors_do_not_return_conflict_codes) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 8.040s
+
+OK
+ok - md-conflict-fastpath CLI classifies paths and exercises REST with an isolated stub

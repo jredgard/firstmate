@@ -1,0 +1,29 @@
+ ▐▛███▛█   Claude Code v2.1.288
+▝▜██████▀  Fable 5.1 with high effort · API Usage Billing
+ ▝▝   ▝▝   ~/.no-mistakes/worktrees/551ff26a6b1c/01M41KXWFXDZSGDZ5WGNY9S7DB
+❯ Lab question only, do not run commands that write anything or contact any forge: Azure DevOps ship PR 99999 is checks-green but now reports a merge conflict only in README.md. Which repo skill      
+  governs this? Load it and answer in at most 4 lines: skill name, tier number, and the first procedure step.                                                                                           
+● Captain, I'll load the md-conflict-fastpath skill and read it, with no writes and no forge contact.
+  Read 1 file                                
+● Captain, the governing skill is md-conflict-fastpath.
+  Tier 1 applies: a doc-only conflict on an existing checks-green PR, resolved on the forge with no pipeline rerun.
+  First procedure step: stop the monitor before it rebases. The run's owning worker aborts it and confirms with axi status that no run is active for the branch.
+  Tier 1 still requires the conflict list to show README.md as an editEdit documentation conflict that no code or tooling reads, and the forge apply step needs your explicit word if firstmate does it
+  rather than the worker.
+✻ Brewed for 17s · done 22:00
+❯ Same lab rules. Two more cases, answer in at most 4 lines each: (a) the conflict is only Serilog version lines in Directory.Packages.props; (b) the conflict is in src/App.cs. Tier (or none) and     
+  what validation is skipped.                                                                                                                                                                           
+● Captain, I'll check the conflict radar's taxonomy to see whether Directory.Packages.props is in the approved mechanical subset.
+  Searched for 1 pattern                                                 
+● Captain, both cases checked against the skill and the conflict radar's taxonomy.
+  (a) Serilog version lines in Directory.Packages.props: Tier 4, mechanical conflict. That file is explicitly in the approved package subset, so the arbitrary .props exclusion does not apply. The
+  worker aborts the run, rebases taking dev's package set plus its own additions, regenerates any lock file with a forced restore, builds once, then reruns with --skip test,document. Only test and
+  document are skipped; review, lint, push, PR, and CI still run, and CI runs the bounded tests. Eligibility also requires the helper's list to report mechanical for every path and the hunks to hold
+  version lines, not code.
+  (b) Conflict in src/App.cs: No tier. A .cs conflict is never fast-tracked, so nothing is skipped. Use the branch-sync procedure from validation-supervision instead, and let the pipeline's own repair
+  rerun the full review path. If the repair has already passed review, let it finish rather than aborting it.
+✻ Sautéed for 17s · done 22:01
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ Same lab rules: conflict in package-lock.json plus one .md file, tier?                                     
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents                   

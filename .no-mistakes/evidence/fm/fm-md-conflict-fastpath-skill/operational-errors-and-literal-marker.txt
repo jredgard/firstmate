@@ -1,0 +1,61 @@
+$ ADO_TOKEN=live-lab-token list repo 111   (literal opener with no closer after the real hunk)
+conflict 1 editEdit /docs/marker.md status=unresolved class=doc
+  hunk at line 3
+    <<<<<<< PR branch
+    feature intro
+    =======
+    dev intro
+    >>>>>>> target branch
+  hunk at line 11
+    <<<<<<< HEAD (opener with no closer)
+verdict: doc-only candidate, eligible for forge-side resolution (tier 1) after verifying no code or tooling reads these files
+[exit 0]
+
+$ ADO_TOKEN=wrong-secret-token list repo 101   (forge rejects auth)
+error: HTTPError: HTTP Error 401: Unauthorized
+[exit 5]
+
+$ (no ADO_TOKEN; az login expired) list repo 101
+error: CalledProcessError: Command '['az', 'account', 'get-access-token', '--resource', '499b84ac-1321-427f-aa17-267ca6975798', '--query', 'accessToken', '--output', 'tsv']' returned non-zero exit status 1.: ERROR: AADSTS70043: The refresh token has expired. Please run az login to setup account.
+[exit 5]
+
+$ (no ADO_TOKEN; az login expired) apply repo 101 1 README.resolved.md
+error: CalledProcessError: Command '['az', 'account', 'get-access-token', '--resource', '499b84ac-1321-427f-aa17-267ca6975798', '--query', 'accessToken', '--output', 'tsv']' returned non-zero exit status 1.: ERROR: AADSTS70043: The refresh token has expired. Please run az login to setup account.
+[exit 5]
+
+$ ADO_TOKEN=live-lab-token apply repo 101 1 /nonexistent.md
+error: FileNotFoundError: [Errno 2] No such file or directory: '/nonexistent.md'
+[exit 5]
+
+$ list repo   (missing PR id)
+
+[exit 5]
+error: ValueError: expected list <repo> <prId> or apply <repo> <prId> <conflictId> <resolvedFile>
+List or resolve documentation-only Azure DevOps PR conflicts on the forge.
+
+Owner: .agents/skills/md-conflict-fastpath/SKILL.md.
+Path classification taxonomy owner: bin/fm-conflict-radar.sh; this helper mirrors
+its documentation text basenames and dependency text manifests alongside the
+approved .NET package/lock and simple key-value settings subset for tier 4.
+GET pullRequests/{prId}/conflicts?includeObsolete=false lists conflicts;
+GET blobs/{objectId} retrieves the base, source and target bytes;
+PATCH pullRequests/{prId}/conflicts/{conflictId} submits a UserMerged resolution;
+the JSON body uses mergeType="userMerged", resolutionStatus="resolved" and
+userMergedContent as an array of file bytes.
+GET pullRequests/{prId} records lastMergeCommit before PATCH and polls mergeStatus
+only after re-listing conflicts confirms no unresolved entries remain.
+An unchanged conflicts status may be stale; poll at most 30 times, two seconds apart.
+The conflicts API uses api-version=7.1-preview.1; blobs and PR reads use 7.1.
+
+usage: resolve-md-conflict.py list  <repo> <prId>
+       resolve-md-conflict.py apply <repo> <prId> <conflictId> <resolvedFile>
+env:   ADO_ORG (default https://dev.azure.com/tuvsud01), ADO_PROJECT (default DS_mosaiq-poc),
+       ADO_TOKEN, otherwise az account get-access-token --resource
+       499b84ac-1321-427f-aa17-267ca6975798 --query accessToken --output tsv.
+list exits: 0 no conflicts or doc-only candidates, 1 mechanical candidates, 2 code/non-editEdit.
+apply exits: 0 merge succeeded, 1 unresolved conflicts remain, 3 resolution/merge
+failed, 4 merge result still pending after bounded polling.
+Both commands exit 5 for usage, authentication, REST, malformed response, file I/O
+or subprocess errors, with a concise diagnostic on stderr.
+Classification is a path hint only; the owner skill requires inspecting use and hunks.
+

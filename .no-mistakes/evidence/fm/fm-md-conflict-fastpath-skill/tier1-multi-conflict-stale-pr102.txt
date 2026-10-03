@@ -1,0 +1,31 @@
+$ list repo 102
+conflict 1 editEdit /README.md status=unresolved class=doc
+conflict 2 editEdit /docs/guide.md status=unresolved class=doc
+verdict: doc-only candidate, eligible for forge-side resolution (tier 1) after verifying no code or tooling reads these files
+[exit ]
+$ apply repo 102 1 README.resolved.md   (first of two conflicts)
+resolution: resolved none
+1 conflicts remaining
+[exit 1]
+$ apply repo 102 2 guide.resolved.md    (final conflict; stand-in returns stale mergeStatus=conflicts twice)
+resolution: resolved none
+mergeStatus: succeeded lastMergeCommit: bbbbbbbb
+python3 $H apply repo 102 2 /tmp/fmlive/guide.resolved.md  0,05s user 0,01s system 1% cpu 4,070 total
+[exit 0]
+--- stand-in request log:
+GET /org/proj/_apis/git/repositories/repo/pullRequests/102/conflicts?api-version=7.1-preview.1&includeObsolete=false auth=Bearer
+GET /org/proj/_apis/git/repositories/repo/blobs/8762b87a94374dd9a4aaba4ef4b8f80d19bdb158?api-version=7.1&$format=octetStream auth=Bearer
+GET /org/proj/_apis/git/repositories/repo/blobs/2a602d5451c06e01d0823d3abf440d7e448bdae0?api-version=7.1&$format=octetStream auth=Bearer
+GET /org/proj/_apis/git/repositories/repo/blobs/228584c77b57cc77dd3c1ae19d38bbb40241cd4d?api-version=7.1&$format=octetStream auth=Bearer
+GET /org/proj/_apis/git/repositories/repo/blobs/82f618c1e2e9ed830f1deae76381a59cfce28ff7?api-version=7.1&$format=octetStream auth=Bearer
+GET /org/proj/_apis/git/repositories/repo/blobs/178ce77c2272da98f23a1b01b37204b4eefb46c6?api-version=7.1&$format=octetStream auth=Bearer
+GET /org/proj/_apis/git/repositories/repo/blobs/ca91dd697e52aaf400deddf33e4b86e663edbe44?api-version=7.1&$format=octetStream auth=Bearer
+GET /org/proj/_apis/git/repositories/repo/pullRequests/102?api-version=7.1 auth=Bearer
+PATCH /org/proj/_apis/git/repositories/repo/pullRequests/102/conflicts/1?api-version=7.1-preview.1 mergeType=userMerged status=resolved bytes=90
+GET /org/proj/_apis/git/repositories/repo/pullRequests/102/conflicts?api-version=7.1-preview.1&includeObsolete=false auth=Bearer
+GET /org/proj/_apis/git/repositories/repo/pullRequests/102?api-version=7.1 auth=Bearer
+PATCH /org/proj/_apis/git/repositories/repo/pullRequests/102/conflicts/2?api-version=7.1-preview.1 mergeType=userMerged status=resolved bytes=34
+GET /org/proj/_apis/git/repositories/repo/pullRequests/102/conflicts?api-version=7.1-preview.1&includeObsolete=false auth=Bearer
+GET /org/proj/_apis/git/repositories/repo/pullRequests/102?api-version=7.1 auth=Bearer
+GET /org/proj/_apis/git/repositories/repo/pullRequests/102?api-version=7.1 auth=Bearer
+GET /org/proj/_apis/git/repositories/repo/pullRequests/102?api-version=7.1 auth=Bearer

@@ -1,0 +1,74 @@
+$ resolve-md-conflict.py list repo 103
+conflict 1 editEdit /Directory.Packages.props status=unresolved class=mechanical
+  hunk at line 3
+    <<<<<<< PR branch
+        <PackageVersion Include="Serilog" Version="3.1.0" />
+    =======
+        <PackageVersion Include="Serilog" Version="3.0.5" />
+    >>>>>>> target branch
+conflict 2 editEdit /requirements.txt status=unresolved class=mechanical
+  hunk at line 1
+    <<<<<<< PR branch
+    requests==2.32.0
+    =======
+    requests==2.31.5
+    >>>>>>> target branch
+verdict: mechanical (package/lock/config lines), eligible for the skip-test,document rerun (tier 4) if the hunks hold no code
+[exit 1]
+
+$ resolve-md-conflict.py list repo 104
+conflict 1 editEdit /README.md status=unresolved class=doc
+  hunk at line 5
+    <<<<<<< PR branch
+    Backends: Service Bus; opt-in PostgreSQL.
+    =======
+    Backends: Service Bus, Redis.
+    >>>>>>> target branch
+conflict 2 editEdit /src/App.cs status=unresolved class=CODE
+verdict: CODE conflict, use the ordinary branch-sync procedure and full validation
+[exit 2]
+
+$ resolve-md-conflict.py list repo 105
+conflict 1 editEdit /azure-pipelines.yml status=unresolved class=CODE
+verdict: CODE conflict, use the ordinary branch-sync procedure and full validation
+[exit 2]
+
+$ resolve-md-conflict.py list repo 106
+conflict 1 editEdit /Dockerfile status=unresolved class=CODE
+verdict: CODE conflict, use the ordinary branch-sync procedure and full validation
+[exit 2]
+
+$ resolve-md-conflict.py list repo 107
+conflict 1 editEdit /CMakeLists.txt status=unresolved class=CODE
+verdict: CODE conflict, use the ordinary branch-sync procedure and full validation
+[exit 2]
+
+$ resolve-md-conflict.py list repo 108
+conflict 1 renameEdit /docs/guide.md status=unresolved class=CODE
+verdict: CODE conflict, use the ordinary branch-sync procedure and full validation
+[exit 2]
+
+$ resolve-md-conflict.py list repo 109
+conflict 1 editEdit /docs/conflicts-guide.md status=unresolved class=doc
+  hunk at line 5
+    <<<<<<< PR branch
+    <<<<<<< ours (literal example with no closer)
+    feature text
+    =======
+    dev text
+    >>>>>>> target branch
+verdict: doc-only candidate, eligible for forge-side resolution (tier 1) after verifying no code or tooling reads these files
+[exit 0]
+
+$ resolve-md-conflict.py list repo 110
+conflict 1 editEdit /docs/notes.txt status=unresolved class=doc
+conflict 2 editEdit /requirements.txt status=unresolved class=mechanical
+  hunk at line 1
+    <<<<<<< PR branch
+    requests==2.32.0
+    =======
+    requests==2.31.5
+    >>>>>>> target branch
+verdict: mechanical (package/lock/config lines), eligible for the skip-test,document rerun (tier 4) if the hunks hold no code
+[exit 1]
+
