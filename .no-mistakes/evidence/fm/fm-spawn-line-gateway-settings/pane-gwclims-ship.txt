@@ -1,0 +1,35 @@
+treehouse get
+[johannesr@KleinKlip notes]$ treehouse get
+A new version of treehouse is available: v2.3.0 → v3.1.2
+Run "treehouse update" to update
+🌳 Setting up worktree...
+🌳 Entered worktree at <lab>/treehouse/.treehouse/notes-b074ff/1/notes. Type 'exit' to return.
+[johannesr@KleinKlip notes]$ cd -- '<lab>/treehouse/.treehouse/notes-b074ff/1/notes'
+[johannesr@KleinKlip notes]$ export GOTMPDIR=/tmp/fm-gwclims-ship/gotmp
+[johannesr@KleinKlip notes]$ export COMPACT_ADVISER_DISABLE=1
+[johannesr@KleinKlip notes]$ export FM_TASK_ID=gwclims-ship
+[johannesr@KleinKlip notes]$ . '/tmp/fm-gwclims-ship+a73704ea133d6e55b8fe42449c75529797a798047ebf9742197f8f8accc70b63/launch.s1791046792.1797821.7922.sh'
+ ▐▛███▛█   Claude Code v2.1.288
+▝▜██████▀  Sonnet 5.5 with low effort · API Usage Billing
+ ▝▝   ▝▝   <lab>/treehouse/.treehouse/notes-b074ff/1/notes
+❯ : Firstmate operational input waiting: read '<lab>/home/state/operational-inbox/1791046792-1b291ed662ae673b.msg' and handle its contents as Firstmate operational input.
+● gateway-ack from fake port 14001
+✻ Baked for 0s · done 18:59
+● Auto mode lets Claude handle permission prompts automatically — Claude checks each tool call for risky actions and prompt injection before executing. Actions Claude identifies as safe are executed, while
+  actions Claude identifies as risky are blocked and Claude may try a different approach. Ideal for long-running tasks. Sessions are slightly more expensive. Claude can make mistakes that allow harmful commands
+  to run, it's recommended to only use in isolated environments. Shift+Tab to change mode.
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ /exit
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  /exit                         Exit the CLI
+  /context                      Visualize current context usage as a colored grid
+Resume this session with:
+claude --resume cdd7fc0d-fe15-4e5a-84e8-00342db47430
+[johannesr@KleinKlip notes]$ cd -- '<lab>/treehouse/.treehouse/notes-b074ff/1/notes'
+[johannesr@KleinKlip notes]$ export GOTMPDIR=/tmp/fm-gwclims-ship/gotmp
+[johannesr@KleinKlip notes]$ export COMPACT_ADVISER_DISABLE=1
+[johannesr@KleinKlip notes]$ export FM_TASK_ID=gwclims-ship
+[johannesr@KleinKlip notes]$ . '/tmp/fm-gwclims-ship+a73704ea133d6e55b8fe42449c75529797a798047ebf9742197f8f8accc70b63/launch.s1791046950.1858145.23399.sh'
+Resume this session with:
+claude --resume 35834f8d-34e2-4163-bfe9-d10e997e8c9e
+[johannesr@KleinKlip notes]$

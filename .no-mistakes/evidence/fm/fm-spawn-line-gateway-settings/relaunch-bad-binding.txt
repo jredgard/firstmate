@@ -1,0 +1,5 @@
+exit=1
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: LITELLM_PROXY_URL port 14999 maps to no readable LiteLLM project env file under <lab>/litellm-projects; configure LITELLM_PORT
+error: the replacement agent for gwclims-ship could not be launched on claude
+error: gwclims-ship's agent was stopped but the replacement did not launch; no agent is running, and its work plus the recorded progress note are preserved at <lab>/treehouse/.treehouse/notes-b074ff/1/notes

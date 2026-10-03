@@ -1,0 +1,21 @@
+treehouse get
+[johannesr@KleinKlip notes]$ treehouse get
+A new version of treehouse is available: v2.3.0 → v3.1.2
+Run "treehouse update" to update
+🌳 Setting up worktree...
+🌳 Entered worktree at <lab>/treehouse/.treehouse/notes-b074ff/2/notes. Type 'exit' to return.
+[johannesr@KleinKlip notes]$ cd -- '<lab>/treehouse/.treehouse/notes-b074ff/2/notes'
+[johannesr@KleinKlip notes]$ export GOTMPDIR=/tmp/fm-gwtc-scout/gotmp
+[johannesr@KleinKlip notes]$ export COMPACT_ADVISER_DISABLE=1
+[johannesr@KleinKlip notes]$ export FM_TASK_ID=gwtc-scout
+[johannesr@KleinKlip notes]$ . '/tmp/fm-gwtc-scout+a73704ea133d6e55b8fe42449c75529797a798047ebf9742197f8f8accc70b63/launch.s1791046839.1816916.8301.sh'
+ ▐▛███▛█   Claude Code v2.1.288
+▝▜██████▀  Sonnet 5.5 with low effort · API Usage Billing
+ ▝▝   ▝▝   <lab>/treehouse/.treehouse/notes-b074ff/2/notes
+❯ : Firstmate operational input waiting: read '<lab>/home/state/operational-inbox/1791046839-6603d828e0b367ed.msg' and handle its contents as Firstmate operational input.
+● gateway-ack from fake port 14006
+✻ Churned for 0s · done 19:00
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents

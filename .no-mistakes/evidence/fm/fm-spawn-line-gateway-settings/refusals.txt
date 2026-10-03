@@ -1,0 +1,48 @@
+### case=empty-url LITELLM_PROXY_URL='' LITELLM_PROJECTS_DIR=<lab>/litellm-projects
+exit=1
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: LITELLM_PROXY_URL must have an explicit gateway port
+meta: absent
+tmux windows: unchanged (no endpoint created)
+key leak: none
+
+### case=unmapped-port LITELLM_PROXY_URL='http://127.0.0.1:14999' LITELLM_PROJECTS_DIR=<lab>/litellm-projects
+exit=1
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: LITELLM_PROXY_URL port 14999 maps to no readable LiteLLM project env file under <lab>/litellm-projects; configure LITELLM_PORT
+meta: absent
+tmux windows: unchanged (no endpoint created)
+key leak: none
+
+### case=ambiguous-port LITELLM_PROXY_URL='http://127.0.0.1:14001' LITELLM_PROJECTS_DIR=<lab>/litellm-ambiguous
+exit=1
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: LITELLM_PROXY_URL port 14001 maps to multiple LiteLLM project env files; configure unique LITELLM_PORT values
+meta: absent
+tmux windows: unchanged (no endpoint created)
+key leak: none
+
+### case=missing-projects-dir LITELLM_PROXY_URL='http://127.0.0.1:14001' LITELLM_PROJECTS_DIR=<lab>/does-not-exist
+exit=1
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: Claude gateway binding requires a readable LiteLLM projects directory; set LITELLM_PROJECTS_DIR or create /home/johannesr/.config/litellm/projects
+meta: absent
+tmux windows: unchanged (no endpoint created)
+key leak: none
+
+### case=no-explicit-port LITELLM_PROXY_URL='http://127.0.0.1/' LITELLM_PROJECTS_DIR=<lab>/litellm-projects
+exit=1
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: LITELLM_PROXY_URL must have an explicit gateway port
+meta: absent
+tmux windows: unchanged (no endpoint created)
+key leak: none
+
+### case=template-placeholder-port LITELLM_PROXY_URL='http://127.0.0.1:400' LITELLM_PROJECTS_DIR=<lab>/litellm-projects
+exit=1
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: LITELLM_PROXY_URL port 400 maps to no readable LiteLLM project env file under <lab>/litellm-projects; configure LITELLM_PORT
+meta: absent
+tmux windows: unchanged (no endpoint created)
+key leak: none
+

@@ -1,0 +1,77 @@
+treehouse get
+           .-------------------------:                    johannesr@KleinKlip
+          .+=========================.                    -------------------
+         :++===++==================-       :++-           OS: CachyOS x86_64
+        :*++====+++++=============-        .==:           Host: MS-7D73 (1.0)
+       -*+++=====+***++==========:                        Kernel: Linux 7.2.7-1-cachyos
+      =*++++========------------:                         Uptime: 7 days, 6 hours, 47 mins
+     =*+++++=====-                     ...                Packages: 14 (flatpak), 1915 (pacman)
+   .+*+++++=-===:                    .=+++=:              Shell: fish 4.9.3
+  :++++=====-==:                     -*****+              Desktop Environment: KDE Plasma 6.7.5
+ :++========-=.                      .=+**+.              Window Manager: KWin (Wayland)
+.+==========-.                          .                 WM Theme: Breeze
+ :+++++++====-                                .--==-.     Theme: Breeze (Dark) [Qt], Breeze-Dark [GTK2], Breeze [GTK3]
+  :++==========.                             :+++++++:    Icons: breeze-dark [Qt], breeze-dark [GTK2/3/4]
+   .-===========.                            =*****+*+    Font: Noto Sans (10pt) [Qt], Noto Sans (10pt) [GTK2/3/4]
+    .-===========:                           .+*****+:    Cursor: capitaine-cursors-light (24px)
+      -=======++++:::::::::::::::::::::::::-:  .---:      Terminal: tmux 3.7c
+       :======++++====+++******************=.             CPU: AMD Ryzen 7 7800X3D (16) @ 5.05 GHz
+        :=====+++==========++++++++++++++*-               GPU 1: NVIDIA GeForce RTX 5090 [Discrete]
+         .====++==============++++++++++*-                GPU 2: AMD Raphael [Integrated]
+          .===+==================+++++++:                 Memory: 17.80 GiB / 30.23 GiB (59%)
+           .-=======================+++:                  Swap: 17.74 GiB / 30.23 GiB (59%)
+             ..........................                   Disk (/): 1.17 TiB / 3.63 TiB (32%) - btrfs
+                                                          Local IP (wlan0): 192.168.68.56/22
+                                                          Locale: en_GB.UTF-8
+                                                          
+                                                                                  
+
+ ▐▛███▛█   Claude Code v2.1.288
+▝▜██████▀  Fable 5.1 with high effort · API Usage Billing
+ ▝▝   ▝▝   /tmp/fm-lab.xeoBSq/treehouse/.treehouse/demo-6698e6/1/demo
+
+
+❯ : Firstmate operational input waiting: read '/tmp/fm-lab.xeoBSq/state/operational-inbox/1791047685-83cb1e1e80649ba1.msg' and handle its contents as Firstmate operational input.                                          
+
+● GATEWAY-clims-OK
+
+✻ Cogitated for 1s · done 19:14
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                                                                                                                                          
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents                   

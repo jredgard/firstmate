@@ -1,0 +1,2 @@
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+relaunched gwclims-ship harness=claude from=claude model=sonnet effort=low backend=tmux endpoint=firstmate:fm-gwclims-ship worktree=/tmp/fmgw.a7EzhF/treehouse/.treehouse/notes-b074ff/1/notes

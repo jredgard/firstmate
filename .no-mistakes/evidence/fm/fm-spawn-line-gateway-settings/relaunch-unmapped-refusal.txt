@@ -1,0 +1,5 @@
+$ LITELLM_PROXY_URL=http://127.0.0.1:14999 LITELLM_PROJECTS_DIR=<lab>/litellm\ projects bin/fm-control.sh gwclims relaunch --note 'gateway probe relaunch'
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.xeoBSq
+error: LITELLM_PROXY_URL port 14999 maps to no readable LiteLLM project env file under /tmp/fm-lab.xeoBSq/litellm projects; configure LITELLM_PORT
+worker claude pid before=2213035 after=2213035
+state/gwclims.meta unchanged

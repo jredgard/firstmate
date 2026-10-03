@@ -1,0 +1,4 @@
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.xeoBSq
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.xeoBSq
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+relaunched gwclims harness=claude from=claude model=default effort=default backend=tmux endpoint=primary:fm-gwclims worktree=/tmp/fm-lab.xeoBSq/treehouse/.treehouse/demo-6698e6/1/demo

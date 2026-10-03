@@ -1,0 +1,15 @@
+=== dispatch
+ok - Claude ship/scout launches bind the home gateway and read keys only at helper runtime
+ok - gateway port discovery defaults the projects directory and preserves attribution opt-out
+ok - unset gateway preserves Claude settings; Codex and Pi ignore Claude gateway bindings
+ok - unmapped, ambiguous, malformed, and missing gateway bindings refuse before launch
+ok - no --model/--effort records defaults and types the claude launch instructions
+ok - fm-spawn: a Claude launch longer than 1024 bytes is delivered intact through the staging path
+exit=
+=== relaunch
+ok - Claude relaunch reconstructs gateway env and secret-free helper from the spawning home
+exit=
+=== fixtures
+ok - runner and shared helpers isolate host Git config and preserve explicit config and outside commits
+ok - test setup isolates gateway environment for direct and shared Claude spawns
+exit=

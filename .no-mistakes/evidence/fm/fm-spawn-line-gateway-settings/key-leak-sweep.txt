@@ -1,0 +1,28 @@
+Key-leak sweep 2026-10-03T17:04:31Z: fixture master keys fx-{mosaiq,clims,tc}-key-<nonce> and fx-clims-rotated-<nonce>
+Searched: lab FM_HOME (state/, data/, config/), /tmp/fm-gw* task temp + staged launch scripts, full pane scrollback of every lab window, spawn/relaunch/refusal outputs, isolated Claude config dir (transcripts, .claude.json).
+  <lab>/home/state: files containing a master key = 0
+  <lab>/home/data: files containing a master key = 0
+  <lab>/home/config: files containing a master key = 0
+  /tmp/fm-gwclims-ship: files containing a master key = 0
+  /tmp/fm-gwclims-ship+a73704ea133d6e55b8fe42449c75529797a798047ebf9742197f8f8accc70b63: files containing a master key = 0
+  /tmp/fm-gwcodex-ship: files containing a master key = 0
+  /tmp/fm-gwcodex-ship+a73704ea133d6e55b8fe42449c75529797a798047ebf9742197f8f8accc70b63: files containing a master key = 0
+  /tmp/fm-gwtc-scout: files containing a master key = 0
+  /tmp/fm-gwtc-scout+a73704ea133d6e55b8fe42449c75529797a798047ebf9742197f8f8accc70b63: files containing a master key = 0
+  /tmp/fm-gwunbound-ship: files containing a master key = 0
+  /tmp/fm-gwunbound-ship+a73704ea133d6e55b8fe42449c75529797a798047ebf9742197f8f8accc70b63: files containing a master key = 0
+  <lab>/scroll-gwclims-ship.txt: files containing a master key = 0
+  <lab>/scroll-gwtc-scout.txt: files containing a master key = 0
+  <lab>/scroll-gwunbound-ship.txt: files containing a master key = 0
+  /home/johannesr/.no-mistakes/evidence/01M419TAC0NVR31GRTV07N4E09/spawn-clims-ship.txt: files containing a master key = 0
+  /home/johannesr/.no-mistakes/evidence/01M419TAC0NVR31GRTV07N4E09/spawn-codex-ship.txt: files containing a master key = 0
+  /home/johannesr/.no-mistakes/evidence/01M419TAC0NVR31GRTV07N4E09/spawn-tc-scout.txt: files containing a master key = 0
+  /home/johannesr/.no-mistakes/evidence/01M419TAC0NVR31GRTV07N4E09/spawn-unbound-ship.txt: files containing a master key = 0
+  /home/johannesr/.no-mistakes/evidence/01M419TAC0NVR31GRTV07N4E09/relaunch-bad-binding.txt: files containing a master key = 0
+  /home/johannesr/.no-mistakes/evidence/01M419TAC0NVR31GRTV07N4E09/relaunch-clims-ship.txt: files containing a master key = 0
+  /home/johannesr/.no-mistakes/evidence/01M419TAC0NVR31GRTV07N4E09/refusals.txt: files containing a master key = 0
+  <lab>/claude-config: files containing a master key = 0
+Positive control (key files themselves): <lab>/litellm-projects/templatecontrol/env <lab>/litellm-projects/clims/env 
+Env-file paths referenced by staged launches (path only, never value):
+      2 litellm-projects/clims/env
+      1 litellm-projects/templatecontrol/env

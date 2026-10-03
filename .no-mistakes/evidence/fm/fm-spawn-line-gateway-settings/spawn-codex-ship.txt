@@ -1,0 +1,3 @@
+exit=0
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+spawned gwcodex-ship harness=codex kind=ship mode=local-only yolo=on window=firstmate:fm-gwcodex-ship worktree=<lab>/treehouse/.treehouse/notes-b074ff/4/notes

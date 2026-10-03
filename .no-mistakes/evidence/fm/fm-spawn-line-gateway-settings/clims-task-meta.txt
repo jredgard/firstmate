@@ -1,0 +1,11 @@
+window=primary:fm-gwclims
+endpoint_task_id=gwclims
+worktree=/tmp/fm-lab.xeoBSq/treehouse/.treehouse/demo-6698e6/1/demo
+project=/tmp/fm-lab.xeoBSq/projects/demo
+harness=claude
+kind=scout
+tasktmp=/tmp/fm-gwclims
+model=default
+effort=default
+busy_gen=g1791047685.2211819.24311
+spawn_gen=s1791047685.2210201.26319

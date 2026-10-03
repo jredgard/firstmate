@@ -1,0 +1,2 @@
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.xeoBSq
+spawned gwclims harness=claude kind=scout window=primary:fm-gwclims worktree=/tmp/fm-lab.xeoBSq/treehouse/.treehouse/demo-6698e6/1/demo

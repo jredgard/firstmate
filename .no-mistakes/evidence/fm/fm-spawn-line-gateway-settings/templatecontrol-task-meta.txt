@@ -1,0 +1,11 @@
+window=primary:fm-gwtc
+endpoint_task_id=gwtc
+worktree=/tmp/fm-lab.xeoBSq/treehouse/.treehouse/demo-6698e6/2/demo
+project=/tmp/fm-lab.xeoBSq/projects/demo
+harness=claude
+kind=scout
+tasktmp=/tmp/fm-gwtc
+model=default
+effort=default
+busy_gen=g1791047761.2246199.31531
+spawn_gen=s1791047761.2243734.25737

@@ -1,0 +1,18 @@
+== LITELLM_PROXY_URL=''
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: LITELLM_PROXY_URL must have an explicit gateway port
+EXIT=1
+== LITELLM_PROXY_URL='http://127.0.0.1'
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: LITELLM_PROXY_URL must have an explicit gateway port
+EXIT=1
+== ambiguous port 14001
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: LITELLM_PROXY_URL port 14001 maps to multiple LiteLLM project env files; configure unique LITELLM_PORT values
+EXIT=1
+== missing projects dir
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: Claude gateway binding requires a readable LiteLLM projects directory; set LITELLM_PROJECTS_DIR or create /home/johannesr/.config/litellm/projects
+EXIT=1
+ALLDONE
+bash-5.3$ 

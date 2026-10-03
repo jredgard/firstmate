@@ -1,0 +1,1 @@
+spawned gwclims-ship harness=claude kind=ship mode=local-only yolo=on window=firstmate:fm-gwclims-ship worktree=/tmp/fmgw.a7EzhF/treehouse/.treehouse/notes-b074ff/1/notes

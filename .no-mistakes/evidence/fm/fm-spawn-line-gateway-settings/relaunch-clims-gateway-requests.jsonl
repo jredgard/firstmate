@@ -1,0 +1,3 @@
+{"t": "19:17:00", "gateway": "clims", "port": 14001, "method": "HEAD", "path": "/api/hello", "x-api-key": null, "authorization": null, "model": null, "stream": null}
+{"t": "19:17:01", "gateway": "clims", "port": 14001, "method": "POST", "path": "/v1/messages?beta=true", "x-api-key": "sk-lab-clims-ROTATED", "authorization": "Bearer sk-lab-clims-ROTATED", "model": "claude-haiku-4-5", "stream": true}
+{"t": "19:17:01", "gateway": "clims", "port": 14001, "method": "POST", "path": "/v1/messages?beta=true", "x-api-key": "sk-lab-clims-ROTATED", "authorization": "Bearer sk-lab-clims-ROTATED", "model": "claude-fable-5-1", "stream": true}
