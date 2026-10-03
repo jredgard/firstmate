@@ -1223,27 +1223,26 @@ test_claude_gateway_settings_bind_the_home_without_leaking_keys() {
   pass "Claude ship/scout launches bind the home gateway and read keys only at helper runtime"
 }
 
-test_claude_gateway_explicit_line_wins_and_preserves_attribution_optout() {
+test_claude_gateway_default_projects_preserves_attribution_optout() {
   local rec id projects out status settings helper seen
-  id=gateway-explicit-z20
+  id=gateway-default-projects-z20
   rec=$(make_spawn_case "$id" claude "$id")
   read_case_record "$rec"
   projects="$HOME_DIR/user-home/.config/litellm/projects"
   mkdir -p "$projects/templatecontrol" "$projects/clims"
-  printf 'LITELLM_PORT=4001\nLITELLM_MASTER_KEY=fixture-explicit-key\n' > "$projects/templatecontrol/env"
+  printf 'LITELLM_PORT=4006\nLITELLM_MASTER_KEY=fixture-default-key\n' > "$projects/templatecontrol/env"
   printf 'LITELLM_PORT=4001\n' > "$projects/clims/env"
-  printf 'templatecontrol\n' > "$HOME_DIR/config/litellm-line"
   : > "$HOME_DIR/config/keep-ai-trailers"
-  out=$(FM_TEST_FWD_LITELLM_PROXY_URL=http://localhost:4999 \
+  out=$(FM_TEST_FWD_LITELLM_PROXY_URL=http://localhost:4006 \
     run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR")
   status=$?
-  expect_code 0 "$status" "explicit line should override port discovery: $out"
+  expect_code 0 "$status" "port discovery should use the default projects directory: $out"
   settings=$(claude_settings_json_arg "$(cat "$LAUNCH_LOG")")
   helper=$(printf '%s' "$settings" | jq -r '.apiKeyHelper')
-  seen=$(bash -c "$helper") || fail "explicit line helper should execute"
-  assert_equals fixture-explicit-key "$seen" "the explicit line should select its env file under the default projects directory"
-  assert_attribution_policy_absent "$(cat "$LAUNCH_LOG")" "explicit gateway opt-out"
-  pass "explicit gateway line overrides port mapping, defaults the projects directory, and preserves attribution opt-out"
+  seen=$(bash -c "$helper") || fail "port-discovered helper should execute"
+  assert_equals fixture-default-key "$seen" "port discovery should select its env file under the default projects directory"
+  assert_attribution_policy_absent "$(cat "$LAUNCH_LOG")" "default projects gateway opt-out"
+  pass "gateway port discovery defaults the projects directory and preserves attribution opt-out"
 }
 
 test_claude_unbound_gateway_omits_settings_and_other_harnesses_ignore_binding() {
@@ -1252,7 +1251,6 @@ test_claude_unbound_gateway_omits_settings_and_other_harnesses_ignore_binding() 
     id="gateway-unbound-$harness-z20"
     rec=$(make_spawn_case "$id" "$harness" "$id")
     read_case_record "$rec"
-    printf 'missing-line\n' > "$HOME_DIR/config/litellm-line"
     if [ "$harness" = claude ]; then
       out=$(run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR")
     else
@@ -1275,7 +1273,7 @@ test_claude_unbound_gateway_omits_settings_and_other_harnesses_ignore_binding() 
 
 test_claude_gateway_bad_bindings_refuse_before_launch() {
   local rec id binding projects url out status
-  for binding in unmapped ambiguous invalid-line missing-env invalid-url; do
+  for binding in unmapped ambiguous missing-dir invalid-url; do
     id="gateway-refused-$binding-z20"
     rec=$(make_spawn_case "$id" claude "$id")
     read_case_record "$rec"
@@ -1288,18 +1286,26 @@ test_claude_gateway_bad_bindings_refuse_before_launch() {
         mkdir -p "$projects/templatecontrol"
         printf 'LITELLM_PORT=4001\n' > "$projects/templatecontrol/env"
         url=http://localhost:4001 ;;
-      invalid-line) printf '../clims\n' > "$HOME_DIR/config/litellm-line" ;;
-      missing-env) printf 'templatecontrol\n' > "$HOME_DIR/config/litellm-line" ;;
+      missing-dir) projects="$CASE_DIR/missing" ;;
       invalid-url) url=not-a-gateway ;;
     esac
     out=$(FM_TEST_FWD_LITELLM_PROXY_URL="$url" FM_TEST_FWD_LITELLM_PROJECTS_DIR="$projects" \
       run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR")
     status=$?
     expect_code 1 "$status" "$binding gateway binding should refuse: $out"
-    assert_contains "$out" 'config/litellm-line' "$binding refusal should identify the binding remedy"
-    if [ "$binding" = unmapped ]; then
-      assert_contains "$out" 'port 4999 maps to no readable LiteLLM project env file' "unmapped port refusal should identify the port and env files"
-    fi
+    case "$binding" in
+      unmapped)
+        assert_contains "$out" 'port 4999 maps to no readable LiteLLM project env file' "unmapped port refusal should identify the port and env files"
+        assert_contains "$out" 'configure LITELLM_PORT' "unmapped port refusal should identify the binding remedy" ;;
+      ambiguous)
+        assert_contains "$out" 'port 4001 maps to multiple LiteLLM project env files' "ambiguous port refusal should identify the port and env files"
+        assert_contains "$out" 'configure unique LITELLM_PORT values' "ambiguous port refusal should identify the binding remedy" ;;
+      missing-dir)
+        assert_contains "$out" 'requires a readable LiteLLM projects directory' "missing directory refusal should identify the binding failure"
+        assert_contains "$out" 'set LITELLM_PROJECTS_DIR' "missing directory refusal should identify the binding remedy" ;;
+      invalid-url)
+        assert_contains "$out" 'LITELLM_PROXY_URL must have an explicit gateway port' "invalid URL refusal should identify the binding remedy" ;;
+    esac
     [ ! -s "$LAUNCH_LOG" ] || fail "$binding refusal still delivered a launch"
     [ ! -e "$HOME_DIR/state/$id.meta" ] || fail "$binding refusal still published task metadata"
   done
@@ -2115,7 +2121,7 @@ test_claude_permission_mode_invalid_refuses_before_endpoint_or_metadata
 test_non_claude_harness_ignores_claude_permission_mode
 test_non_claude_harness_ignores_config_dir
 test_claude_gateway_settings_bind_the_home_without_leaking_keys
-test_claude_gateway_explicit_line_wins_and_preserves_attribution_optout
+test_claude_gateway_default_projects_preserves_attribution_optout
 test_claude_unbound_gateway_omits_settings_and_other_harnesses_ignore_binding
 test_claude_gateway_bad_bindings_refuse_before_launch
 test_claude_task_launch_carries_control_channel_authority

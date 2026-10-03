@@ -331,8 +331,7 @@
 #   A built-in Claude launch with LITELLM_PROXY_URL set additionally carries
 #   that gateway in CLI --settings env.ANTHROPIC_BASE_URL and env.LITELLM_PROXY_URL,
 #   overriding user/project settings on fresh launches and relaunches alike.
-#   config/litellm-line selects the project; without it the URL's explicit port
-#   must match exactly one project's LITELLM_PORT in
+#   The URL's explicit port must match exactly one project's LITELLM_PORT in
 #   ${LITELLM_PROJECTS_DIR:-$HOME/.config/litellm/projects}/*/env.
 #   Invalid bindings, unreadable env files, and unmapped/ambiguous ports refuse
 #   before endpoint creation. The settings apiKeyHelper reads LITELLM_MASTER_KEY
@@ -1903,59 +1902,40 @@ fi
 [ -z "$HARNESS_ARG" ] || ARG3=$HARNESS_ARG
 
 claude_gateway_settings() {
-  local projects_dir line_file line env_file port candidate candidate_port helper
+  local projects_dir env_file port candidate candidate_port helper
   projects_dir=${LITELLM_PROJECTS_DIR:-$HOME/.config/litellm/projects}
   if ! projects_dir=$(cd "$projects_dir" 2>/dev/null && pwd -P); then
     echo "error: Claude gateway binding requires a readable LiteLLM projects directory; set LITELLM_PROJECTS_DIR or create $HOME/.config/litellm/projects" >&2
     return 1
   fi
-  line_file="$CONFIG/litellm-line"
-  if ! line=$(fm_config_source_present "$line_file"); then
+  if ! port=$(printf '%s' "$LITELLM_PROXY_URL" | jq -Rer '
+    capture("^https?://(?:\\[[^]]+\\]|[^/?#:]+):(?<port>[0-9]+)(?:/[^?#]*)?$").port
+  ' 2>/dev/null); then
+    echo "error: LITELLM_PROXY_URL must have an explicit gateway port" >&2
     return 1
   fi
-  if [ "$line" = 1 ]; then
-    if [ ! -f "$line_file" ] || [ ! -r "$line_file" ] || ! line=$(jq -Rrs '
-      if test("^[A-Za-z0-9][A-Za-z0-9._-]*\\n?$") then rtrimstr("\n")
-      else error("expected one LiteLLM project name") end
-    ' "$line_file" 2>/dev/null); then
-      echo "error: config/litellm-line must be a readable regular file containing one LiteLLM project name" >&2
+  env_file=
+  for candidate in "$projects_dir"/*/env; do
+    [ -f "$candidate" ] && [ -r "$candidate" ] || continue
+    candidate_port=$(awk '
+      /^[[:space:]]*(export[[:space:]]+)?LITELLM_PORT[[:space:]]*=/ {
+        sub(/^[^=]*=[[:space:]]*/, "")
+        sub(/[[:space:]]+#.*$/, "")
+        sub(/[[:space:]\r]+$/, "")
+        if ($0 ~ /^"[0-9]+"$/ || $0 ~ /^\047[0-9]+\047$/) $0 = substr($0, 2, length($0) - 2)
+        value = $0
+      }
+      END { print value }
+    ' "$candidate") || return 1
+    [ "$candidate_port" = "$port" ] || continue
+    if [ -n "$env_file" ]; then
+      echo "error: LITELLM_PROXY_URL port $port maps to multiple LiteLLM project env files; configure unique LITELLM_PORT values" >&2
       return 1
     fi
-    env_file="$projects_dir/$line/env"
-  else
-    if ! port=$(printf '%s' "$LITELLM_PROXY_URL" | jq -Rer '
-      capture("^https?://(?:\\[[^]]+\\]|[^/?#:]+):(?<port>[0-9]+)(?:/[^?#]*)?$").port
-    ' 2>/dev/null); then
-      echo "error: LITELLM_PROXY_URL must have an explicit gateway port, or configure config/litellm-line" >&2
-      return 1
-    fi
-    env_file=
-    for candidate in "$projects_dir"/*/env; do
-      [ -f "$candidate" ] && [ -r "$candidate" ] || continue
-      candidate_port=$(awk '
-        /^[[:space:]]*(export[[:space:]]+)?LITELLM_PORT[[:space:]]*=/ {
-          sub(/^[^=]*=[[:space:]]*/, "")
-          sub(/[[:space:]]+#.*$/, "")
-          sub(/[[:space:]\r]+$/, "")
-          if ($0 ~ /^"[0-9]+"$/ || $0 ~ /^\047[0-9]+\047$/) $0 = substr($0, 2, length($0) - 2)
-          value = $0
-        }
-        END { print value }
-      ' "$candidate") || return 1
-      [ "$candidate_port" = "$port" ] || continue
-      if [ -n "$env_file" ]; then
-        echo "error: LITELLM_PROXY_URL port $port maps to multiple LiteLLM project env files; set config/litellm-line explicitly" >&2
-        return 1
-      fi
-      env_file=$candidate
-    done
-    if [ -z "$env_file" ]; then
-      echo "error: LITELLM_PROXY_URL port $port maps to no readable LiteLLM project env file under $projects_dir; configure LITELLM_PORT or config/litellm-line" >&2
-      return 1
-    fi
-  fi
-  if [ ! -f "$env_file" ] || [ ! -r "$env_file" ]; then
-    echo "error: config/litellm-line requires a readable LiteLLM project env file at $env_file; create it or correct the binding" >&2
+    env_file=$candidate
+  done
+  if [ -z "$env_file" ]; then
+    echo "error: LITELLM_PROXY_URL port $port maps to no readable LiteLLM project env file under $projects_dir; configure LITELLM_PORT" >&2
     return 1
   fi
   helper="bash -c $(shell_quote "set -e; unset LITELLM_MASTER_KEY; . \"\$1\"; test -n \"\${LITELLM_MASTER_KEY:-}\"; printf \"%s\\n\" \"\$LITELLM_MASTER_KEY\"") bash $(shell_quote "$env_file")"
