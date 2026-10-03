@@ -102,7 +102,7 @@ Untracked files and directories whose names begin with `scratchpad` are also git
 ### Format and lifecycle references
 
 The project registry in `data/projects.md` uses the bracket-token format owned by [`bin/fm-project-mode.sh`](../bin/fm-project-mode.sh).
-For example, `- app [no-mistakes nmskip=lint] - description (added YYYY-MM-DD)` registers a per-run lint skip without removing the repository's configured lint command.
+For example, `- app [no-mistakes nmskip=lint] - description (added YYYY-MM-DD)` registers a per-run lint skip without removing the repository's configured lint command, because an empty lint command makes the no-mistakes gate run a token-costing agent lint pass instead.
 The optional `nmskip=lint` token is order-independent alongside the mode, `+yolo`, `branch=`, and `forge=`; absent or empty values select no skips and all other values are refused.
 Firstmate resolves that preference at intake; [`bin/fm-dod-lib.sh`](../bin/fm-dod-lib.sh) owns the explicit task contract and Gerrit publication composition.
 
