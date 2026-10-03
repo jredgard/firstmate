@@ -1178,6 +1178,134 @@ assert_attribution_policy_absent() {  # <launch-command> <what>
     || fail "$what launch settings JSON still disables Claude attribution: $settings"
 }
 
+test_claude_gateway_settings_bind_the_home_without_leaking_keys() {
+  local rec id kind line port projects env_file out status launch settings helper seen
+  for kind in ship scout; do
+    if [ "$kind" = ship ]; then line=clims; port=4001; else line=templatecontrol; port=4006; fi
+    id="gateway-$kind-z20"
+    rec=$(make_spawn_case "$id" claude "$id")
+    read_case_record "$rec"
+    projects="$CASE_DIR/line's projects"
+    env_file="$projects/$line/env"
+    mkdir -p "$projects/$line" "$projects/mosaiq"
+    printf 'export LITELLM_PORT="%s" # gateway\nLITELLM_MASTER_KEY=fixture-line-key\ntouch "%s"\n' "$port" "$CASE_DIR/env-sourced" > "$env_file"
+    printf 'LITELLM_PORT=4000\nLITELLM_MASTER_KEY=fixture-other-key\n' > "$projects/mosaiq/env"
+    if [ "$kind" = ship ]; then
+      out=$(FM_TEST_FWD_LITELLM_PROXY_URL="http://localhost:$port" FM_TEST_FWD_LITELLM_PROJECTS_DIR="$projects" \
+        run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR")
+    else
+      out=$(FM_TEST_FWD_LITELLM_PROXY_URL="http://localhost:$port" FM_TEST_FWD_LITELLM_PROJECTS_DIR="$projects" \
+        run_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR" --scout)
+    fi
+    status=$?
+    expect_code 0 "$status" "$kind gateway spawn should succeed: $out"
+    [ ! -e "$CASE_DIR/env-sourced" ] || fail "port discovery executed the project env file"
+    launch=$(cat "$LAUNCH_LOG")
+    settings=$(claude_settings_json_arg "$launch")
+    printf '%s' "$settings" | jq -e --arg url "http://localhost:$port" '
+      .env.ANTHROPIC_BASE_URL == $url and .env.LITELLM_PROXY_URL == $url and
+      .env.ANTHROPIC_AUTH_TOKEN == "" and .env.ANTHROPIC_API_KEY == "" and
+      (.apiKeyHelper | type == "string")
+    ' >/dev/null || fail "$kind launch did not carry gateway env and helper"
+    assert_attribution_policy "$launch" "$kind gateway"
+    helper=$(printf '%s' "$settings" | jq -r '.apiKeyHelper')
+    seen=$(bash -c "$helper") || fail "the rendered gateway helper failed"
+    assert_equals fixture-line-key "$seen" "the helper should select the bound line's key"
+    printf 'LITELLM_MASTER_KEY=fixture-rotated-key\n' > "$env_file"
+    seen=$(bash -c "$helper") || fail "the rendered gateway helper failed after key rotation"
+    assert_equals fixture-rotated-key "$seen" "the helper should read the current key, not a captured value"
+    : > "$env_file"
+    LITELLM_MASTER_KEY=fixture-inherited-key bash -c "$helper" >/dev/null 2>&1 \
+      && fail "a missing key fell back to inherited credentials"
+    assert_not_contains "$launch$out$(cat "$HOME_DIR/state/$id.meta")" fixture-line-key "the master key leaked into spawn output or metadata"
+    assert_not_contains "$launch$out$(cat "$HOME_DIR/state/$id.meta")" fixture-other-key "another line's key leaked into spawn output or metadata"
+  done
+  pass "Claude ship/scout launches bind the home gateway and read keys only at helper runtime"
+}
+
+test_claude_gateway_explicit_line_wins_and_preserves_attribution_optout() {
+  local rec id projects out status settings helper seen
+  id=gateway-explicit-z20
+  rec=$(make_spawn_case "$id" claude "$id")
+  read_case_record "$rec"
+  projects="$HOME_DIR/user-home/.config/litellm/projects"
+  mkdir -p "$projects/templatecontrol" "$projects/clims"
+  printf 'LITELLM_PORT=4001\nLITELLM_MASTER_KEY=fixture-explicit-key\n' > "$projects/templatecontrol/env"
+  printf 'LITELLM_PORT=4001\n' > "$projects/clims/env"
+  printf 'templatecontrol\n' > "$HOME_DIR/config/litellm-line"
+  : > "$HOME_DIR/config/keep-ai-trailers"
+  out=$(FM_TEST_FWD_LITELLM_PROXY_URL=http://localhost:4999 \
+    run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR")
+  status=$?
+  expect_code 0 "$status" "explicit line should override port discovery: $out"
+  settings=$(claude_settings_json_arg "$(cat "$LAUNCH_LOG")")
+  helper=$(printf '%s' "$settings" | jq -r '.apiKeyHelper')
+  seen=$(bash -c "$helper") || fail "explicit line helper should execute"
+  assert_equals fixture-explicit-key "$seen" "the explicit line should select its env file under the default projects directory"
+  assert_attribution_policy_absent "$(cat "$LAUNCH_LOG")" "explicit gateway opt-out"
+  pass "explicit gateway line overrides port mapping, defaults the projects directory, and preserves attribution opt-out"
+}
+
+test_claude_unbound_gateway_omits_settings_and_other_harnesses_ignore_binding() {
+  local rec id harness out status settings launch
+  for harness in claude codex pi; do
+    id="gateway-unbound-$harness-z20"
+    rec=$(make_spawn_case "$id" "$harness" "$id")
+    read_case_record "$rec"
+    printf 'missing-line\n' > "$HOME_DIR/config/litellm-line"
+    if [ "$harness" = claude ]; then
+      out=$(run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR")
+    else
+      out=$(FM_TEST_FWD_LITELLM_PROXY_URL=http://localhost:4999 FM_TEST_FWD_LITELLM_PROJECTS_DIR="$CASE_DIR/missing" \
+        run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR")
+    fi
+    status=$?
+    expect_code 0 "$status" "$harness should ignore an inactive gateway binding: $out"
+    launch=$(cat "$LAUNCH_LOG")
+    if [ "$harness" = claude ]; then
+      settings=$(claude_settings_json_arg "$launch")
+      printf '%s' "$settings" | jq -e '(has("env") | not) and (has("apiKeyHelper") | not)' >/dev/null \
+        || fail "unbound Claude should omit gateway settings"
+    else
+      assert_not_contains "$launch" apiKeyHelper "$harness should not carry Claude gateway settings"
+    fi
+  done
+  pass "unset gateway preserves Claude settings; Codex and Pi ignore Claude gateway bindings"
+}
+
+test_claude_gateway_bad_bindings_refuse_before_launch() {
+  local rec id binding projects url out status
+  for binding in unmapped ambiguous invalid-line missing-env invalid-url; do
+    id="gateway-refused-$binding-z20"
+    rec=$(make_spawn_case "$id" claude "$id")
+    read_case_record "$rec"
+    projects="$CASE_DIR/projects"
+    mkdir -p "$projects/clims"
+    printf 'LITELLM_PORT=4001\n' > "$projects/clims/env"
+    url=http://localhost:4999
+    case "$binding" in
+      ambiguous)
+        mkdir -p "$projects/templatecontrol"
+        printf 'LITELLM_PORT=4001\n' > "$projects/templatecontrol/env"
+        url=http://localhost:4001 ;;
+      invalid-line) printf '../clims\n' > "$HOME_DIR/config/litellm-line" ;;
+      missing-env) printf 'templatecontrol\n' > "$HOME_DIR/config/litellm-line" ;;
+      invalid-url) url=not-a-gateway ;;
+    esac
+    out=$(FM_TEST_FWD_LITELLM_PROXY_URL="$url" FM_TEST_FWD_LITELLM_PROJECTS_DIR="$projects" \
+      run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR")
+    status=$?
+    expect_code 1 "$status" "$binding gateway binding should refuse: $out"
+    assert_contains "$out" 'config/litellm-line' "$binding refusal should identify the binding remedy"
+    if [ "$binding" = unmapped ]; then
+      assert_contains "$out" 'port 4999 maps to no readable LiteLLM project env file' "unmapped port refusal should identify the port and env files"
+    fi
+    [ ! -s "$LAUNCH_LOG" ] || fail "$binding refusal still delivered a launch"
+    [ ! -e "$HOME_DIR/state/$id.meta" ] || fail "$binding refusal still published task metadata"
+  done
+  pass "unmapped, ambiguous, malformed, and missing gateway bindings refuse before launch"
+}
+
 test_claude_task_launch_carries_control_channel_authority() {
   local rec id out status launch
   id=profile-claude-control-channel-z21
@@ -1986,6 +2114,10 @@ test_claude_worker_launch_covers_task_channel_dirs
 test_claude_permission_mode_invalid_refuses_before_endpoint_or_metadata
 test_non_claude_harness_ignores_claude_permission_mode
 test_non_claude_harness_ignores_config_dir
+test_claude_gateway_settings_bind_the_home_without_leaking_keys
+test_claude_gateway_explicit_line_wins_and_preserves_attribution_optout
+test_claude_unbound_gateway_omits_settings_and_other_harnesses_ignore_binding
+test_claude_gateway_bad_bindings_refuse_before_launch
 test_claude_task_launch_carries_control_channel_authority
 test_claude_secondmate_launch_omits_task_control_channel_authority
 test_claude_long_launch_is_delivered_intact
