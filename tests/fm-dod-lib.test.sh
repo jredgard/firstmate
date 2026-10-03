@@ -439,6 +439,32 @@ test_nm_driving_preserves_provenance_budget_and_custody() {
 }
 
 test_nm_driving_preserves_provenance_budget_and_custody
+test_nm_skip_renderer_refuses_before_output() {
+  local mode out status forge skip
+  for mode in direct-PR local-only; do
+    out=$(fm_dod_block "$mode" skip-guard fm/skip-guard none lint 2>"$TMP_ROOT/skip-error")
+    status=$?
+    [ "$status" -ne 0 ] || fail "renderer accepted no-mistakes skips for $mode"
+    [ -z "$out" ] || fail "renderer emitted a partial contract before refusing $mode skips"
+  done
+  for forge in none gerrit; do
+    for skip in test document 'lint,test' 'lint,document' 'lint,lint' review; do
+      out=$(fm_dod_block no-mistakes skip-guard fm/skip-guard "$forge" "$skip" 2>"$TMP_ROOT/skip-error")
+      status=$?
+      [ "$status" -ne 0 ] || fail "renderer accepted skipping $skip on $forge"
+      [ -z "$out" ] || fail "renderer emitted a partial contract before refusing $skip skip"
+      assert_grep 'use lint only, or an empty value for no skips' "$TMP_ROOT/skip-error" "renderer refusal omitted accepted values"
+      out=$(fm_nm_driving_block "$forge" "$skip" 2>"$TMP_ROOT/skip-error")
+      status=$?
+      [ "$status" -ne 0 ] || fail "driving block accepted skipping $skip on $forge"
+      [ -z "$out" ] || fail "driving block emitted instructions before refusing $skip skip"
+      assert_grep 'use lint only, or an empty value for no skips' "$TMP_ROOT/skip-error" "driving refusal omitted accepted values"
+    done
+  done
+  pass "no-mistakes skip renderer refuses invalid modes and steps before emitting a contract"
+}
+
+test_nm_skip_renderer_refuses_before_output
 test_scout_done_is_not_gated
 test_unpushed_ship_done_is_refused
 test_no_mistakes_prevalidation_done_is_not_gated

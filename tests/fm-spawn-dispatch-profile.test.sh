@@ -2072,6 +2072,44 @@ test_non_claude_harness_ignores_claude_permission_mode() {
 }
 
 test_worker_launch_delivers_role_scope
+test_spawn_records_nm_skip() {
+  local rec id out status
+  id=spawn-nm-skip
+  rec=$(make_spawn_case nm-skip claude "$id")
+  read_case_record "$rec"
+  printf '%s\n' '- project [no-mistakes nmskip=lint] - fixture' > "$HOME_DIR/data/projects.md"
+  printf '\nDelivery contract: mode=no-mistakes skip=lint\n' >> "$HOME_DIR/data/$id/brief.md"
+  out=$(run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR" --nm-skip lint)
+  status=$?
+  expect_code 0 "$status" "spawn with matching skips should succeed: $out"
+  assert_grep 'nm_skip=lint' "$HOME_DIR/state/$id.meta" "spawn lost explicit skip metadata"
+  assert_grep 'Delivery contract: mode=no-mistakes skip=lint' "$HOME_DIR/data/$id/launch-brief.md" \
+    "worker launch lost the agreed skip contract"
+  assert_not_contains "$out" 'registers nmskip=' "matching skip was announced as a deviation"
+  pass "fm-spawn: an explicit skip reaches the durable task metadata and launched worker"
+}
+
+test_batch_forwards_nm_skip() {
+  local rec id1 id2 out status id
+  id1=spawn-skip-batch-a
+  id2=spawn-skip-batch-b
+  rec=$(make_spawn_case nm-skip-batch claude "$id1" "$id2")
+  read_case_record "$rec"
+  for id in "$id1" "$id2"; do
+    printf '\nDelivery contract: mode=no-mistakes skip=lint\n' >> "$HOME_DIR/data/$id/brief.md"
+  done
+  out=$(run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" \
+    "$id1=$PROJ_DIR" "$id2=$PROJ_DIR" --nm-skip=lint)
+  status=$?
+  expect_code 0 "$status" "batch with explicit shared skips should succeed: $out"
+  for id in "$id1" "$id2"; do
+    assert_grep 'nm_skip=lint' "$HOME_DIR/state/$id.meta" "batch lost the lint skip for $id"
+  done
+  pass "fm-spawn: batch dispatch forwards explicit skips to every pair"
+}
+
+test_spawn_records_nm_skip
+test_batch_forwards_nm_skip
 test_no_profile_keeps_claude_profile_defaults
 test_claude_launch_brief_publishes_record_doorbell
 test_claude_secondmate_launch_brief_publishes_into_its_own_home

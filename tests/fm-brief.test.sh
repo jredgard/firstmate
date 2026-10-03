@@ -1420,6 +1420,72 @@ test_crewmate_scaffolds_forbid_pool_administration() {
   pass "fm-brief.sh: every crewmate scaffold forbids administering the shared worktree pool"
 }
 
+test_nm_skip_contract() {
+  local home id brief forge wait_setting expected
+  home="$TMP_ROOT/nm-skip/home"
+  mkdir -p "$home/data" "$home/config"
+  printf '%s\n' '- proj [no-mistakes nmskip=lint] - fixture' > "$home/data/projects.md"
+  for forge in none gerrit; do
+    for wait_setting in background foreground; do
+      id="nm-skip-$forge-$wait_setting"
+      if [ "$wait_setting" = foreground ]; then
+        touch "$home/config/wait-no-turns"
+      else
+        rm -f "$home/config/wait-no-turns"
+      fi
+      FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" proj --mode no-mistakes \
+        --forge "$forge" --nm-skip lint >/dev/null 2>&1 \
+        || fail "nm-skip brief should scaffold for $forge/$wait_setting"
+      brief="$home/data/$id/brief.md"
+      assert_grep 'skip=lint' "$brief" "brief lost the explicit lint skip"
+      expected=lint
+      [ "$forge" != gerrit ] || expected=push,pr,ci,lint
+      grep -Fx "Pass \`--skip $expected\` on every \`no-mistakes axi run\` for this task, and skip nothing else." "$brief" >/dev/null \
+        || fail "brief did not render the single merged per-run skip instruction"
+      assert_no_grep 'without flags' "$brief" "reattach instruction contradicts per-run skips"
+      [ "$(grep -c '^Pass `--skip ' "$brief")" -eq 1 ] \
+        || fail "brief rendered conflicting skip instructions"
+    done
+  done
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" nm-skip-empty proj --mode no-mistakes --nm-skip '' >/dev/null 2>&1 \
+    || fail "an explicitly empty skip value should scaffold"
+  brief="$home/data/nm-skip-empty/brief.md"
+  grep -qx 'Delivery contract: mode=no-mistakes' "$brief" || fail "empty skip changed the delivery line"
+  assert_no_grep "Pass \`--skip " "$brief" "empty skip rendered a skip instruction"
+  assert_grep 'without flags' "$brief" "empty skip changed the legacy reattach instruction"
+  pass "fm-brief.sh: explicit skips reach each driving contract, merge Gerrit skips, and never read the registry"
+}
+
+test_nm_skip_refusals() {
+  local home flags out status skip number=0
+  home="$TMP_ROOT/nm-skip-refusals/home"
+  mkdir -p "$home/data"
+  for flags in '--scout proj' '--secondmate --no-projects' '--mode direct-PR proj' '--mode local-only proj'; do
+    number=$((number + 1))
+    # shellcheck disable=SC2086
+    out=$(FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "nm-skip-refuse-$number" $flags --nm-skip lint 2>&1)
+    status=$?
+    [ "$status" -ne 0 ] || fail "$flags accepted --nm-skip"
+    assert_contains "$out" '--nm-skip applies only' "refusal did not identify the skip scope"
+    assert_absent "$home/data/nm-skip-refuse-$number/brief.md" "refusal wrote a brief"
+  done
+  for skip in test document 'lint,test' 'lint,document' 'lint,lint' review push pr ci intent rebase bogus ',lint' 'lint,' 'lint,,test' 'lint test'; do
+    number=$((number + 1))
+    out=$(FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "nm-skip-refuse-$number" proj --mode no-mistakes --nm-skip="$skip" 2>&1)
+    status=$?
+    [ "$status" -ne 0 ] || fail "brief accepted invalid skip '$skip'"
+    assert_contains "$out" 'use lint only, or an empty value for no skips' "invalid skip refusal did not name the repair"
+    assert_absent "$home/data/nm-skip-refuse-$number/brief.md" "invalid skip wrote a brief"
+  done
+  out=$(FM_HOME="$home" "$ROOT/bin/fm-brief.sh" nm-skip-missing proj --mode no-mistakes --nm-skip 2>&1)
+  status=$?
+  [ "$status" -ne 0 ] || fail "brief accepted --nm-skip without a value"
+  assert_contains "$out" '--nm-skip requires a value' "missing skip refusal was not actionable"
+  pass "fm-brief.sh: skip scope, closed set, invalid values, and missing values refuse before scaffolding"
+}
+
+test_nm_skip_contract
+test_nm_skip_refusals
 test_script_parses
 test_no_heredoc_in_command_substitution
 test_help_includes_entire_header

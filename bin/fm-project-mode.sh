@@ -9,12 +9,13 @@
 # With --forge it prints one word instead: the project's registered forge,
 # none|gerrit. The forge is asked for explicitly, so the default output stays
 # the same two words for every project, bound or not.
+# --nm-skip prints the registered per-task lint skip or an empty line.
 #
 # MECHANICAL CONSUMERS ONLY. This answers "what posture did the captain register
 # for this project", never "how does this task ship". A task's delivery mode,
-# yolo, and ship-branch prefix are resolved by firstmate at intake and passed
+# yolo, ship-branch prefix, and no-mistakes skips are resolved at intake and passed
 # explicitly to bin/fm-brief.sh, bin/fm-spawn.sh, and bin/fm-promote.sh (AGENTS.md
-# section 7; bin/fm-brief.sh's own header owns the --branch-prefix flag it accepts).
+# section 7; bin/fm-brief.sh's header owns the explicit flags it accepts).
 # The consumers are bin/fm-fleet-sync.sh (skip local-only clones),
 # bin/fm-home-seed.sh and bin/fm-remote-home-seed.sh (refuse local-only seeding,
 # run no-mistakes init), bin/fm-spawn.sh's advisory registry-deviation notice,
@@ -28,12 +29,18 @@
 #   - <name> [<mode> +yolo] - <desc> (added <date>)                  -> <mode> on fm/
 #   - <name> [<mode> +yolo branch=<prefix>] - <desc> (added <date>)  -> <mode> <yolo> <prefix>
 #   - <name> [<mode> forge=gerrit] - <desc> (added <date>)           -> <mode> off, --forge gerrit
+#   - <name> [<mode> nmskip=lint] - <desc> (added <date>)            -> --nm-skip lint
 #   <name> may contain spaces; it ends at the literal " [" or " - " that follows it.
-#   Bracket tokens are order-independent: +yolo, branch=<prefix>, and forge=<value>
+#   Bracket tokens are order-independent: +yolo, branch=<prefix>, forge=<value>, and nmskip=lint
 #   are recognized by their own shape wherever they appear, and whichever token is
 #   left over is the mode. <prefix> must not contain a space; an empty override
 #   ("branch=") resolves to "" for a bare "<task-id>" ship branch instead of the
 #   legacy "fm/<task-id>".
+#   nmskip=lint selects the lint skip; absent
+#   or empty means no intake skips. Invalid steps refuse every query with an
+#   actionable error and exit status 3. All other steps are never skippable
+#   through this token. Firstmate resolves the value at intake and passes --nm-skip
+#   explicitly to brief, spawn, and promotion; no consumer guesses task skips.
 #
 # Registered modes:
 #   no-mistakes            full pipeline -> PR -> configured merge authority (default)
@@ -79,11 +86,11 @@
 # An unknown/missing project or unknown mode falls back to "no-mistakes off" (or
 # "fm/" under --branch-prefix) and warns to stderr, so a typo never silently
 # drops the gate. Other annotation tokens are ignored, as they always were, keyed
-# ones included: a `<key>=<value>` token whose key is neither exactly `forge` nor
-# `branch` resolves as it did before the forge existed, and in the mode slot it
+# ones included: a `<key>=<value>` token whose key is not `forge`, `branch`, or
+# `nmskip` resolves as it did before the forge existed, and in the mode slot it
 # is read as an unknown mode. A key one or two edits from `forge` (such as
 # `forg=` or `Forge=`) is still ignored, with one stderr warning naming the token
-# and the forge=gerrit spelling. The one refusal is a malformed forge binding - a
+# and the forge=gerrit spelling. Apart from invalid nmskip values, a malformed forge binding - a
 # `forge=` token whose value is empty or outside the closed set - which is
 # REFUSED in the default and --forge output forms: nothing on stdout, exit
 # status 3, the token named. Resolving it to "no registered forge" would hand a
@@ -92,11 +99,14 @@
 # that check: it answers only the registered prefix, and a prefix is orthogonal
 # to the forge binding, so it prints even when the forge token is malformed;
 # every path that reads the forge binding (default, --forge, and spawn's
-# forge-agreement check) still refuses.
-# Usage: fm-project-mode.sh [--raw|--branch-prefix|--forge] <project-name>
+# forge-agreement check) still refuses. --nm-skip likewise answers only its
+# registered axis; invalid nmskip values still refuse every query.
+# Usage: fm-project-mode.sh [--raw|--branch-prefix|--forge|--nm-skip] <project-name>
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=bin/fm-dod-lib.sh
+. "$SCRIPT_DIR/fm-dod-lib.sh"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
@@ -104,23 +114,26 @@ REG="$DATA/projects.md"
 RAW=0
 BRANCH_PREFIX_QUERY=0
 WANT_FORGE=0
+NM_SKIP_QUERY=0
 case "${1:-}" in
   --raw) RAW=1; shift ;;
   --branch-prefix) BRANCH_PREFIX_QUERY=1; shift ;;
   --forge) WANT_FORGE=1; shift ;;
+  --nm-skip) NM_SKIP_QUERY=1; shift ;;
 esac
-NAME=${1:?usage: fm-project-mode.sh [--raw|--branch-prefix|--forge] <project-name>}
+NAME=${1:?usage: fm-project-mode.sh [--raw|--branch-prefix|--forge|--nm-skip] <project-name>}
 
 if [ ! -f "$REG" ]; then
   echo "warn: no registry at $REG; defaulting $NAME to no-mistakes off" >&2
   if [ "$BRANCH_PREFIX_QUERY" -eq 1 ]; then
     echo "fm/"
+  elif [ "$NM_SKIP_QUERY" -eq 1 ]; then echo ''
   elif [ "$WANT_FORGE" -eq 1 ]; then echo none; else echo "no-mistakes off"; fi
   exit 0
 fi
 
 # awk emits one "near <token>" line per keyed token whose key is a near miss of
-# `forge`, then "posture <mode> <yolo> <branch-prefix> <forge>" (branch-prefix is
+# `forge`, then "posture <mode> <yolo> <forge> <nmskip-token> <branch-prefix>" (branch-prefix is
 # the raw prefix, defaulting to "fm/"; forge is `none` or the whole `forge=<value>`
 # token, so an empty value survives the split), or nothing if the project is
 # absent. Every other token beside the mode is ignored, exactly as before either
@@ -149,14 +162,14 @@ parsed=$(awk -v n="$NAME" '
     if (substr($0, 1, plen) != prefix) next
     after = substr($0, plen + 1);
     if (after != "" && substr(after, 1, 2) != " [" && substr(after, 1, 3) != " - ") next
-    mode="no-mistakes"; yolo="off"; branch="fm/"; forge="none";
+    mode="no-mistakes"; yolo="off"; branch="fm/"; forge="none"; nm_skip="nmskip=";
     if (substr(after, 1, 2) == " [") {
       s="";
       nk = split(after, rest, " ");
       for (i=1; i<=nk; i++) { s = s (s==""?"":" ") rest[i]; if (rest[i] ~ /\]$/) break }
       gsub(/^\[|\]$/, "", s);           # strip the surrounding brackets
       k = split(s, a, " ");
-      # Tokens are order-independent: +yolo, branch=<prefix>, and forge=<value>
+      # Tokens are order-independent: +yolo, branch=<prefix>, forge=<value>, and nmskip=lint
       # are recognized by their own shape wherever they appear, keyed tokens
       # that are neither are ignored (with a near-miss warning for the forge
       # spelling), and the first token left over is the mode.
@@ -165,6 +178,7 @@ parsed=$(awk -v n="$NAME" '
         if (a[j]=="+yolo") { yolo="on"; continue }
         if (a[j] ~ /^branch=/) { branch = substr(a[j], 8); continue }
         if (a[j] ~ /^forge=/) { forge = a[j]; continue }
+        if (a[j] ~ /^nmskip=/) { nm_skip = a[j]; continue }
         if (a[j] ~ /^[^=]+=/) {
           key = substr(a[j], 1, index(a[j], "=") - 1);
           e = dist(key, "forge");
@@ -177,7 +191,7 @@ parsed=$(awk -v n="$NAME" '
     }
     # branch is printed LAST: an empty branch= override must survive as an
     # empty final field, which only holds when nothing follows it.
-    print "posture", mode, yolo, forge, branch; exit
+    print "posture", mode, yolo, forge, nm_skip, branch; exit
   }
 ' "$REG")
 
@@ -185,6 +199,7 @@ if [ -z "$parsed" ]; then
   echo "warn: project \"$NAME\" not in registry; defaulting to no-mistakes off" >&2
   if [ "$BRANCH_PREFIX_QUERY" -eq 1 ]; then
     echo "fm/"
+  elif [ "$NM_SKIP_QUERY" -eq 1 ]; then echo ''
   elif [ "$WANT_FORGE" -eq 1 ]; then echo none; else echo "no-mistakes off"; fi
   exit 0
 fi
@@ -198,17 +213,22 @@ while IFS=' ' read -r kind rest; do
 done <<EOF
 $parsed
 EOF
-while IFS=' ' read -r m y f b; do
-  mode=$m; yolo=$y; rest_forge=$f; branch=$b
+while IFS=' ' read -r m y f skip_token b; do
+  mode=$m; yolo=$y; rest_forge=$f; nm_skip=${skip_token#nmskip=}; branch=$b
 done <<EOF
 $posture
 EOF
 forge=${rest_forge:-none}
+fm_nm_skip_valid "$nm_skip" "$REG entry for $NAME (correct nmskip=)" || exit 3
 case "$mode" in
   no-mistakes|direct-PR|local-only|no-mistakes-prod-only) ;;
-  *) echo "warn: unknown mode \"$mode\" for $NAME; defaulting to no-mistakes off" >&2; mode=no-mistakes; yolo=off; branch=fm/ ;;
+  *) echo "warn: unknown mode \"$mode\" for $NAME; defaulting to no-mistakes off" >&2; mode=no-mistakes; yolo=off; branch=fm/; nm_skip= ;;
 esac
 case "$yolo" in on|off) ;; *) yolo=off ;; esac
+if [ "$NM_SKIP_QUERY" -eq 1 ]; then
+  echo "$nm_skip"
+  exit 0
+fi
 if [ "$BRANCH_PREFIX_QUERY" -eq 1 ]; then
   echo "$branch"
   exit 0

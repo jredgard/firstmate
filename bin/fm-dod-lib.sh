@@ -6,13 +6,17 @@
 # receives. Both paths must hand the worker the same contract: a promoted
 # no-mistakes worker that never received the ask-user escalation rule or the
 # `--yes` ban is the exact delivery hole this single owner exists to close.
-# fm_dod_block <no-mistakes|direct-PR|local-only> <task-id> [branch] [<forge>]
+# fm_dod_block <no-mistakes|direct-PR|local-only> <task-id> [branch] [<forge>] [<nm-skip>]
 # prints the block on stdout with no trailing blank line. The caller validates the
 # mode; an unknown mode is refused rather than silently rendered as the pipeline
 # contract.
 # The optional third argument is the task's full ship-branch name (a project's
 # registered prefix may replace the legacy `fm/` one); it defaults to `fm/<task-id>`
 # and is the immutable task branch rendered in every delivery contract.
+# The optional fifth argument is the intake-resolved lint skip;
+# it is refused outside no-mistakes. The contract records
+# skip=lint and the driving block carries the exact per-run --skip argument,
+# merged with push,pr,ci when Gerrit requires publication outside the pipeline.
 # Callers of the gate are bin/fm-crew-state.sh (current-state done),
 # bin/fm-pr-check.sh (PR registration), and bin/fm-inactive-reconcile.sh
 # (secondmate ledger-first publish of a child done). A ship `done:` is not
@@ -138,6 +142,15 @@ fm_forge_valid_for_mode() {  # <forge> <mode> <caller>
     return 1
   fi
   return 0
+}
+
+fm_nm_skip_valid() {
+  case "$1" in
+    ''|lint) return 0 ;;
+    *)
+      echo "error: $2: invalid no-mistakes skip '$1'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake" >&2
+      return 1 ;;
+  esac
 }
 
 fm_ship_rule_one() {  # <no-mistakes|direct-PR|local-only> <task-id> [branch] [<forge>]
@@ -279,9 +292,15 @@ EOF
 # the pipeline, what `--intent` may carry, and the two firstmate-specific rules.
 # Written once; publication and branch custody differ on Gerrit because its
 # push, PR, and CI steps are skipped and fixes stay in the gate until recovered.
-fm_nm_driving_block() {  # <forge>
+fm_nm_driving_block() {  # <forge> [<nm-skip>]
   local pr_return_line='' pr_reattach_clause=';' drive_block wait_cfg
-  local custody_line followup_line sync_line
+  local custody_line followup_line sync_line nm_skip=${2:-} run_skip reattach_flags='without flags'
+  fm_nm_skip_valid "$nm_skip" fm_nm_driving_block || return 1
+  run_skip=$nm_skip
+  if [ -n "$nm_skip" ]; then
+    [ "$1" != gerrit ] || run_skip="push,pr,ci,$nm_skip"
+    reattach_flags="with \`--skip $run_skip\`"
+  fi
   if [ "$1" = gerrit ]; then
     custody_line='When the run reaches a passing outcome, follow the custody recovery steps below before publishing.'
     followup_line='For follow-up commits, recover custody first, commit on this branch, and run the review pass again before publishing.'
@@ -302,13 +321,16 @@ fm_nm_driving_block() {  # <forge>
 It bounds its own hold for you: \`--wait\` (default 8m) exists precisely so a harness with a ten-minute command cap gets a structured return instead of being killed mid-hold.
 Declare that wait using the brief's status-reporting rule before the foreground drive call.
 Never background a wait, and never arm a timer to stand in for one: a backgrounded call returns in milliseconds, so it does not wait at all, and every timer left behind fires later as a paid wake for nothing.
-${pr_return_line}Whenever a drive call returns without a gate or an outcome - its own wait elapsed, or it was killed or timed out - that is not a failure: reattach at once by re-running \`no-mistakes axi run\` without flags, and issue the same foreground call again, one at a time, until a gate or outcome comes back${pr_reattach_clause} if it refuses because no run is active, read the finished outcome from \`no-mistakes axi status\`."
+${pr_return_line}Whenever a drive call returns without a gate or an outcome - its own wait elapsed, or it was killed or timed out - that is not a failure: reattach at once by re-running \`no-mistakes axi run\` $reattach_flags, and issue the same foreground call again, one at a time, until a gate or outcome comes back${pr_reattach_clause} if it refuses because no run is active, read the finished outcome from \`no-mistakes axi status\`."
   else
     drive_block="One drive call blocks until the next gate or outcome, which routinely outlives what your harness lets a single command run: Claude Code kills a command at ten minutes maximum, while one fix round is capped around thirty minutes and up to three rounds chain.
 So background the drive call instead of sitting in one blocking hold your harness will kill, and read its return when it finishes.
 Declare that wait using the brief's status-reporting rule before waiting on the backgrounded drive call.
 Where a harness's own command limit is not established, assume it bounds commands and use that same backgrounded shape.
-${pr_return_line}Whenever a drive call returns without a gate or an outcome - its own wait elapsed, or it was killed or timed out - reattach at once by re-running \`no-mistakes axi run\` without flags, backgrounded the same way${pr_reattach_clause} if it refuses because no run is active, read the finished outcome from \`no-mistakes axi status\`."
+${pr_return_line}Whenever a drive call returns without a gate or an outcome - its own wait elapsed, or it was killed or timed out - reattach at once by re-running \`no-mistakes axi run\` $reattach_flags, backgrounded the same way${pr_reattach_clause} if it refuses because no run is active, read the finished outcome from \`no-mistakes axi status\`."
+  fi
+  if [ -n "$nm_skip" ]; then
+    printf "Pass \`--skip %s\` on every \`no-mistakes axi run\` for this task, and skip nothing else.\n" "$run_skip"
   fi
   cat <<EOF
 You drive no-mistakes by responding to its gates, not by implementing fixes.
@@ -362,10 +384,18 @@ There is no pull request, no \`gh-axi\` call, and no forge CI result to report: 
 EOF
 }
 
-fm_dod_block() {  # <mode> <task-id> [branch] [<forge>]
-  local mode=$1 id=$2 forge=${4:-none}
+fm_dod_block() {  # <mode> <task-id> [branch] [<forge>] [<nm-skip>]
+  local mode=$1 id=$2 forge=${4:-none} nm_skip=${5:-} skip_words=''
   local branch=${3:-fm/$id}
   fm_forge_valid_for_mode "$forge" "$mode" fm_dod_block || return 1
+  fm_nm_skip_valid "$nm_skip" fm_dod_block || return 1
+  if [ -n "$nm_skip" ]; then
+    [ "$mode" = no-mistakes ] || {
+      echo "error: fm_dod_block: no-mistakes skips require mode=no-mistakes" >&2
+      return 1
+    }
+    skip_words=" skip=$nm_skip"
+  fi
   case "$mode:$forge" in
     direct-PR:gerrit)
       cat <<EOF
@@ -385,18 +415,26 @@ EOF
     no-mistakes:gerrit)
       cat <<EOF
 # Definition of done
-Delivery contract: mode=no-mistakes forge=gerrit shape=squash
+Delivery contract: mode=no-mistakes forge=gerrit shape=squash$skip_words
 Ship branch: $branch
 This project's review server is Gerrit: it has no pull requests and no forge CI the pipeline can watch, so **no-mistakes runs here as a review pass that ends at a ready branch**, and you then publish that branch as one change.
-Pass \`--skip push,pr,ci\` on every \`no-mistakes axi run\` for this task, and skip nothing else: \`review\`, \`test\`, \`document\`, and \`lint\` are the whole point of the run.
+EOF
+      if [ -z "$nm_skip" ]; then
+        cat <<'EOF'
+Pass `--skip push,pr,ci` on every `no-mistakes axi run` for this task, and skip nothing else: `review`, `test`, `document`, and `lint` are the whole point of the run.
 Those three are the only steps that reach a forge, and skipping them is a supported outcome, not a degraded one.
+EOF
+      else
+        printf '%s\n' "The publication steps \`push,pr,ci\` are skipped alongside the intake-resolved steps; skipping Gerrit publication in the pipeline is a supported outcome, not a degraded one."
+      fi
+      cat <<EOF
 The task is complete only when committed on your branch.
 When you believe it is complete, append \`done [at=<epoch>]: {summary}\` to the status file and stop.
 Firstmate will then instruct you to run /no-mistakes to validate.
 That first \`done:\` is the handoff that starts the pipeline; it is not a request to publish.
 
 EOF
-      fm_nm_driving_block "$forge"
+      fm_nm_driving_block "$forge" "$nm_skip"
       cat <<EOF
 
 Because \`push\` is skipped, the pipeline's fixes DO NOT arrive in your checkout: each fix round commits onto a branch inside no-mistakes' own local gate repository, and with no push nothing carries those commits back to you.
@@ -446,7 +484,7 @@ EOF
     no-mistakes:*)
       cat <<EOF
 # Definition of done
-Delivery contract: mode=no-mistakes
+Delivery contract: mode=no-mistakes$skip_words
 Ship branch: $branch
 The task is complete only when committed on your branch.
 When you believe it is complete, append \`done [at=<epoch>]: {summary}\` to the status file and stop.
@@ -454,7 +492,7 @@ Firstmate will then instruct you to run /no-mistakes to validate and ship a PR.
 That first \`done:\` is the handoff that starts the pipeline, which owns the push; it is not a request to push from this copy.
 
 EOF
-      fm_nm_driving_block "$forge"
+      fm_nm_driving_block "$forge" "$nm_skip"
       cat <<EOF
 
 After /no-mistakes reports CI green (the CI-ready return point - do not wait for it to keep monitoring in the background until merge): on a GitHub PR, read the PR back from the forge and confirm it is not a draft (\`gh-axi pr view <number>\` must print \`draft: no\`, where <number> is the PR number from your PR URL); if it is a draft, mark it ready with \`gh-axi pr ready <number>\` - a draft cannot be merged, so a done report on one leaves the merge unasked.

@@ -262,7 +262,7 @@ The objection is right about the mechanism.
 no-mistakes does own publication: `push`, `pr`, and `ci` are its own pipeline steps, sitting alongside `review`, `test`, `document`, and `lint`, and a run reports each of them independently.
 
 It does not defeat the answer, because on a Gerrit project those are precisely the steps that do not run.
-The delivery design has a `forge=gerrit` worker pass `--skip push,pr,ci` on every run and skip nothing else, keeping `review`, `test`, `document`, and `lint` as the whole point of the run.
+The delivery design has a `forge=gerrit` worker pass `--skip push,pr,ci` on every run and skip nothing else beyond an intake-resolved `lint` skip, keeping `review`, `test`, `document`, and otherwise `lint` as the whole point of the run.
 Publication then moves out of the pipeline entirely: once the run passes and its fixes are back on the worker's branch, the worker publishes that branch to the review server through the forge tool.
 So the caller of the forge tool is Firstmate or the worker, never no-mistakes, and the pipeline never has to know `gerrit-axi` exists.
 The objection's premise holds everywhere the pipeline publishes, and a Gerrit project is the one place it does not.
