@@ -1,0 +1,51 @@
+### Step 1: beta worker drops its README.md and VERIFY-LEDGER edits (steered), radar re-run
+go-gh: mechanical "requirements.txt" sources=task:alpha,task:beta
+exit=0
+README.md shared=false participants=task:alpha
+docs/VERIFY-LEDGER.json shared=false participants=task:alpha
+
+### Step 2: beta worktree becomes unreadable (moved away) -> unmeasured, prior paths retained, never "no overlap"
+go-gh: unmeasured: task:beta: worktree or base unreadable
+go-gh: mechanical "requirements.txt" sources=task:alpha,task:beta
+exit=0
+task:beta measurement=unmeasured retained_paths=CMakeLists.txt,pkg/api/graphql_client.go,requirements.txt
+
+### Step 3: forge unreachable (origin repo does not exist), no shared task paths left -> must NOT print "no overlap"
+go-gh: unmeasured: forge: origin unsupported/unreadable or open PR listing failed
+go-gh: unmeasured: pr:https://github.com/cli/go-gh/pull/304: previous PR completion unmeasured
+go-gh: unmeasured: pr:https://github.com/cli/go-gh/pull/302: previous PR completion unmeasured
+go-gh: unmeasured: pr:https://github.com/cli/go-gh/pull/300: previous PR completion unmeasured
+go-gh: unmeasured: pr:https://github.com/cli/go-gh/pull/298: previous PR completion unmeasured
+go-gh: unmeasured: pr:https://github.com/cli/go-gh/pull/295: previous PR completion unmeasured
+go-gh: unmeasured: pr:https://github.com/cli/go-gh/pull/294: previous PR completion unmeasured
+go-gh: unmeasured: pr:https://github.com/cli/go-gh/pull/291: previous PR completion unmeasured
+go-gh: unmeasured: pr:https://github.com/cli/go-gh/pull/281: previous PR completion unmeasured
+go-gh: unmeasured: pr:https://github.com/cli/go-gh/pull/280: previous PR completion unmeasured
+go-gh: unmeasured: pr:https://github.com/cli/go-gh/pull/274: previous PR completion unmeasured
+go-gh: unmeasured: pr:https://github.com/cli/go-gh/pull/255: previous PR completion unmeasured
+go-gh: unmeasured: pr:https://github.com/cli/go-gh/pull/223: previous PR completion unmeasured
+go-gh: unmeasured: pr:https://github.com/cli/go-gh/pull/222: previous PR completion unmeasured
+go-gh: unmeasured: pr:https://github.com/cli/go-gh/pull/221: previous PR completion unmeasured
+go-gh: unmeasured: pr:https://github.com/cli/go-gh/pull/218: previous PR completion unmeasured
+go-gh: unmeasured: pr:https://github.com/cli/go-gh/pull/214: previous PR completion unmeasured
+go-gh: unmeasured: pr:https://github.com/cli/go-gh/pull/211: previous PR completion unmeasured
+go-gh: unmeasured: pr:https://github.com/cli/go-gh/pull/209: previous PR completion unmeasured
+go-gh: unmeasured: pr:https://github.com/cli/go-gh/pull/178: previous PR completion unmeasured
+go-gh: unmeasured: pr:https://github.com/cli/go-gh/pull/177: previous PR completion unmeasured
+go-gh: code "pkg/api/cache.go" sources=pr:https://github.com/cli/go-gh/pull/300,task:alpha
+go-gh: code "pkg/api/graphql_client.go" sources=pr:https://github.com/cli/go-gh/pull/302,pr:https://github.com/cli/go-gh/pull/304,task:beta
+exit=0
+forge: origin unsupported/unreadable or open PR listing failed
+pr:https://github.com/cli/go-gh/pull/304: previous PR completion unmeasured
+pr:https://github.com/cli/go-gh/pull/302: previous PR completion unmeasured
+
+### Step 4: forge restored -> PRs re-measured, unmeasured cleared
+go-gh: code "pkg/api/cache.go" sources=pr:https://github.com/cli/go-gh/pull/300,task:alpha
+go-gh: code "pkg/api/graphql_client.go" sources=pr:https://github.com/cli/go-gh/pull/302,pr:https://github.com/cli/go-gh/pull/304,task:beta
+exit=0
+unmeasured=0 sources=22
+
+### Step 5: corrupt memory -> refuse (exit 1), memory not overwritten
+error: malformed radar memory /tmp/fm-lab.7FYCsX/state/conflict-radar/go-gh.json
+exit=1
+{"schema_version":2}

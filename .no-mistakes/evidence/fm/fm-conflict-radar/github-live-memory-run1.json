@@ -1,0 +1,982 @@
+{
+  "projects": [
+    {
+      "schema_version": 1,
+      "project": "go-gh",
+      "project_path": "/tmp/fm-lab.7FYCsX/projects/go-gh",
+      "timestamp": "2026-10-03T16:14:20Z",
+      "ledgers": [
+        "docs/VERIFY-LEDGER.json"
+      ],
+      "sources": [
+        {
+          "project": "go-gh",
+          "project_path": "/tmp/fm-lab.7FYCsX/projects/go-gh",
+          "id": "task:alpha",
+          "kind": "task",
+          "task_id": "alpha",
+          "worktree": "/tmp/fm-lab.7FYCsX/wt/alpha",
+          "branch": "ship/alpha",
+          "pr_url": "",
+          "paths": [
+            "README.md",
+            "docs/VERIFY-LEDGER.json",
+            "pkg/api/cache.go",
+            "requirements.txt"
+          ],
+          "measurement": "measured",
+          "status": "tracked",
+          "observed_at": "2026-10-03T16:14:20Z"
+        },
+        {
+          "project": "go-gh",
+          "project_path": "/tmp/fm-lab.7FYCsX/projects/go-gh",
+          "id": "task:beta",
+          "kind": "task",
+          "task_id": "beta",
+          "worktree": "/tmp/fm-lab.7FYCsX/wt/beta",
+          "branch": "ship/beta",
+          "pr_url": "",
+          "paths": [
+            "CMakeLists.txt",
+            "README.md",
+            "docs/VERIFY-LEDGER.json",
+            "pkg/api/graphql_client.go",
+            "requirements.txt"
+          ],
+          "measurement": "measured",
+          "status": "tracked",
+          "observed_at": "2026-10-03T16:14:20Z"
+        },
+        {
+          "pr_id": 304,
+          "url": "https://github.com/cli/go-gh/pull/304",
+          "branch": "codex/issue-220-graphql-headers",
+          "status": "open",
+          "id": "pr:https://github.com/cli/go-gh/pull/304",
+          "kind": "pr",
+          "paths": [
+            "pkg/api/graphql_client.go",
+            "pkg/api/graphql_client_test.go"
+          ],
+          "measurement": "measured",
+          "observed_at": "2026-10-03T16:14:20Z",
+          "iteration_id": null,
+          "task_ids": []
+        },
+        {
+          "pr_id": 302,
+          "url": "https://github.com/cli/go-gh/pull/302",
+          "branch": "codex/issue-293-graphql-http-errors",
+          "status": "open",
+          "id": "pr:https://github.com/cli/go-gh/pull/302",
+          "kind": "pr",
+          "paths": [
+            "pkg/api/graphql_client.go",
+            "pkg/api/graphql_client_test.go"
+          ],
+          "measurement": "measured",
+          "observed_at": "2026-10-03T16:14:20Z",
+          "iteration_id": null,
+          "task_ids": []
+        },
+        {
+          "pr_id": 300,
+          "url": "https://github.com/cli/go-gh/pull/300",
+          "branch": "fix-cache-integrity-check",
+          "status": "open",
+          "id": "pr:https://github.com/cli/go-gh/pull/300",
+          "kind": "pr",
+          "paths": [
+            "pkg/api/cache.go",
+            "pkg/api/cache_test.go"
+          ],
+          "measurement": "measured",
+          "observed_at": "2026-10-03T16:14:20Z",
+          "iteration_id": null,
+          "task_ids": []
+        },
+        {
+          "pr_id": 298,
+          "url": "https://github.com/cli/go-gh/pull/298",
+          "branch": "babakks/add-refresh-token-support",
+          "status": "open",
+          "id": "pr:https://github.com/cli/go-gh/pull/298",
+          "kind": "pr",
+          "paths": [
+            "pkg/api/http_client.go",
+            "pkg/config/config.go",
+            "pkg/config/config_test.go",
+            "pkg/x/markdown/accessibility_test.go"
+          ],
+          "measurement": "measured",
+          "observed_at": "2026-10-03T16:14:20Z",
+          "iteration_id": null,
+          "task_ids": []
+        },
+        {
+          "pr_id": 295,
+          "url": "https://github.com/cli/go-gh/pull/295",
+          "branch": "dependabot/go_modules/golang.org/x/term-0.46.0",
+          "status": "open",
+          "id": "pr:https://github.com/cli/go-gh/pull/295",
+          "kind": "pr",
+          "paths": [
+            "go.mod",
+            "go.sum"
+          ],
+          "measurement": "measured",
+          "observed_at": "2026-10-03T16:14:20Z",
+          "iteration_id": null,
+          "task_ids": []
+        },
+        {
+          "pr_id": 294,
+          "url": "https://github.com/cli/go-gh/pull/294",
+          "branch": "dependabot/go_modules/golang.org/x/text-0.42.0",
+          "status": "open",
+          "id": "pr:https://github.com/cli/go-gh/pull/294",
+          "kind": "pr",
+          "paths": [
+            "go.mod",
+            "go.sum"
+          ],
+          "measurement": "measured",
+          "observed_at": "2026-10-03T16:14:20Z",
+          "iteration_id": null,
+          "task_ids": []
+        },
+        {
+          "pr_id": 291,
+          "url": "https://github.com/cli/go-gh/pull/291",
+          "branch": "dependabot/go_modules/golang.org/x/sys-0.48.0",
+          "status": "open",
+          "id": "pr:https://github.com/cli/go-gh/pull/291",
+          "kind": "pr",
+          "paths": [
+            "go.mod",
+            "go.sum"
+          ],
+          "measurement": "measured",
+          "observed_at": "2026-10-03T16:14:20Z",
+          "iteration_id": null,
+          "task_ids": []
+        },
+        {
+          "pr_id": 281,
+          "url": "https://github.com/cli/go-gh/pull/281",
+          "branch": "issue188",
+          "status": "open",
+          "id": "pr:https://github.com/cli/go-gh/pull/281",
+          "kind": "pr",
+          "paths": [
+            "go.mod",
+            "go.sum",
+            "pkg/markdown/markdown.go",
+            "pkg/markdown/markdown_test.go",
+            "pkg/term/color.go",
+            "pkg/term/color_test.go",
+            "pkg/term/env.go",
+            "pkg/text/text.go",
+            "pkg/x/markdown/accessibility.go",
+            "pkg/x/markdown/accessibility_test.go"
+          ],
+          "measurement": "measured",
+          "observed_at": "2026-10-03T16:14:20Z",
+          "iteration_id": null,
+          "task_ids": []
+        },
+        {
+          "pr_id": 280,
+          "url": "https://github.com/cli/go-gh/pull/280",
+          "branch": "issue279",
+          "status": "open",
+          "id": "pr:https://github.com/cli/go-gh/pull/280",
+          "kind": "pr",
+          "paths": [
+            "pkg/term/color.go",
+            "pkg/term/color_test.go",
+            "pkg/term/env.go"
+          ],
+          "measurement": "measured",
+          "observed_at": "2026-10-03T16:14:20Z",
+          "iteration_id": null,
+          "task_ids": []
+        },
+        {
+          "pr_id": 274,
+          "url": "https://github.com/cli/go-gh/pull/274",
+          "branch": "fix/repository-ssh-alias",
+          "status": "open",
+          "id": "pr:https://github.com/cli/go-gh/pull/274",
+          "kind": "pr",
+          "paths": [
+            "pkg/repository/repository.go",
+            "pkg/repository/repository_test.go"
+          ],
+          "measurement": "measured",
+          "observed_at": "2026-10-03T16:14:20Z",
+          "iteration_id": null,
+          "task_ids": []
+        },
+        {
+          "pr_id": 255,
+          "url": "https://github.com/cli/go-gh/pull/255",
+          "branch": "fix-jq-float-precision",
+          "status": "open",
+          "id": "pr:https://github.com/cli/go-gh/pull/255",
+          "kind": "pr",
+          "paths": [
+            "pkg/jq/jq.go",
+            "pkg/jq/jq_test.go"
+          ],
+          "measurement": "measured",
+          "observed_at": "2026-10-03T16:14:20Z",
+          "iteration_id": null,
+          "task_ids": []
+        },
+        {
+          "pr_id": 223,
+          "url": "https://github.com/cli/go-gh/pull/223",
+          "branch": "fix/browser-launcher-with-spaces",
+          "status": "open",
+          "id": "pr:https://github.com/cli/go-gh/pull/223",
+          "kind": "pr",
+          "paths": [
+            "pkg/browser/browser.go",
+            "pkg/browser/browser_test.go"
+          ],
+          "measurement": "measured",
+          "observed_at": "2026-10-03T16:14:20Z",
+          "iteration_id": null,
+          "task_ids": []
+        },
+        {
+          "pr_id": 222,
+          "url": "https://github.com/cli/go-gh/pull/222",
+          "branch": "wm-bearer-auth",
+          "status": "open",
+          "id": "pr:https://github.com/cli/go-gh/pull/222",
+          "kind": "pr",
+          "paths": [
+            "pkg/api/client_options.go",
+            "pkg/api/client_options_test.go",
+            "pkg/api/http_client.go",
+            "pkg/api/http_client_test.go"
+          ],
+          "measurement": "measured",
+          "observed_at": "2026-10-03T16:14:20Z",
+          "iteration_id": null,
+          "task_ids": []
+        },
+        {
+          "pr_id": 221,
+          "url": "https://github.com/cli/go-gh/pull/221",
+          "branch": "fix-112-better-auth-message",
+          "status": "open",
+          "id": "pr:https://github.com/cli/go-gh/pull/221",
+          "kind": "pr",
+          "paths": [
+            "pkg/api/client_options.go",
+            "pkg/api/client_options_test.go",
+            "pkg/auth/auth.go",
+            "pkg/auth/auth_test.go"
+          ],
+          "measurement": "measured",
+          "observed_at": "2026-10-03T16:14:20Z",
+          "iteration_id": null,
+          "task_ids": []
+        },
+        {
+          "pr_id": 218,
+          "url": "https://github.com/cli/go-gh/pull/218",
+          "branch": "chore/go-yaml-in",
+          "status": "open",
+          "id": "pr:https://github.com/cli/go-gh/pull/218",
+          "kind": "pr",
+          "paths": [
+            "go.mod",
+            "go.sum",
+            "internal/yamlmap/yaml_map.go"
+          ],
+          "measurement": "measured",
+          "observed_at": "2026-10-03T16:14:20Z",
+          "iteration_id": null,
+          "task_ids": []
+        },
+        {
+          "pr_id": 214,
+          "url": "https://github.com/cli/go-gh/pull/214",
+          "branch": "remove-safeexec",
+          "status": "open",
+          "id": "pr:https://github.com/cli/go-gh/pull/214",
+          "kind": "pr",
+          "paths": [
+            "gh.go",
+            "go.mod",
+            "go.sum",
+            "internal/git/git.go",
+            "pkg/auth/auth.go",
+            "pkg/browser/browser.go",
+            "pkg/ssh/ssh.go",
+            "pkg/ssh/ssh_test.go"
+          ],
+          "measurement": "measured",
+          "observed_at": "2026-10-03T16:14:20Z",
+          "iteration_id": null,
+          "task_ids": []
+        },
+        {
+          "pr_id": 211,
+          "url": "https://github.com/cli/go-gh/pull/211",
+          "branch": "sh-add-octocat-stream",
+          "status": "open",
+          "id": "pr:https://github.com/cli/go-gh/pull/211",
+          "kind": "pr",
+          "paths": [
+            "pkg/api/http_client.go",
+            "pkg/api/http_client_test.go"
+          ],
+          "measurement": "measured",
+          "observed_at": "2026-10-03T16:14:20Z",
+          "iteration_id": null,
+          "task_ids": []
+        },
+        {
+          "pr_id": 209,
+          "url": "https://github.com/cli/go-gh/pull/209",
+          "branch": "gh-data-dir",
+          "status": "open",
+          "id": "pr:https://github.com/cli/go-gh/pull/209",
+          "kind": "pr",
+          "paths": [
+            "pkg/api/client_options_test.go",
+            "pkg/api/graphql_client_test.go",
+            "pkg/api/http_client_test.go",
+            "pkg/api/rest_client_test.go",
+            "pkg/auth/auth_test.go",
+            "pkg/config/config.go",
+            "pkg/config/config_test.go"
+          ],
+          "measurement": "measured",
+          "observed_at": "2026-10-03T16:14:20Z",
+          "iteration_id": null,
+          "task_ids": []
+        },
+        {
+          "pr_id": 178,
+          "url": "https://github.com/cli/go-gh/pull/178",
+          "branch": "issue10262",
+          "status": "open",
+          "id": "pr:https://github.com/cli/go-gh/pull/178",
+          "kind": "pr",
+          "paths": [
+            "internal/text/text.go",
+            "internal/text/text_test.go",
+            "internal/yamlmap/yaml_map.go",
+            "pkg/jq/functions.go",
+            "pkg/jq/functions_test.go",
+            "pkg/jq/jq.go",
+            "pkg/jq/jq_test.go",
+            "pkg/jq/testdata/mod.jq",
+            "pkg/template/template.go"
+          ],
+          "measurement": "measured",
+          "observed_at": "2026-10-03T16:14:20Z",
+          "iteration_id": null,
+          "task_ids": []
+        },
+        {
+          "pr_id": 177,
+          "url": "https://github.com/cli/go-gh/pull/177",
+          "branch": "issue8415",
+          "status": "open",
+          "id": "pr:https://github.com/cli/go-gh/pull/177",
+          "kind": "pr",
+          "paths": [
+            "pkg/template/template.go",
+            "pkg/template/template_test.go"
+          ],
+          "measurement": "measured",
+          "observed_at": "2026-10-03T16:14:20Z",
+          "iteration_id": null,
+          "task_ids": []
+        }
+      ],
+      "unmeasured": [],
+      "matrix": [
+        {
+          "path": "CMakeLists.txt",
+          "class": "code",
+          "sources": [
+            "task:beta"
+          ],
+          "participants": [
+            "task:beta"
+          ],
+          "shared": false
+        },
+        {
+          "path": "README.md",
+          "class": "ledger",
+          "sources": [
+            "task:alpha",
+            "task:beta"
+          ],
+          "participants": [
+            "task:alpha",
+            "task:beta"
+          ],
+          "shared": true
+        },
+        {
+          "path": "docs/VERIFY-LEDGER.json",
+          "class": "ledger",
+          "sources": [
+            "task:alpha",
+            "task:beta"
+          ],
+          "participants": [
+            "task:alpha",
+            "task:beta"
+          ],
+          "shared": true
+        },
+        {
+          "path": "gh.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/214"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/214"
+          ],
+          "shared": false
+        },
+        {
+          "path": "go.mod",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/214",
+            "pr:https://github.com/cli/go-gh/pull/218",
+            "pr:https://github.com/cli/go-gh/pull/281",
+            "pr:https://github.com/cli/go-gh/pull/291",
+            "pr:https://github.com/cli/go-gh/pull/294",
+            "pr:https://github.com/cli/go-gh/pull/295"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/214",
+            "pr:https://github.com/cli/go-gh/pull/218",
+            "pr:https://github.com/cli/go-gh/pull/281",
+            "pr:https://github.com/cli/go-gh/pull/291",
+            "pr:https://github.com/cli/go-gh/pull/294",
+            "pr:https://github.com/cli/go-gh/pull/295"
+          ],
+          "shared": true
+        },
+        {
+          "path": "go.sum",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/214",
+            "pr:https://github.com/cli/go-gh/pull/218",
+            "pr:https://github.com/cli/go-gh/pull/281",
+            "pr:https://github.com/cli/go-gh/pull/291",
+            "pr:https://github.com/cli/go-gh/pull/294",
+            "pr:https://github.com/cli/go-gh/pull/295"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/214",
+            "pr:https://github.com/cli/go-gh/pull/218",
+            "pr:https://github.com/cli/go-gh/pull/281",
+            "pr:https://github.com/cli/go-gh/pull/291",
+            "pr:https://github.com/cli/go-gh/pull/294",
+            "pr:https://github.com/cli/go-gh/pull/295"
+          ],
+          "shared": true
+        },
+        {
+          "path": "internal/git/git.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/214"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/214"
+          ],
+          "shared": false
+        },
+        {
+          "path": "internal/text/text.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/178"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/178"
+          ],
+          "shared": false
+        },
+        {
+          "path": "internal/text/text_test.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/178"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/178"
+          ],
+          "shared": false
+        },
+        {
+          "path": "internal/yamlmap/yaml_map.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/178",
+            "pr:https://github.com/cli/go-gh/pull/218"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/178",
+            "pr:https://github.com/cli/go-gh/pull/218"
+          ],
+          "shared": true
+        },
+        {
+          "path": "pkg/api/cache.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/300",
+            "task:alpha"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/300",
+            "task:alpha"
+          ],
+          "shared": true
+        },
+        {
+          "path": "pkg/api/cache_test.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/300"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/300"
+          ],
+          "shared": false
+        },
+        {
+          "path": "pkg/api/client_options.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/221",
+            "pr:https://github.com/cli/go-gh/pull/222"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/221",
+            "pr:https://github.com/cli/go-gh/pull/222"
+          ],
+          "shared": true
+        },
+        {
+          "path": "pkg/api/client_options_test.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/209",
+            "pr:https://github.com/cli/go-gh/pull/221",
+            "pr:https://github.com/cli/go-gh/pull/222"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/209",
+            "pr:https://github.com/cli/go-gh/pull/221",
+            "pr:https://github.com/cli/go-gh/pull/222"
+          ],
+          "shared": true
+        },
+        {
+          "path": "pkg/api/graphql_client.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/302",
+            "pr:https://github.com/cli/go-gh/pull/304",
+            "task:beta"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/302",
+            "pr:https://github.com/cli/go-gh/pull/304",
+            "task:beta"
+          ],
+          "shared": true
+        },
+        {
+          "path": "pkg/api/graphql_client_test.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/209",
+            "pr:https://github.com/cli/go-gh/pull/302",
+            "pr:https://github.com/cli/go-gh/pull/304"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/209",
+            "pr:https://github.com/cli/go-gh/pull/302",
+            "pr:https://github.com/cli/go-gh/pull/304"
+          ],
+          "shared": true
+        },
+        {
+          "path": "pkg/api/http_client.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/211",
+            "pr:https://github.com/cli/go-gh/pull/222",
+            "pr:https://github.com/cli/go-gh/pull/298"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/211",
+            "pr:https://github.com/cli/go-gh/pull/222",
+            "pr:https://github.com/cli/go-gh/pull/298"
+          ],
+          "shared": true
+        },
+        {
+          "path": "pkg/api/http_client_test.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/209",
+            "pr:https://github.com/cli/go-gh/pull/211",
+            "pr:https://github.com/cli/go-gh/pull/222"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/209",
+            "pr:https://github.com/cli/go-gh/pull/211",
+            "pr:https://github.com/cli/go-gh/pull/222"
+          ],
+          "shared": true
+        },
+        {
+          "path": "pkg/api/rest_client_test.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/209"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/209"
+          ],
+          "shared": false
+        },
+        {
+          "path": "pkg/auth/auth.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/214",
+            "pr:https://github.com/cli/go-gh/pull/221"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/214",
+            "pr:https://github.com/cli/go-gh/pull/221"
+          ],
+          "shared": true
+        },
+        {
+          "path": "pkg/auth/auth_test.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/209",
+            "pr:https://github.com/cli/go-gh/pull/221"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/209",
+            "pr:https://github.com/cli/go-gh/pull/221"
+          ],
+          "shared": true
+        },
+        {
+          "path": "pkg/browser/browser.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/214",
+            "pr:https://github.com/cli/go-gh/pull/223"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/214",
+            "pr:https://github.com/cli/go-gh/pull/223"
+          ],
+          "shared": true
+        },
+        {
+          "path": "pkg/browser/browser_test.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/223"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/223"
+          ],
+          "shared": false
+        },
+        {
+          "path": "pkg/config/config.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/209",
+            "pr:https://github.com/cli/go-gh/pull/298"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/209",
+            "pr:https://github.com/cli/go-gh/pull/298"
+          ],
+          "shared": true
+        },
+        {
+          "path": "pkg/config/config_test.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/209",
+            "pr:https://github.com/cli/go-gh/pull/298"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/209",
+            "pr:https://github.com/cli/go-gh/pull/298"
+          ],
+          "shared": true
+        },
+        {
+          "path": "pkg/jq/functions.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/178"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/178"
+          ],
+          "shared": false
+        },
+        {
+          "path": "pkg/jq/functions_test.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/178"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/178"
+          ],
+          "shared": false
+        },
+        {
+          "path": "pkg/jq/jq.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/178",
+            "pr:https://github.com/cli/go-gh/pull/255"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/178",
+            "pr:https://github.com/cli/go-gh/pull/255"
+          ],
+          "shared": true
+        },
+        {
+          "path": "pkg/jq/jq_test.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/178",
+            "pr:https://github.com/cli/go-gh/pull/255"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/178",
+            "pr:https://github.com/cli/go-gh/pull/255"
+          ],
+          "shared": true
+        },
+        {
+          "path": "pkg/jq/testdata/mod.jq",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/178"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/178"
+          ],
+          "shared": false
+        },
+        {
+          "path": "pkg/markdown/markdown.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/281"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/281"
+          ],
+          "shared": false
+        },
+        {
+          "path": "pkg/markdown/markdown_test.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/281"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/281"
+          ],
+          "shared": false
+        },
+        {
+          "path": "pkg/repository/repository.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/274"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/274"
+          ],
+          "shared": false
+        },
+        {
+          "path": "pkg/repository/repository_test.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/274"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/274"
+          ],
+          "shared": false
+        },
+        {
+          "path": "pkg/ssh/ssh.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/214"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/214"
+          ],
+          "shared": false
+        },
+        {
+          "path": "pkg/ssh/ssh_test.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/214"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/214"
+          ],
+          "shared": false
+        },
+        {
+          "path": "pkg/template/template.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/177",
+            "pr:https://github.com/cli/go-gh/pull/178"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/177",
+            "pr:https://github.com/cli/go-gh/pull/178"
+          ],
+          "shared": true
+        },
+        {
+          "path": "pkg/template/template_test.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/177"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/177"
+          ],
+          "shared": false
+        },
+        {
+          "path": "pkg/term/color.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/280",
+            "pr:https://github.com/cli/go-gh/pull/281"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/280",
+            "pr:https://github.com/cli/go-gh/pull/281"
+          ],
+          "shared": true
+        },
+        {
+          "path": "pkg/term/color_test.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/280",
+            "pr:https://github.com/cli/go-gh/pull/281"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/280",
+            "pr:https://github.com/cli/go-gh/pull/281"
+          ],
+          "shared": true
+        },
+        {
+          "path": "pkg/term/env.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/280",
+            "pr:https://github.com/cli/go-gh/pull/281"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/280",
+            "pr:https://github.com/cli/go-gh/pull/281"
+          ],
+          "shared": true
+        },
+        {
+          "path": "pkg/text/text.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/281"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/281"
+          ],
+          "shared": false
+        },
+        {
+          "path": "pkg/x/markdown/accessibility.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/281"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/281"
+          ],
+          "shared": false
+        },
+        {
+          "path": "pkg/x/markdown/accessibility_test.go",
+          "class": "code",
+          "sources": [
+            "pr:https://github.com/cli/go-gh/pull/281",
+            "pr:https://github.com/cli/go-gh/pull/298"
+          ],
+          "participants": [
+            "pr:https://github.com/cli/go-gh/pull/281",
+            "pr:https://github.com/cli/go-gh/pull/298"
+          ],
+          "shared": true
+        },
+        {
+          "path": "requirements.txt",
+          "class": "mechanical",
+          "sources": [
+            "task:alpha",
+            "task:beta"
+          ],
+          "participants": [
+            "task:alpha",
+            "task:beta"
+          ],
+          "shared": true
+        }
+      ]
+    }
+  ]
+}

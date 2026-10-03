@@ -1,0 +1,36 @@
+== registry: - go-gh [ledgers=docs/VERIFY-LEDGER.json direct-PR branch=ship/] - lab fixture
+$ fm-project-mode.sh --ledgers go-gh  -> docs/VERIFY-LEDGER.json
+$ fm-project-mode.sh go-gh            -> direct-PR off
+$ fm-project-mode.sh --branch-prefix go-gh -> ship/
+
+== both ships touch: CMakeLists.txt NOTES.txt CHANGELOG docs/VERIFY.txt docs/input.txt deps/constraints-dev.txt requirements-test.txt package.json Directory.Packages.props app.csproj packages.lock.json go.sum settings.json docs/guide.rst docs/VERIFY-LEDGER.json
+$ fm-conflict-radar.sh go-gh   (task-vs-task shared rows only)
+
+$ fm-conflict-radar.sh --toon go-gh
+error: unknown option --toon
+exit=1
+$ fm-conflict-radar.sh go-gh other
+error: expected one project
+exit=1
+$ fm-conflict-radar.sh --help | head -4
+Read-only project conflict candidates; writes only private radar memory.
+Usage: fm-conflict-radar.sh [--json] [project-name]
+No project selects projects with multiple tracked ship metas, including ships
+awaiting validation or landing. Metadata is retained until task teardown;
+== both ships (alpha, beta) touch: CMakeLists.txt NOTES.txt CHANGELOG docs/VERIFY.txt docs/input.txt deps/constraints-dev.txt requirements-test.txt package.json Directory.Packages.props app.csproj packages.lock.json go.sum settings.json docs/guide.rst docs/VERIFY-LEDGER.json(registry ledger)
+$ FM_HOME=<lab> fm-conflict-radar.sh go-gh   (task-vs-task shared rows)
+go-gh: ledger "CHANGELOG" sources=task:alpha,task:beta
+go-gh: code "CMakeLists.txt" sources=task:alpha,task:beta
+go-gh: mechanical "Directory.Packages.props" sources=task:alpha,task:beta
+go-gh: ledger "NOTES.txt" sources=task:alpha,task:beta
+go-gh: mechanical "app.csproj" sources=task:alpha,task:beta
+go-gh: mechanical "deps/constraints-dev.txt" sources=task:alpha,task:beta
+go-gh: ledger "docs/VERIFY-LEDGER.json" sources=task:alpha,task:beta
+go-gh: ledger "docs/VERIFY.txt" sources=task:alpha,task:beta
+go-gh: ledger "docs/guide.rst" sources=task:alpha,task:beta
+go-gh: code "docs/input.txt" sources=task:alpha,task:beta
+go-gh: code "go.sum" sources=pr:https://github.com/cli/go-gh/pull/214,pr:https://github.com/cli/go-gh/pull/218,pr:https://github.com/cli/go-gh/pull/281,pr:https://github.com/cli/go-gh/pull/291,pr:https://github.com/cli/go-gh/pull/294,pr:https://github.com/cli/go-gh/pull/295,task:alpha,task:beta
+go-gh: mechanical "package.json" sources=task:alpha,task:beta
+go-gh: mechanical "packages.lock.json" sources=task:alpha,task:beta
+go-gh: mechanical "requirements-test.txt" sources=task:alpha,task:beta
+go-gh: code "settings.json" sources=task:alpha,task:beta

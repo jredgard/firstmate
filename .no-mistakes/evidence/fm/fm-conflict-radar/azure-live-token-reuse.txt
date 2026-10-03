@@ -1,0 +1,16 @@
+$ FM_HOME=<lab> PATH=<counting pass-through az/curl>:$PATH bin/fm-conflict-radar.sh wiki
+wiki: mechanical "package.json" sources=task:wiki-invBootstrap,task:wiki-other
+exit=0
+
+== real az invocations this run ==
+az account get-access-token
+== real curl REST URLs this run ==
+curl https://dev.azure.com/dnceng-public/public/_apis/git/repositories/dotnet-public-wiki/pullRequests?searchCriteria.status=active&$top=100&$skip=0&api-version=7.1
+curl https://dev.azure.com/dnceng-public/public/_apis/git/repositories/dotnet-public-wiki/pullRequests/5?api-version=7.1
+curl https://dev.azure.com/dnceng-public/public/_apis/git/repositories/dotnet-public-wiki/pullRequests/1?api-version=7.1
+
+== persisted memory sources ==
+{"id":"task:wiki-invBootstrap","kind":"task","status":"tracked","measurement":"measured","paths":["package.json"]}
+{"id":"task:wiki-other","kind":"task","status":"tracked","measurement":"measured","paths":["package.json"]}
+{"id":"pr:https://dev.azure.com/dnceng-public/public/_git/dotnet-public-wiki/pullrequest/5","kind":"pr","status":"completed","measurement":"measured","paths":["README.md"]}
+{"unmeasured":[]}

@@ -1,0 +1,8 @@
+== project/worktree snapshot before vs after two radar runs (HEAD, index hash, status, refs hash) ==
+IDENTICAL: no project, index, ref or worktree change
+
+== files written under lab home outside projects/wt ==
+<lab>/state/beta.meta
+<lab>/state/alpha.meta
+<lab>/data/projects.md
+<lab>/state/conflict-radar/go-gh.json

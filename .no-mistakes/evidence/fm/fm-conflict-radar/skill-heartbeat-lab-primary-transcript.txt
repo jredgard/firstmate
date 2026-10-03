@@ -1,0 +1,56 @@
+ ▝▝   ▝▝   ~/.no-mistakes/worktrees/551ff26a6b1c/01M417A74P080K415RWEAYZW0G
+❯ Heartbeat wake: project go-gh has two in-flight ships (alpha and beta) in this lab home. Load your conflict-radar skill and follow its heartbeat procedure: run the radar for go-gh, then tell me for
+  each task-vs-task shared path its class and what you would do (steer, rerun plan, landing order). This is a dry run in a disposable lab: do not send any steer, do not edit any project file, do not
+  start or stop workers.
+● Captain, I'll load the conflict-radar skill and run its heartbeat procedure for go-gh as a read-only dry run.
+● Skill(conflict-radar)
+  ⎿  Successfully loaded skill
+  Listed 1 directory, ran 4 shell commands
+● Hunks read for the ledger. Next I'm reading the untracked requirements.txt in both copies, plus alpha's code hunk, to finish classification.
+  Ran 2 shell commands
+● Captain, the radar ran clean for go-gh with every source measured and nothing unmeasured. Dry run only: nothing was steered, edited, started, or stopped.
+  Task-vs-task shared paths
+  ┌──────────────────┬────────────┬───────────────────────────────────────────────────────────┬─────────────────────────────────────────────────────────────┐
+  │       Path       │   Class    │                       Alpha's edit                        │                         Beta's edit                         │
+  ├──────────────────┼────────────┼───────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────┤
+  │ README.md        │ ledger     │ appends one line "alpha note" at the file end (committed) │ appends one line "beta note" at the same spot (uncommitted) │
+  ├──────────────────┼────────────┼───────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────────┤
+  │ requirements.txt │ mechanical │ new untracked file, pins requests                         │ new untracked file, pins flask                              │
+  └──────────────────┴────────────┴───────────────────────────────────────────────────────────┴─────────────────────────────────────────────────────────────┘
+  README.md, ledger class. Both ships append at the identical trailing hunk, so this will conflict textually at landing even though the two lines are independent. The right call is to steer the later
+  worker, beta, to drop its README line from the feature branch and let the wave-closing documentation PR carry both notes. Alpha keeps its line because it is already committed and the fix lands
+  first. If beta's line turns out to document beta's own behavior rather than a wave-wide note, beta keeps it and I prepare the forge-side resolution before the first completion. The companion
+  resolver is installed in the main firstmate checkout, so that path is available.
+  requirements.txt, mechanical class. The base has no such file, so both ships are creating it from scratch with different single pins. These edits do not commute. Whichever lands second must restore
+  its pin on top of the settled base and rerun its install and tests, not take either file wholesale. I would land alpha first, then steer beta with the specific instruction: rebase onto main once
+  alpha lands, keep both pins in the one file, and rerun validation. Each pin also deserves a check against its task intent, since a Go project gaining a Python manifest is a sign the ship may have
+  overstepped.
+  Not shared between the two ships, but worth knowing
+  - docs/VERIFY-LEDGER.json is the registered wave ledger and only alpha touches it. That edit belongs in the wave-closing documentation PR, not alpha's feature branch. I would steer alpha to drop it.
+  - pkg/api/cache.go overlaps with upstream open PR 300, and pkg/api/graphql_client.go overlaps with upstream PRs 302 and 304. Those are task-vs-upstream signals for landing awareness, not reasons to
+    serialize alpha and beta.
+  Landing order I would use
+  1. Land alpha first. Its feature commit exists and its code hunk is isolated.
+  2. Steer beta to drop the README ledger line and rebase its manifest on the settled base, then rerun its plan.
+  3. Close the wave with one documentation PR carrying both README notes and the verify ledger entry.
+  Rerun the radar at beta's PR-ready handoff before registering its PR, since beta's work is still uncommitted and its measured paths could change.
+✻ Brewed for 2m 11s · done 18:20
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ Show me the exact steer text you'd send to beta
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents
+== post-dry-run project state (expected: only the fixture edits made by the test driver) ==
+-- alpha
+A  docs/VERIFY-LEDGER.json
+?? requirements.txt
+7e6bd35 alpha feature
+-- beta
+ M README.md
+ M pkg/api/graphql_client.go
+?? requirements.txt
+68c032d chore(deps): Bump the codeql-actions group with 2 updates (#309)
+alpha.meta
+beta.meta
+conflict-radar
+wiki-invBootstrap.meta
+wiki-other.meta
