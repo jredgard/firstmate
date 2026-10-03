@@ -43,6 +43,6 @@ Do not blindly remove evidence retained after a failed read; refresh it when the
 Complete non-overlapping PRs first, subject to the merge authority and green-check guards in `ship-landing`.
 For an overlapping ledger pair, inspect the hunks and prepare the forge-side resolution with `md-conflict-fastpath`'s `resolve-md-conflict.py` before the first completion, using that skill's supported forge and safety procedure.
 On an Azure DevOps or GitHub conflict report, refresh the matrix before selecting that procedure; a classification alone never authorizes a forge write or waives validation.
-`md-conflict-fastpath` owns documentation conflict resolution, and `ship-landing` owns registration, landing and teardown.
+Load [`md-conflict-fastpath`](../md-conflict-fastpath/SKILL.md) for documentation or mechanical package/lock conflict resolution; `ship-landing` owns registration, landing and teardown.
 If the companion fastpath is not installed or does not support the forge, retain the evidence and use the existing delivery path rather than inventing a resolver.
 Automatic fleet-view and wake-drain integration are not provided by this skill.
