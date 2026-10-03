@@ -230,15 +230,19 @@ EOF
 }
 
 run_control() {  # <case-dir> <args...>
-  local dir=$1; shift
+  local dir=$1 gateway_env=(); shift
+  if [ -n "${FM_TEST_GATEWAY_URL:-}" ]; then
+    gateway_env+=("LITELLM_PROXY_URL=$FM_TEST_GATEWAY_URL" "LITELLM_PROJECTS_DIR=$FM_TEST_GATEWAY_PROJECTS")
+  fi
   # A claude spawn pre-registers workspace trust in the launching user's own
   # store (bin/fm-claude-trust.sh), and a relaunch reaches it through fm-control.sh, so this runs against a throwaway HOME;
   # without it this suite would write the developer's real ~/.claude.json.
   mkdir -p "$dir/user-home"
   env -u HERDR_ENV -u HERDR_PANE_ID -u HERDR_SESSION -u HERDR_SOCKET_PATH \
-    -u HERDR_TAB_ID -u HERDR_WORKSPACE_ID \
+    -u HERDR_TAB_ID -u HERDR_WORKSPACE_ID -u LITELLM_PROXY_URL -u LITELLM_PROJECTS_DIR \
     PATH="$dir/fakebin:$PATH" FM_HOME="$dir/home" FM_FAKE_DIR="$dir/fake" \
     HOME="$dir/user-home" CLAUDE_CONFIG_DIR='' \
+    "${gateway_env[@]}" \
     FM_SPAWN_NO_GUARD=1 GROK_HOME="$dir/grokhome" \
     FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 \
     FM_REAL_GIT="${FM_REAL_GIT:-}" FM_FAKE_GIT_FAILURE="${FM_FAKE_GIT_FAILURE:-}" \
@@ -388,6 +392,60 @@ test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint() {
   assert_grep "cd -- '$dir/wt'" "$dir/fake/keys" "the replacement launch must enter the recorded worktree"
   assert_grep "Firstmate operational input waiting: read" "$dir/fake/literal" "the replacement should have been launched"
   pass "fm-control relaunch: a same-harness relaunch replaces the agent in the same endpoint and worktree"
+}
+
+gateway_settings_json_arg() {
+  local command=$1
+  while [[ "$command" == export\ *\;* || "$command" == unset\ *\;* ]]; do command=${command#*; }; done
+  eval "set -- $command"
+  while [ "$#" -gt 0 ]; do
+    if [ "$1" = --settings ]; then shift; printf '%s' "$1"; return 0; fi
+    shift
+  done
+  return 1
+}
+
+test_claude_relaunch_rebuilds_gateway_settings_from_the_home() {
+  local dir out status launch settings helper seen
+  dir=$(new_case gateway gateway-rl)
+  add_ship_task "$dir" gateway-rl claude
+  mkdir -p "$dir/lines/templatecontrol"
+  printf 'LITELLM_PORT=4006\nLITELLM_MASTER_KEY=fixture-relaunch-key\n' > "$dir/lines/templatecontrol/env"
+  out=$(FM_TEST_GATEWAY_URL=http://localhost:4006 FM_TEST_GATEWAY_PROJECTS="$dir/lines" \
+    run_control "$dir" gateway-rl relaunch --note 'continue on the bound gateway')
+  status=$?
+  expect_code 0 "$status" "gateway relaunch should succeed: $out"
+  launch=$(grep 'Firstmate operational input waiting: read' "$dir/fake/literal" | tail -1)
+  settings=$(gateway_settings_json_arg "$launch") || fail "relaunch sent no settings JSON: $launch"
+  printf '%s' "$settings" | jq -e '
+    .env.ANTHROPIC_BASE_URL == "http://localhost:4006" and
+    .env.LITELLM_PROXY_URL == "http://localhost:4006" and
+    .env.ANTHROPIC_AUTH_TOKEN == "" and (.apiKeyHelper | type == "string")
+  ' >/dev/null || fail "relaunch lost the gateway settings"
+  helper=$(printf '%s' "$settings" | jq -r '.apiKeyHelper')
+  seen=$(bash -c "$helper") || fail "relaunch helper should execute"
+  assert_equals fixture-relaunch-key "$seen" "relaunch should read the line's key"
+  assert_not_contains "$launch$out$(cat "$dir/home/state/gateway-rl.meta")" fixture-relaunch-key "relaunch leaked the master key"
+  pass "Claude relaunch reconstructs gateway env and secret-free helper from the spawning home"
+}
+
+test_claude_relaunch_refuses_an_unresolvable_gateway_before_stop() {
+  local dir out rc id=gateway-unmapped
+  dir=$(new_case gateway-unmapped "$id")
+  add_ship_task "$dir" "$id" claude
+  mkdir -p "$dir/lines/clims"
+  printf 'LITELLM_PORT=4001\nLITELLM_MASTER_KEY=fixture-unmapped-key\n' > "$dir/lines/clims/env"
+  cp "$dir/home/state/$id.meta" "$dir/meta-before"
+  out=$(FM_TEST_GATEWAY_URL=http://127.0.0.1:14999 FM_TEST_GATEWAY_PROJECTS="$dir/lines" \
+    run_control "$dir" "$id" relaunch --note 'gateway unmapped'); rc=$?
+  expect_code 1 "$rc" "a relaunch under an unmapped gateway port must refuse"
+  assert_contains "$out" "LITELLM_PROXY_URL port 14999 maps to no readable LiteLLM project env file" \
+    "the refusal should name the unmapped gateway port"
+  [ "$(cat "$dir/fake/command")" = claude ] || fail "an unresolvable gateway must refuse before the running agent stops"
+  [ ! -s "$dir/fake/literal" ] || fail "an unresolvable gateway must refuse before any lifecycle input is sent"
+  cmp -s "$dir/meta-before" "$dir/home/state/$id.meta" || fail "a refused relaunch must leave the task record untouched"
+  assert_not_contains "$out" fixture-unmapped-key "the refusal leaked a master key"
+  pass "fm-control relaunch: an unresolvable Claude gateway binding refuses before the old agent stops"
 }
 
 test_relaunch_refuses_before_exit_when_the_composer_holds_pending_text() {
@@ -2403,6 +2461,8 @@ test_relaunch_moves_a_drifted_item_back_in_flight() {
 }
 
 test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint
+test_claude_relaunch_rebuilds_gateway_settings_from_the_home
+test_claude_relaunch_refuses_an_unresolvable_gateway_before_stop
 test_relaunch_refuses_before_exit_when_the_composer_holds_pending_text
 test_relaunch_refuses_before_exit_when_the_composer_state_is_unproven
 test_relaunch_from_linked_home_preserves_recorded_worktree

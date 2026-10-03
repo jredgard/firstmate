@@ -336,7 +336,8 @@ fm_test_run_spawn() {
   mkdir -p "$spawn_home"
   (
     for spawn_fwd in CLAUDE_CODE_USE_FOUNDRY ANTHROPIC_FOUNDRY_RESOURCE \
-      ANTHROPIC_FOUNDRY_API_KEY CODEX_HOME AZURE_OPENAI_API_KEY; do
+      ANTHROPIC_FOUNDRY_API_KEY CODEX_HOME AZURE_OPENAI_API_KEY \
+      LITELLM_PROXY_URL LITELLM_PROJECTS_DIR; do
       spawn_fwd_opt="FM_TEST_FWD_$spawn_fwd"
       if [ "${!spawn_fwd_opt+x}" = x ]; then
         export "$spawn_fwd=${!spawn_fwd_opt}"

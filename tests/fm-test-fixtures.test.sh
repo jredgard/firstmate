@@ -153,6 +153,51 @@ SH
   pass "runner and shared helpers isolate host Git config and preserve explicit config and outside commits"
 )
 
+test_gateway_environment_isolation() {
+  local setup out status
+  for setup in lib fixtures; do
+    status=0
+    out=$(LITELLM_PROXY_URL=http://localhost:4999 LITELLM_PROJECTS_DIR="$TMP_ROOT/missing-projects" \
+      bash -us -- "$ROOT/tests/$setup.sh" "$TMP_ROOT/gateway-$setup" <<'SH'
+. "$1"
+bash -uc 'test "${LITELLM_PROXY_URL+x}" != x && test "${LITELLM_PROJECTS_DIR+x}" != x' \
+  || fail "gateway environment survived test setup"
+. "$ROOT/tests/fixtures.sh"
+for wrapper in direct shared; do
+  case_dir="$2/$wrapper"
+  home="$case_dir/home"
+  project="$case_dir/project"
+  worktree="$case_dir/worktree"
+  id="gateway-isolation-$wrapper"
+  launch_log="$case_dir/launch.log"
+  fm_test_spawn_home "$home" claude
+  fm_test_spawn_brief "$home" "$id"
+  fm_git_worktree "$project" "$worktree" "gateway-isolation-$wrapper"
+  fakebin=$(fm_test_make_spawn_fakebin "$case_dir/tools")
+  mkdir -p "$home/user-home"
+  if [ "$wrapper" = direct ]; then
+    spawn_output=$(FM_ROOT_OVERRIDE='' FM_HOME="$home" HOME="$home/user-home" CLAUDE_CONFIG_DIR='' \
+      FM_SPAWN_NO_GUARD=1 TMUX=fake,1,0 FM_FAKE_PANE_PATH="$worktree" \
+      FM_FAKE_LAUNCH_LOG="$launch_log" PATH="$fakebin:$PATH" \
+      "$ROOT/bin/fm-spawn.sh" "$id" "$project" --harness claude --mode no-mistakes --yolo off 2>&1) \
+      || fail "direct spawn inherited a gateway binding: $spawn_output"
+  else
+    spawn_output=$(FM_FAKE_LAUNCH_LOG="$launch_log" \
+      fm_test_run_spawn "$home" "$worktree" "$fakebin" "$id" "$project" \
+      --harness claude --mode no-mistakes --yolo off) \
+      || fail "shared spawn inherited a gateway binding: $spawn_output"
+  fi
+  [ -s "$launch_log" ] || fail "$wrapper spawn delivered no launch"
+  [ -f "$home/state/$id.meta" ] || fail "$wrapper spawn published no metadata"
+  assert_not_contains "$(cat "$launch_log")" apiKeyHelper "$wrapper spawn configured an inherited gateway helper"
+done
+SH
+    ) || status=$?
+    expect_code 0 "$status" "$setup setup should isolate inherited gateway variables: $out"
+  done
+  pass "test setup isolates gateway environment for direct and shared Claude spawns"
+}
+
 test_touch_epoch_preserves_repeated_dst_hour() {
   local TZ=Europe/Paris epoch path actual
   export TZ
@@ -280,6 +325,7 @@ test_spawn_home_layout() {
 }
 
 test_git_config_isolation || fail "Git fixture config isolation"
+test_gateway_environment_isolation
 test_touch_epoch_preserves_repeated_dst_hour
 test_no_mistakes_version_constant
 test_no_mistakes_init_doctor_markers
