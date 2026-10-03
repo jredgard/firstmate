@@ -49,6 +49,7 @@ fm_claude_gateway_settings() {
     echo "error: LITELLM_PROXY_URL port $port maps to no readable LiteLLM project env file under $projects_dir; configure LITELLM_PORT" >&2
     return 1
   fi
+  # shellcheck disable=SC2016  # The helper script expands at apiKeyHelper runtime, keeping the key out of settings.
   helper="bash -c $(fm_claude_gateway_quote 'set -e; unset LITELLM_MASTER_KEY; . "$1"; test -n "${LITELLM_MASTER_KEY:-}"; printf "%s\n" "$LITELLM_MASTER_KEY"') bash $(fm_claude_gateway_quote "$env_file")"
   jq -cn --arg url "$LITELLM_PROXY_URL" --arg helper "$helper" '
     {env: {ANTHROPIC_BASE_URL: $url, LITELLM_PROXY_URL: $url,
