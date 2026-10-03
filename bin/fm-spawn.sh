@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Spawn a direct report: a crewmate in a treehouse or Orca worktree, or a
 # secondmate in its isolated firstmate home.
-# Usage: fm-spawn.sh <task-id> <project-dir> --mode <no-mistakes|direct-PR|local-only> --yolo <on|off> [--branch-prefix <prefix>] [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--backend <name>]
+# Usage: fm-spawn.sh <task-id> <project-dir> --mode <no-mistakes|direct-PR|local-only> --yolo <on|off> [--branch-prefix <prefix>] [--nm-skip lint] [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--backend <name>]
 #        fm-spawn.sh <task-id> <project-dir> --scout [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--backend <name>]
 #        fm-spawn.sh <task-id> [<firstmate-home>] [--harness <name>|harness|launch-command] [--model <name>] [--effort <level>] [--backend <name>] --secondmate
 #   --mode and --yolo are this task's delivery contract, REQUIRED for every ship
@@ -38,6 +38,12 @@
 #   prints a one-line deviation notice and continues, because the registered
 #   prefix is the captain's standing preference and the brief agreement above
 #   already guarantees the worker's instructions match the branch.
+#   --nm-skip carries the intake-resolved lint skip, agrees exactly with
+#   the brief's skip= field, and records nm_skip= in ship metadata. It is refused
+#   on scouts, secondmates, relaunches, and non-no-mistakes ships; relaunch reads
+#   the recorded value instead. A no-mistakes task's registry skip deviation is
+#   announced, not refused.
+#   bin/fm-dod-lib.sh owns the closed set and the worker's per-run instruction.
 #   Ship/scout launches always put fm-dod-lib.sh's current worker role scope
 #   first in the private launch-brief overlay, including the exact task-owned
 #   steering inbox. This never rewrites a project's instruction files or a
@@ -685,6 +691,7 @@ BACKEND_ARG=
 MODE=
 YOLO=
 BRANCH_PREFIX=fm/
+NM_SKIP=
 TRACEPARENT_ARG=
 HARNESS_SET=0
 MODEL_SET=0
@@ -693,6 +700,7 @@ BACKEND_SET=0
 MODE_SET=0
 YOLO_SET=0
 BRANCH_PREFIX_SET=0
+NM_SKIP_SET=0
 TRACEPARENT_SET=0
 RELAUNCH=0
 POS=()
@@ -733,6 +741,10 @@ for a in "$@"; do
     branch-prefix)
       BRANCH_PREFIX=$a
       BRANCH_PREFIX_SET=1
+      ;;
+    nm-skip)
+      NM_SKIP=$a
+      NM_SKIP_SET=1
       ;;
     traceparent)
       TRACEPARENT_ARG=$a
@@ -787,6 +799,8 @@ for a in "$@"; do
     YOLO_SET=1
     ;;
   --branch-prefix) want_value="branch-prefix" ;;
+  --nm-skip) want_value=nm-skip ;;
+  --nm-skip=*) NM_SKIP=${a#--nm-skip=}; NM_SKIP_SET=1 ;;
   --branch-prefix=*)
     BRANCH_PREFIX=${a#--branch-prefix=}
     BRANCH_PREFIX_SET=1
@@ -877,6 +891,10 @@ if [ "$RELAUNCH" -eq 1 ]; then
     echo "error: --relaunch reuses the task's recorded ship branch; --branch-prefix cannot override it" >&2
     exit 1
   }
+  [ "$NM_SKIP_SET" -eq 0 ] || {
+    echo "error: --relaunch reuses the task's recorded no-mistakes skips; --nm-skip cannot override them" >&2
+    exit 1
+  }
 else
   # Delivery contract (AGENTS.md section 7). A ship task's mode and yolo are
   # firstmate's per-task decision, so they are required and closed-set validated
@@ -924,6 +942,12 @@ else
     }
   fi
 fi
+
+if [ "$NM_SKIP_SET" -eq 1 ] && { [ "$KIND" != ship ] || [ "$MODE" != no-mistakes ]; }; then
+  echo "error: --nm-skip applies only to ship spawns with --mode no-mistakes" >&2
+  exit 1
+fi
+fm_nm_skip_valid "$NM_SKIP" "fm-spawn.sh --nm-skip" || exit 1
 
 spawn_remote_secondmate() {
   local id=$1 remote host root home harness positional model effort backend out rc meta tmp
@@ -1345,6 +1369,7 @@ spawn_abort_cleanup() {
             [ -z "${MODE:-}" ] || echo "mode=$MODE"
             [ -z "${YOLO:-}" ] || echo "yolo=$YOLO"
             [ -z "${BRANCH:-}" ] || echo "branch=$BRANCH"
+            [ "$KIND" != ship ] || echo "nm_skip=$NM_SKIP"
             echo "tasktmp=${TASK_TMP:-}"
             echo "model=${MODEL:-default}"
             echo "effort=${EFFORT:-default}"
@@ -1503,6 +1528,7 @@ if [ "${#POS[@]}" -gt 0 ] && [ "${POS[0]}" != "$idpart" ] && case "$idpart" in *
   [ "$MODE_SET" -eq 0 ] || shared_args+=(--mode "$MODE")
   [ "$YOLO_SET" -eq 0 ] || shared_args+=(--yolo "$YOLO")
   [ "$BRANCH_PREFIX_SET" -eq 0 ] || shared_args+=(--branch-prefix "$BRANCH_PREFIX")
+  [ "$NM_SKIP_SET" -eq 0 ] || shared_args+=(--nm-skip "$NM_SKIP")
   for pair in "${POS[@]}"; do
     case "$pair" in
     *=*) : ;;
@@ -1820,6 +1846,12 @@ if [ "$RELAUNCH" -eq 1 ]; then
   fi
   MODE=$(fm_meta_get "$RELAUNCH_META" mode)
   YOLO=$(fm_meta_get "$RELAUNCH_META" yolo)
+  NM_SKIP=$(fm_meta_get "$RELAUNCH_META" nm_skip)
+  fm_nm_skip_valid "$NM_SKIP" "$RELAUNCH_META nm_skip" || exit 1
+  if [ -n "$NM_SKIP" ] && { [ "$KIND" != ship ] || [ "$MODE" != no-mistakes ]; }; then
+    echo "error: $RELAUNCH_META records no-mistakes skips outside a no-mistakes ship" >&2
+    exit 1
+  fi
   if [ "$KIND" = ship ]; then
     BRANCH=$(fm_meta_get "$RELAUNCH_META" branch)
     [ -n "$BRANCH" ] || BRANCH="fm/$ID"
@@ -3122,6 +3154,16 @@ if [ "$KIND" = ship ]; then
   STANDING_MODE=$("$FM_ROOT/bin/fm-project-mode.sh" --raw "$PROJ_NAME" 2>/dev/null | cut -d' ' -f1) || STANDING_MODE=
   BRIEF_MODE=$(sed -n 's/^Delivery contract: mode=\([^ ]*\).*$/\1/p' "$BRIEF" | head -n 1)
   BRIEF_FORGE=$(sed -n 's/^Delivery contract: mode=[^ ]*.*[[:space:]]forge=\([^ ]*\).*$/\1/p' "$BRIEF" | head -n 1)
+  BRIEF_NM_SKIP=$(sed -n 's/^Delivery contract: mode=[^ ]*.*[[:space:]]skip=\([^ ]*\).*$/\1/p' "$BRIEF" | head -n 1)
+  fm_nm_skip_valid "$BRIEF_NM_SKIP" "$BRIEF skip=" || exit 1
+  if [ "$BRIEF_NM_SKIP" != "$NM_SKIP" ]; then
+    echo "error: no-mistakes skip mismatch for $ID: the brief says skip=$BRIEF_NM_SKIP but this spawn selected nm_skip=$NM_SKIP; correct --nm-skip or re-scaffold the brief so the worker's instructions and the task record agree" >&2
+    exit 1
+  fi
+  if [ -n "$NM_SKIP" ] && [ "$MODE" != no-mistakes ]; then
+    echo "error: $ID records no-mistakes skips outside mode=no-mistakes" >&2
+    exit 1
+  fi
   [ -n "$BRIEF_FORGE" ] || BRIEF_FORGE=none
   BRIEF_BRANCH=$(sed -n 's/^Ship branch: //p' "$BRIEF" | head -n 1)
   if [ -n "$BRIEF_BRANCH" ]; then
@@ -3186,6 +3228,10 @@ if [ "$KIND" = ship ]; then
   STANDING_BRANCH=$("$FM_ROOT/bin/fm-project-mode.sh" --branch-prefix "$PROJ_NAME" 2>/dev/null) || STANDING_BRANCH=
   if [ "$BRANCH" != "$STANDING_BRANCH$ID" ]; then
     echo "notice: $ID ships branch=$BRANCH while $PROJ_NAME registers the ship-branch prefix '$STANDING_BRANCH' (branch $STANDING_BRANCH$ID) - the task's branch and PR will read as firstmate-authored; proceed only on a current explicit captain instruction or an intake judgment you can state" >&2
+  fi
+  STANDING_NM_SKIP=$("$FM_ROOT/bin/fm-project-mode.sh" --nm-skip "$PROJ_NAME" 2>/dev/null)
+  if [ "$MODE" = no-mistakes ] && [ "$NM_SKIP" != "$STANDING_NM_SKIP" ]; then
+    echo "notice: $ID ships nm_skip=$NM_SKIP while $PROJ_NAME registers nmskip=$STANDING_NM_SKIP - proceed only on a current explicit captain instruction or an intake judgment you can state" >&2
   fi
 fi
 
@@ -4901,7 +4947,7 @@ SPAWN_META_PATH=$SPAWN_META_TMP
 preserve_relaunch_meta() {
   awk -F= '
     BEGIN {
-      split("window endpoint_task_id worktree project harness kind mode yolo branch tasktmp model effort account account_provider busy_gen spawn_gen traceparent backend herdr_session herdr_workspace_id herdr_tab_id herdr_pane_id zellij_session zellij_tab_id zellij_pane_id orca_worktree_id terminal cmux_workspace_id cmux_surface_id home projects control_relaunch_tx", keys, " ")
+      split("window endpoint_task_id worktree project harness kind mode yolo branch nm_skip tasktmp model effort account account_provider busy_gen spawn_gen traceparent backend herdr_session herdr_workspace_id herdr_tab_id herdr_pane_id zellij_session zellij_tab_id zellij_pane_id orca_worktree_id terminal cmux_workspace_id cmux_surface_id home projects control_relaunch_tx", keys, " ")
       for (i in keys) owned[keys[i]] = 1
     }
     !($1 in owned)
@@ -4917,6 +4963,7 @@ preserve_relaunch_meta() {
   [ -z "$MODE" ] || echo "mode=$MODE"
   [ -z "$YOLO" ] || echo "yolo=$YOLO"
   [ -z "${BRANCH:-}" ] || echo "branch=$BRANCH"
+  [ "$KIND" != ship ] || echo "nm_skip=$NM_SKIP"
   echo "tasktmp=$TASK_TMP"
   echo "model=${MODEL:-default}"
   echo "effort=${EFFORT:-default}"
