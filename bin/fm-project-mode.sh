@@ -10,6 +10,9 @@
 # none|gerrit. The forge is asked for explicitly, so the default output stays
 # the same two words for every project, bound or not.
 # --nm-skip prints the registered per-task lint skip or an empty line.
+# --ledgers prints the optional ledgers=<comma-list> bracket token's value,
+# or an empty line when absent. Entries are exact repository-relative paths,
+# without spaces or commas; this query does not change the delivery posture.
 #
 # MECHANICAL CONSUMERS ONLY. This answers "what posture did the captain register
 # for this project", never "how does this task ship". A task's delivery mode,
@@ -31,7 +34,8 @@
 #   - <name> [<mode> forge=gerrit] - <desc> (added <date>)           -> <mode> off, --forge gerrit
 #   - <name> [<mode> nmskip=lint] - <desc> (added <date>)            -> --nm-skip lint
 #   <name> may contain spaces; it ends at the literal " [" or " - " that follows it.
-#   Bracket tokens are order-independent: +yolo, branch=<prefix>, forge=<value>, and nmskip=lint
+#   Bracket tokens are order-independent: +yolo, branch=<prefix>, forge=<value>,
+#   nmskip=lint, and ledgers=<comma-list>
 #   are recognized by their own shape wherever they appear, and whichever token is
 #   left over is the mode. <prefix> must not contain a space; an empty override
 #   ("branch=") resolves to "" for a bare "<task-id>" ship branch instead of the
@@ -101,7 +105,7 @@
 # every path that reads the forge binding (default, --forge, and spawn's
 # forge-agreement check) still refuses. --nm-skip likewise answers only its
 # registered axis; invalid nmskip values still refuse every query.
-# Usage: fm-project-mode.sh [--raw|--branch-prefix|--forge|--nm-skip] <project-name>
+# Usage: fm-project-mode.sh [--raw|--branch-prefix|--forge|--nm-skip|--ledgers] <project-name>
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -115,17 +119,21 @@ RAW=0
 BRANCH_PREFIX_QUERY=0
 WANT_FORGE=0
 NM_SKIP_QUERY=0
+WANT_LEDGERS=0
 case "${1:-}" in
   --raw) RAW=1; shift ;;
   --branch-prefix) BRANCH_PREFIX_QUERY=1; shift ;;
   --forge) WANT_FORGE=1; shift ;;
   --nm-skip) NM_SKIP_QUERY=1; shift ;;
+  --ledgers) WANT_LEDGERS=1; shift ;;
 esac
-NAME=${1:?usage: fm-project-mode.sh [--raw|--branch-prefix|--forge|--nm-skip] <project-name>}
+NAME=${1:?usage: fm-project-mode.sh [--raw|--branch-prefix|--forge|--nm-skip|--ledgers] <project-name>}
 
 if [ ! -f "$REG" ]; then
   echo "warn: no registry at $REG; defaulting $NAME to no-mistakes off" >&2
-  if [ "$BRANCH_PREFIX_QUERY" -eq 1 ]; then
+  if [ "$WANT_LEDGERS" -eq 1 ]; then
+    echo ""
+  elif [ "$BRANCH_PREFIX_QUERY" -eq 1 ]; then
     echo "fm/"
   elif [ "$NM_SKIP_QUERY" -eq 1 ]; then echo ''
   elif [ "$WANT_FORGE" -eq 1 ]; then echo none; else echo "no-mistakes off"; fi
@@ -163,13 +171,15 @@ parsed=$(awk -v n="$NAME" '
     after = substr($0, plen + 1);
     if (after != "" && substr(after, 1, 2) != " [" && substr(after, 1, 3) != " - ") next
     mode="no-mistakes"; yolo="off"; branch="fm/"; forge="none"; nm_skip="nmskip=";
+    ledgers="";
     if (substr(after, 1, 2) == " [") {
       s="";
       nk = split(after, rest, " ");
       for (i=1; i<=nk; i++) { s = s (s==""?"":" ") rest[i]; if (rest[i] ~ /\]$/) break }
       gsub(/^\[|\]$/, "", s);           # strip the surrounding brackets
       k = split(s, a, " ");
-      # Tokens are order-independent: +yolo, branch=<prefix>, forge=<value>, and nmskip=lint
+      # Tokens are order-independent: +yolo, branch=<prefix>, forge=<value>, nmskip=lint,
+      # ledgers=<comma-list>
       # are recognized by their own shape wherever they appear, keyed tokens
       # that are neither are ignored (with a near-miss warning for the forge
       # spelling), and the first token left over is the mode.
@@ -179,6 +189,7 @@ parsed=$(awk -v n="$NAME" '
         if (a[j] ~ /^branch=/) { branch = substr(a[j], 8); continue }
         if (a[j] ~ /^forge=/) { forge = a[j]; continue }
         if (a[j] ~ /^nmskip=/) { nm_skip = a[j]; continue }
+        if (a[j] ~ /^ledgers=/) { ledgers = substr(a[j], 9); continue }
         if (a[j] ~ /^[^=]+=/) {
           key = substr(a[j], 1, index(a[j], "=") - 1);
           e = dist(key, "forge");
@@ -191,13 +202,16 @@ parsed=$(awk -v n="$NAME" '
     }
     # branch is printed LAST: an empty branch= override must survive as an
     # empty final field, which only holds when nothing follows it.
+    print "ledgers", ledgers;
     print "posture", mode, yolo, forge, nm_skip, branch; exit
   }
 ' "$REG")
 
 if [ -z "$parsed" ]; then
   echo "warn: project \"$NAME\" not in registry; defaulting to no-mistakes off" >&2
-  if [ "$BRANCH_PREFIX_QUERY" -eq 1 ]; then
+  if [ "$WANT_LEDGERS" -eq 1 ]; then
+    echo ""
+  elif [ "$BRANCH_PREFIX_QUERY" -eq 1 ]; then
     echo "fm/"
   elif [ "$NM_SKIP_QUERY" -eq 1 ]; then echo ''
   elif [ "$WANT_FORGE" -eq 1 ]; then echo none; else echo "no-mistakes off"; fi
@@ -205,14 +219,20 @@ if [ -z "$parsed" ]; then
 fi
 
 posture=
+ledgers=
 while IFS=' ' read -r kind rest; do
   case "$kind" in
     near) echo "warn: ignoring \"$rest\" registered for $NAME in $REG; it is not a forge binding, and the forge binding is spelled forge=gerrit" >&2 ;;
     posture) posture=$rest ;;
+    ledgers) ledgers=$rest ;;
   esac
 done <<EOF
 $parsed
 EOF
+if [ "$WANT_LEDGERS" -eq 1 ]; then
+  printf '%s\n' "$ledgers"
+  exit 0
+fi
 while IFS=' ' read -r m y f skip_token b; do
   mode=$m; yolo=$y; rest_forge=$f; nm_skip=${skip_token#nmskip=}; branch=$b
 done <<EOF

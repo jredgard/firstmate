@@ -73,7 +73,8 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `backends/orca.sh`       | Experimental Orca backend adapter owning both worktree and terminal                  |
 | `backends/cmux.sh`       | Experimental cmux session-provider adapter                                           |
 | `fm-config-push.sh`      | Push declared inherited local material to live local or remote secondmates and send the placement-specific config reread when changed |
-| `fm-project-mode.sh`     | Resolve a project's registered delivery posture, forge binding, ship-branch prefix, or no-mistakes lint skip from `data/projects.md` for fleet sync, home seeding, intake, and the forge agreement a ship spawn or scout promotion applies |
+| `fm-project-mode.sh`     | Resolve a project's registered delivery posture, forge binding, ship-branch prefix, no-mistakes lint skip, or ledger list from `data/projects.md` for fleet sync, home seeding, intake, the conflict radar, and the forge agreement a ship spawn or scout promotion applies |
+| `fm-conflict-radar.sh`   | Read-only shared-path matrix across tracked ships and open PRs, retaining short project-local evidence in private state; see its header and help |
 | `fm-forge-detect.sh`     | Propose a clone's forge binding from its origin remote for project-add intake, never recording it |
 | `fm-merge-local.sh`      | Fast-forward a `local-only` project's local default branch after approval            |
 | `fm-review-diff.sh`      | Review a crewmate branch or resolved PR head against the authoritative base          |

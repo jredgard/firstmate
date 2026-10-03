@@ -61,6 +61,8 @@ A forge composes with `no-mistakes`, `direct-PR`, and `no-mistakes-prod-only`, a
 `yolo` is inactive on a `forge=gerrit` project, so never propose `+yolo` alongside it.
 `bin/fm-project-mode.sh`'s header owns the binding and `bin/fm-dod-lib.sh` owns what it changes for a worker.
 
+The optional `ledgers=<comma-list>` token names a project's shared documentation ledgers as exact repository-relative paths for `conflict-radar`; it changes no delivery posture, and `bin/fm-project-mode.sh --ledgers` is its one reader.
+
 ## Add or clone an existing project
 
 Confirm the source URL, local project name, delivery posture, and autonomy posture, stating the resolved default for each rather than asking the captain to invent one.
