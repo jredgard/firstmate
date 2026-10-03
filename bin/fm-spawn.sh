@@ -334,7 +334,9 @@
 #   The URL's explicit port must match exactly one project's LITELLM_PORT in
 #   ${LITELLM_PROJECTS_DIR:-$HOME/.config/litellm/projects}/*/env.
 #   Invalid bindings, unreadable env files, and unmapped/ambiguous ports refuse
-#   before endpoint creation. The settings apiKeyHelper reads LITELLM_MASTER_KEY
+#   before endpoint creation; fm-control.sh relaunch resolves the same binding
+#   through bin/fm-claude-gateway-lib.sh before it stops the old agent.
+#   The settings apiKeyHelper reads LITELLM_MASTER_KEY
 #   from that env file at runtime; only its path, never the key, enters launch
 #   commands or metadata. Empty auth-token/API-key settings clear stale static
 #   credentials so the helper supplies authentication. No settings files are
@@ -681,6 +683,8 @@ fm_backlog_directory_present "$STATE" "state directory" || {
 . "$SCRIPT_DIR/fm-timeout-lib.sh"
 # shellcheck source=bin/fm-worker-account-lib.sh
 . "$SCRIPT_DIR/fm-worker-account-lib.sh"
+# shellcheck source=bin/fm-claude-gateway-lib.sh
+. "$SCRIPT_DIR/fm-claude-gateway-lib.sh"
 # Fail closed before any fleet mutation: a no-mistakes gate agent must never spawn
 # a direct report (see bin/fm-gate-refuse-lib.sh).
 fm_refuse_if_gate_agent
@@ -1901,50 +1905,6 @@ else
 fi
 [ -z "$HARNESS_ARG" ] || ARG3=$HARNESS_ARG
 
-claude_gateway_settings() {
-  local projects_dir env_file port candidate candidate_port helper
-  projects_dir=${LITELLM_PROJECTS_DIR:-$HOME/.config/litellm/projects}
-  if ! projects_dir=$(cd "$projects_dir" 2>/dev/null && pwd -P); then
-    echo "error: Claude gateway binding requires a readable LiteLLM projects directory; set LITELLM_PROJECTS_DIR or create $HOME/.config/litellm/projects" >&2
-    return 1
-  fi
-  if ! port=$(printf '%s' "$LITELLM_PROXY_URL" | jq -Rer '
-    capture("^https?://(?:\\[[^]]+\\]|[^/?#:]+):(?<port>[0-9]+)(?:/[^?#]*)?$").port
-  ' 2>/dev/null); then
-    echo "error: LITELLM_PROXY_URL must have an explicit gateway port" >&2
-    return 1
-  fi
-  env_file=
-  for candidate in "$projects_dir"/*/env; do
-    [ -f "$candidate" ] && [ -r "$candidate" ] || continue
-    candidate_port=$(awk '
-      /^[[:space:]]*(export[[:space:]]+)?LITELLM_PORT[[:space:]]*=/ {
-        sub(/^[^=]*=[[:space:]]*/, "")
-        sub(/[[:space:]]+#.*$/, "")
-        sub(/[[:space:]\r]+$/, "")
-        if ($0 ~ /^"[0-9]+"$/ || $0 ~ /^\047[0-9]+\047$/) $0 = substr($0, 2, length($0) - 2)
-        value = $0
-      }
-      END { print value }
-    ' "$candidate") || return 1
-    [ "$candidate_port" = "$port" ] || continue
-    if [ -n "$env_file" ]; then
-      echo "error: LITELLM_PROXY_URL port $port maps to multiple LiteLLM project env files; configure unique LITELLM_PORT values" >&2
-      return 1
-    fi
-    env_file=$candidate
-  done
-  if [ -z "$env_file" ]; then
-    echo "error: LITELLM_PROXY_URL port $port maps to no readable LiteLLM project env file under $projects_dir; configure LITELLM_PORT" >&2
-    return 1
-  fi
-  helper="bash -c $(shell_quote "set -e; unset LITELLM_MASTER_KEY; . \"\$1\"; test -n \"\${LITELLM_MASTER_KEY:-}\"; printf \"%s\\n\" \"\$LITELLM_MASTER_KEY\"") bash $(shell_quote "$env_file")"
-  jq -cn --arg url "$LITELLM_PROXY_URL" --arg helper "$helper" '
-    {env: {ANTHROPIC_BASE_URL: $url, LITELLM_PROXY_URL: $url,
-      ANTHROPIC_AUTH_TOKEN: "", ANTHROPIC_API_KEY: ""}, apiKeyHelper: $helper}
-  '
-}
-
 shell_quote() {
   printf "'"
   printf '%s' "$1" | sed "s/'/'\\\\''/g"
@@ -2347,8 +2307,8 @@ case "$ARG3" in
 esac
 
 CLAUDE_GATEWAY_SETTINGS=
-if [ "$HARNESS" = claude ] && [ "$RAW_LAUNCH" = 0 ] && [ "${LITELLM_PROXY_URL+x}" = x ]; then
-  CLAUDE_GATEWAY_SETTINGS=$(claude_gateway_settings) || exit 1
+if [ "$RAW_LAUNCH" = 0 ]; then
+  CLAUDE_GATEWAY_SETTINGS=$(fm_claude_gateway_settings "$HARNESS") || exit 1
 fi
 
 # muse, gemini, agy, and devin are verified as CREWMATE/SCOUT adapters only. A secondmate is

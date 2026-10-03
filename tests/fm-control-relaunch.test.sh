@@ -429,6 +429,25 @@ test_claude_relaunch_rebuilds_gateway_settings_from_the_home() {
   pass "Claude relaunch reconstructs gateway env and secret-free helper from the spawning home"
 }
 
+test_claude_relaunch_refuses_an_unresolvable_gateway_before_stop() {
+  local dir out rc id=gateway-unmapped
+  dir=$(new_case gateway-unmapped "$id")
+  add_ship_task "$dir" "$id" claude
+  mkdir -p "$dir/lines/clims"
+  printf 'LITELLM_PORT=4001\nLITELLM_MASTER_KEY=fixture-unmapped-key\n' > "$dir/lines/clims/env"
+  cp "$dir/home/state/$id.meta" "$dir/meta-before"
+  out=$(FM_TEST_GATEWAY_URL=http://127.0.0.1:14999 FM_TEST_GATEWAY_PROJECTS="$dir/lines" \
+    run_control "$dir" "$id" relaunch --note 'gateway unmapped'); rc=$?
+  expect_code 1 "$rc" "a relaunch under an unmapped gateway port must refuse"
+  assert_contains "$out" "LITELLM_PROXY_URL port 14999 maps to no readable LiteLLM project env file" \
+    "the refusal should name the unmapped gateway port"
+  [ "$(cat "$dir/fake/command")" = claude ] || fail "an unresolvable gateway must refuse before the running agent stops"
+  [ ! -s "$dir/fake/literal" ] || fail "an unresolvable gateway must refuse before any lifecycle input is sent"
+  cmp -s "$dir/meta-before" "$dir/home/state/$id.meta" || fail "a refused relaunch must leave the task record untouched"
+  assert_not_contains "$out" fixture-unmapped-key "the refusal leaked a master key"
+  pass "fm-control relaunch: an unresolvable Claude gateway binding refuses before the old agent stops"
+}
+
 test_relaunch_refuses_before_exit_when_the_composer_holds_pending_text() {
   local dir out rc
   dir=$(new_case pending-exit rl43)
@@ -2427,6 +2446,7 @@ test_relaunch_moves_a_drifted_item_back_in_flight() {
 
 test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint
 test_claude_relaunch_rebuilds_gateway_settings_from_the_home
+test_claude_relaunch_refuses_an_unresolvable_gateway_before_stop
 test_relaunch_refuses_before_exit_when_the_composer_holds_pending_text
 test_relaunch_refuses_before_exit_when_the_composer_state_is_unproven
 test_relaunch_from_linked_home_preserves_recorded_worktree
