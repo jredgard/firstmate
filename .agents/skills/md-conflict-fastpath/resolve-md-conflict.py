@@ -30,6 +30,7 @@ Classification is a path hint only; the owner skill requires inspecting use and 
 import http.client
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -196,5 +197,14 @@ if __name__ == "__main__":
         raise ValueError("expected list <repo> <prId> or apply <repo> <prId> <conflictId> <resolvedFile>")
     except (OSError, ValueError, KeyError, TypeError, AttributeError,
             subprocess.SubprocessError, http.client.HTTPException) as error:
-        print(f"error: {type(error).__name__}: {' '.join(str(error).splitlines())}", file=sys.stderr)
+        diagnostic = ' '.join(str(error).splitlines())
+        if isinstance(error, subprocess.CalledProcessError) and error.stderr:
+            detail = next((line.strip() for line in error.stderr.splitlines() if line.strip()), "")
+            if detail:
+                diagnostic += f": {detail}"
+        access_token = os.environ.get("ADO_TOKEN")
+        if access_token:
+            diagnostic = diagnostic.replace(access_token, "[REDACTED]")
+        diagnostic = re.sub(r"(?i)\bbearer\s+\S+", "Bearer [REDACTED]", diagnostic)
+        print(f"error: {type(error).__name__}: {diagnostic}", file=sys.stderr)
         sys.exit(5)

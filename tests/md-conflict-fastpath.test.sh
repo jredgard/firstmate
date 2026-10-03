@@ -30,7 +30,8 @@ class ConflictCliTests(unittest.TestCase):
         cls.fakebin.mkdir()
         az = cls.fakebin / "az"
         az.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$AZ_ARGS"\n'
-                      'if [ "${AZ_EXIT:-0}" != 0 ]; then printf "token failed\\n" >&2; exit "$AZ_EXIT"; fi\n'
+                      'if [ "${AZ_EXIT:-0}" != 0 ]; then printf "%s\\n" "${AZ_ERROR-token failed}" >&2; '
+                      'printf "%s\\n" "${AZ_TOKEN-stub-token}"; exit "$AZ_EXIT"; fi\n'
                       'printf "%s\\n" "${AZ_TOKEN-stub-token}"\n')
         az.chmod(0o700)
         cls.entries = []
@@ -227,6 +228,48 @@ class ConflictCliTests(unittest.TestCase):
         result = self.invoke("list", "repo", "7", error=True)
         self.assertIn("empty access token", result.stderr)
         self.assertEqual(self.requests, [])
+
+    def test_token_failure_keeps_first_nonempty_diagnostic_without_stdout(self):
+        self.environment.pop("ADO_TOKEN")
+        self.environment.update({"AZ_EXIT": "7", "AZ_TOKEN": "private-token-output",
+                                 "AZ_ERROR": "\n  \nPlease run az login\ncredential details omitted"})
+        resolution = self.root / "resolution.md"
+        resolution.write_bytes(b"merged facts\n")
+        for command in (("list", "repo", "7"), ("apply", "repo", "7", "1", str(resolution))):
+            with self.subTest(command=command[0]):
+                result = self.invoke(*command, error=True)
+                self.assertTrue(result.stderr.endswith(": Please run az login\n"), result.stderr)
+                self.assertNotIn("private-token-output", result.stdout + result.stderr)
+                self.assertNotIn("credential details omitted", result.stdout + result.stderr)
+                self.assertEqual(self.requests, [])
+
+    def test_merge_failure_keeps_first_nonempty_diagnostic_and_redacts_tokens(self):
+        self.list_conflicts(["/README.md"])
+        stub_directory = self.root / "merge-error-bin"
+        stub_directory.mkdir()
+        git = stub_directory / "git"
+        git.write_text('#!/bin/sh\nprintf "%s\\n" "$*" > "$GIT_ARGS"\n'
+                       'printf "%s\\n" "$GIT_ERROR" >&2\nexit 255\n')
+        git.chmod(0o700)
+        self.environment.update({"PATH": str(stub_directory) + os.pathsep + self.environment["PATH"],
+                                 "GIT_ARGS": str(self.root / "git-arguments")})
+        for detail, expected in (("", ""), ("\n \n", ""),
+                                 ("\n  \nfatal: cannot merge binary files\ncredential details omitted",
+                                  ": fatal: cannot merge binary files"),
+                                 ("\nfatal: stub-token Bearer private-bearer-value\ncredential details omitted",
+                                  ": fatal: [REDACTED] Bearer [REDACTED]")):
+            with self.subTest(detail=detail):
+                type(self).requests = []
+                self.environment["GIT_ERROR"] = detail
+                result = self.invoke("list", "repo", "7", error=True)
+                self.assertTrue(result.stderr.endswith(f"{expected}\n"), result.stderr)
+                self.assertIn("CalledProcessError", result.stderr)
+                self.assertNotIn("credential details omitted", result.stdout + result.stderr)
+                self.assertNotIn("stub-token", result.stdout + result.stderr)
+                self.assertNotIn("private-bearer-value", result.stdout + result.stderr)
+                self.assertNotIn("verdict:", result.stdout)
+                self.assertEqual(len(self.requests), 4)
+                self.assertTrue((self.root / "git-arguments").read_text().startswith("merge-file -p "))
 
     def test_file_and_merge_subprocess_failures_are_operational_errors(self):
         for path in (self.root / "missing-resolution.md", self.root):
