@@ -29,6 +29,7 @@ Treat documentation-named text ledgers and dependency text manifests according t
 
 Run the radar during the wave and at either implementation handoff or PR-ready done, before registering the PR.
 Read shared paths, participants and unmeasured sources against the previous observation, including recently completed PR paths still associated with tracked tasks.
+Use task-involving shared candidates for wave reconciliation; external-only PR overlaps remain evidence under the script's shared-path policy, not worker-steering candidates.
 For a ledger candidate, inspect both edits and steer the later worker through `fm-send` to drop only the redundant wave-wide edit and preserve the required update for the wave-closing documentation PR.
 For a mechanical candidate, compare intended dependency or setting changes and plan the later worker's restore-and-rerun on the settled base; never assume two manifest edits commute.
 For a code candidate, inspect the hunks and semantic dependency before deciding whether a steer, landing order or explicit dependency is necessary.

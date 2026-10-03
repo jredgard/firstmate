@@ -31,6 +31,8 @@ case "$3" in
       case "$3" in *page=1) file="$RADAR_FIXTURE/files-page1.json" ;; *page=2) file="$RADAR_FIXTURE/files-page2.json" ;; *) exit 1 ;; esac
     else file="$RADAR_FIXTURE/files.json"; fi ;;
   */pulls/7) file="$RADAR_FIXTURE/state.json" ;;
+  */pulls/8/files*) file="$RADAR_FIXTURE/external-files.json" ;;
+  */pulls/8) file="$RADAR_FIXTURE/state.json" ;;
   *) exit 1 ;;
 esac
 printf 'api_response:\n  body: %s\n  truncated: false\n' "$(jq -r '@base64' "$file")"
@@ -70,6 +72,35 @@ run_radar
 assert_json '.projects[0] | (.matrix|length)==0 and (.unmeasured|length)==0' 'no changed paths produces measured empty matrix'
 [ "$(bash "$RADAR" app)" = 'app: no overlap' ] || fail 'no overlap output'
 pass 'human no overlap output'
+
+printf '[{"number":7,"html_url":"https://github.com/fixture/app/pull/7","head":{"ref":"team/first"}},{"number":8,"html_url":"https://github.com/fixture/app/pull/8","head":{"ref":"team/second"}}]\n' > "$RADAR_FIXTURE/prs.json"
+printf '[{"filename":"README.md"},{"filename":"package-lock.json"},{"filename":"code.sh"},{"filename":"external-only.md"}]\n' > "$RADAR_FIXTURE/files.json"
+cp "$RADAR_FIXTURE/files.json" "$RADAR_FIXTURE/external-files.json"
+run_radar
+assert_json '.projects[0] | (.unmeasured|length)==0 and ([.sources[] | select(.kind=="pr")]|length)==2 and all(.sources[] | select(.kind=="pr"); .task_ids==[]) and (.matrix|length)==4 and all(.matrix[]; (.shared|not) and (.participants|length)==2 and all(.participants[]; startswith("pr:")))' 'external-only overlaps retain all evidence without shared alerts'
+jq -e '(.matrix|length)==4 and all(.matrix[]; (.shared|not) and (.sources|length)==2)' "$FM_STATE_OVERRIDE/conflict-radar/app.json" >/dev/null || fail 'persisted external-only evidence differs from the JSON interface'
+[ "$(bash "$RADAR" app)" = 'app: no overlap' ] || fail 'external-only overlaps produced human alerts'
+pass 'external-only overlaps stay in radar memory but not human output'
+
+printf 'fleet ledger\n' >> "$TMP_ROOT/alpha/README.md"
+printf 'fleet code\n' >> "$TMP_ROOT/alpha/code.sh"
+printf '{}\n' > "$TMP_ROOT/alpha/package-lock.json"
+run_radar
+assert_json '.projects[0] | [.matrix[] | select(.shared)] | length==3 and all(.participants==["pr:https://github.com/fixture/app/pull/7","pr:https://github.com/fixture/app/pull/8","task:alpha"]) and any(.path=="README.md" and .class=="ledger") and any(.path=="package-lock.json" and .class=="mechanical") and any(.path=="code.sh" and .class=="code")' 'task-versus-external overlaps remain shared across every class'
+assert_json '.projects[0].matrix | any(.path=="external-only.md" and (.shared|not) and (.sources|length)==2)' 'external-only sibling path remains evidence beside fleet alerts'
+output=$(bash "$RADAR" app)
+expected=$(printf '%s\n' \
+  'app: ledger "README.md" sources=pr:https://github.com/fixture/app/pull/7,pr:https://github.com/fixture/app/pull/8,task:alpha' \
+  'app: code "code.sh" sources=pr:https://github.com/fixture/app/pull/7,pr:https://github.com/fixture/app/pull/8,task:alpha' \
+  'app: mechanical "package-lock.json" sources=pr:https://github.com/fixture/app/pull/7,pr:https://github.com/fixture/app/pull/8,task:alpha')
+[ "$output" = "$expected" ] || fail 'human output differs from task-involving shared rows'
+pass 'human output prints task-involving rows only'
+git -C "$TMP_ROOT/alpha" restore README.md code.sh
+rm "$TMP_ROOT/alpha/package-lock.json"
+printf '[]\n' > "$RADAR_FIXTURE/prs.json"
+printf '{"state":"closed"}\n' > "$RADAR_FIXTURE/state.json"
+run_radar
+assert_json '.projects[0] | (.matrix|length)==0 and all(.sources[]; .kind=="task")' 'completed external evidence is pruned without associated tasks'
 
 printf 'alpha\n' > "$TMP_ROOT/alpha/alpha-only.sh"
 printf 'beta\n' > "$TMP_ROOT/beta/beta-only.sh"

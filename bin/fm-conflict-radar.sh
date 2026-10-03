@@ -32,6 +32,8 @@
 # One process-local Azure token is reused across all requests in a radar run.
 # Matrix sources name evidence; participants collapse a task
 # and its own PR so they alone never constitute an overlap.
+# Shared paths require two distinct participants including a tracked task;
+# external-only PR overlaps remain matrix evidence, not human-output alerts.
 # Fresh measured paths replace prior paths; failed reads retain prior paths.
 # Closed PR evidence remains while an associated task meta exists. When both
 # task meta and PR are gone, the source is pruned; failed PR reads retain it.
@@ -331,7 +333,8 @@ while IFS= read -r project_json; do
         {path:.,source:$source.id,participants:(if $source.kind=="pr" and ($source.task_ids|length)>0
           then [$source.task_ids[]|"task:"+.] else [$source.id] end)}] |
         group_by(.path) | map(.[0].path as $path | ([.[].participants[]]|unique) as $participants |
-          {path:$path,class:class($path),sources:([.[].source]|unique),participants:$participants,shared:($participants|length>1)}))}
+          {path:$path,class:class($path),sources:([.[].source]|unique),participants:$participants,
+            shared:(($participants|length)>1 and any($participants[]; startswith("task:")))}))}
   ' "$SCRATCH/sources.jsonl" > "$SCRATCH/result.json"
   mkdir -p "$STATE/conflict-radar"
   temp_memory=$(mktemp "$STATE/conflict-radar/.matrix.XXXXXX")
