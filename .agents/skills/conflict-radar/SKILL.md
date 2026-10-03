@@ -23,6 +23,7 @@ Use the registry ledger list and observed ledger candidates to identify shared v
 Keep those wave-wide ledger edits out of the task brief and carry their combined accurate updates in one wave-closing documentation PR under `md-conflict-fastpath`.
 Keep feature-specific documentation with its feature when separating it would leave behavior undocumented or make validation inaccurate; do not suppress required evidence or manufacture a pass.
 Do not classify a task's code change as mechanical merely because it lives in JSON or a manifest.
+Treat documentation-named text ledgers and dependency text manifests according to the script's classification policy, not a blanket text-file rule.
 
 ## Heartbeat and pre-registration handoff
 

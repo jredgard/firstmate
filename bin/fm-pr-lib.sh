@@ -19,6 +19,11 @@
 # after its durable wake is appended.
 # The receipt binds the terminal observation to the canonical registration and
 # lets a restart finish fixed-path removal without executing state-file bytes.
+# Azure resource tokens are memoized in process-local FM_PR_ADO_TOKEN, never
+# exported or persisted. Call fm_pr_ado_token in the parent shell before
+# command substitutions when several requests must share the same token.
+# Bearers reach curl only through a private file descriptor; acquisition and
+# requests remain bounded by FM_PR_ADO_TIMEOUT (default 20 seconds).
 
 # Bounded execution is fm-timeout-lib.sh's alone; source it rather than
 # re-deriving a deadline around the ADO REST calls here.
@@ -26,6 +31,8 @@
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fm-timeout-lib.sh"
 
 FM_PR_PROVIDER=
+FM_PR_ADO_TOKEN=
+export -n FM_PR_ADO_TOKEN
 FM_PR_URL=
 FM_PR_HOST=
 FM_PR_PATH=
@@ -303,25 +310,29 @@ fm_pr_ado_base() {  # <canonical-pr-url>
   FM_PR_ADO_BASE="https://dev.azure.com/$org/$project/_apis/git/repositories/$repo/pullRequests/$FM_PR_NUMBER"
 }
 
-# The token is delivered through a private file descriptor rather than argv,
-# so a live bearer never shows in any process listing, and both the token
-# acquisition and the REST call are hard-bounded so a wedged connection cannot
-# hold a caller's lock or watcher cycle open.
-fm_pr_ado_request() {  # <GET|PUT|PATCH> <constructed-url> [json-body]
-  local method=$1 url=$2 token timeout=${FM_PR_ADO_TIMEOUT:-20}
+fm_pr_ado_token() {
+  [ -z "$FM_PR_ADO_TOKEN" ] || return 0
+  local token timeout=${FM_PR_ADO_TIMEOUT:-20}
   [[ "$timeout" =~ ^[1-9][0-9]*$ ]] || timeout=20
-  command -v az >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 || return 1
+  command -v az >/dev/null 2>&1 || return 1
   token=$(fm_run_timed "$timeout" az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv 2>/dev/null) || return 1
   [ -n "$token" ] || return 1
   case "$token" in *$'\n'*|*$'\r'*) return 1 ;; esac
+  FM_PR_ADO_TOKEN=$token
+}
+
+fm_pr_ado_request() {  # <GET|PUT|PATCH> <constructed-url> [json-body]
+  local method=$1 url=$2 timeout=${FM_PR_ADO_TIMEOUT:-20}
+  [[ "$timeout" =~ ^[1-9][0-9]*$ ]] || timeout=20
+  command -v curl >/dev/null 2>&1 && fm_pr_ado_token || return 1
   if [ "$#" -eq 3 ]; then
     curl -fsS --max-time "$timeout" --request "$method" --header @/dev/fd/3 \
       --header 'Content-Type: application/json' --data "$3" "$url" \
-      3< <(printf 'Authorization: Bearer %s\n' "$token")
+      3< <(printf 'Authorization: Bearer %s\n' "$FM_PR_ADO_TOKEN")
   else
     curl -fsS --max-time "$timeout" --request "$method" --header @/dev/fd/3 \
       --header 'Content-Type: application/json' "$url" \
-      3< <(printf 'Authorization: Bearer %s\n' "$token")
+      3< <(printf 'Authorization: Bearer %s\n' "$FM_PR_ADO_TOKEN")
   fi
 }
 

@@ -16,7 +16,7 @@ export FM_HOME="$HOME_FIXTURE" FM_STATE_OVERRIDE="$HOME_FIXTURE/state" FM_DATA_O
 export RADAR_FIXTURE="$TMP_ROOT/forge" RADAR_CALLS="$TMP_ROOT/calls"
 mkdir -p "$RADAR_FIXTURE"
 printf '[]\n' > "$RADAR_FIXTURE/prs.json"
-printf '%s\n' '- app [ledgers=golden/questions.json direct-PR +yolo branch=ship/] - fixture' > "$FM_DATA_OVERRIDE/projects.md"
+printf '%s\n' '- app [ledgers=golden/questions.json,golden/ledger.txt direct-PR +yolo branch=ship/] - fixture' > "$FM_DATA_OVERRIDE/projects.md"
 
 cat > "$TOOLS/gh-axi" <<'EOF'
 #!/usr/bin/env bash
@@ -60,7 +60,7 @@ RADAR="$ROOT/bin/fm-conflict-radar.sh"
 run_radar() { bash "$RADAR" --json app > "$TMP_ROOT/result.json"; }
 assert_json() { jq -e "$1" "$TMP_ROOT/result.json" >/dev/null || fail "$2"; pass "$2"; }
 
-[ "$(bash "$ROOT/bin/fm-project-mode.sh" --ledgers app)" = golden/questions.json ] || fail 'registry ledgers'
+[ "$(bash "$ROOT/bin/fm-project-mode.sh" --ledgers app)" = golden/questions.json,golden/ledger.txt ] || fail 'registry ledgers'
 [ "$(bash "$ROOT/bin/fm-project-mode.sh" app)" = 'direct-PR on' ] || fail 'ledger token changed delivery mode'
 [ "$(bash "$ROOT/bin/fm-project-mode.sh" --branch-prefix app)" = 'ship/' ] || fail 'ledger token changed branch'
 [ -z "$(bash "$ROOT/bin/fm-project-mode.sh" --ledgers absent 2>/dev/null)" ] || fail 'absent ledger list'
@@ -78,28 +78,44 @@ assert_json '.projects[0].matrix | length==2 and all(.shared|not)' 'two ships wi
 rm "$TMP_ROOT/alpha/alpha-only.sh" "$TMP_ROOT/beta/beta-only.sh"
 
 for worker in alpha beta; do
+  mkdir -p "$TMP_ROOT/$worker/docs" "$TMP_ROOT/$worker/deps"
+  for path in requirements.txt deps/requirements-dev.txt constraints.txt deps/constraints-test.txt; do
+    printf '%s dependency\n' "$worker" > "$TMP_ROOT/$worker/$path"
+  done
   printf '%s committed\n' "$worker" >> "$TMP_ROOT/$worker/README.md"
-  git -C "$TMP_ROOT/$worker" add README.md
+  git -C "$TMP_ROOT/$worker" add README.md requirements.txt constraints.txt deps
   git -C "$TMP_ROOT/$worker" commit -qm ledger
   printf '%s staged\n' "$worker" >> "$TMP_ROOT/$worker/package.json"
   git -C "$TMP_ROOT/$worker" add package.json
   printf '%s unstaged\n' "$worker" >> "$TMP_ROOT/$worker/code.sh"
   printf '%s untracked\n' "$worker" > "$TMP_ROOT/$worker/new file.txt"
   printf '%s custom ledger\n' "$worker" >> "$TMP_ROOT/$worker/golden/questions.json"
+  printf '%s custom ledger\n' "$worker" > "$TMP_ROOT/$worker/golden/ledger.txt"
+  for name in README INDEX CHANGELOG NOTES VERIFY BUILD-STATUS; do
+    lower_name=$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')
+    printf '%s documentation\n' "$worker" > "$TMP_ROOT/$worker/docs/$name"
+    printf '%s documentation\n' "$worker" > "$TMP_ROOT/$worker/docs/$lower_name.tXt"
+  done
+  for path in docs/guide.markdown docs/guide.rst docs/guide.adoc docs/README.config CMakeLists.txt docs/input.txt; do
+    printf '%s content\n' "$worker" > "$TMP_ROOT/$worker/$path"
+  done
 done
 index_before=$(git -C "$TMP_ROOT/alpha" hash-object .git/index)
 run_radar
 assert_json '.projects[0].matrix | any(.path=="README.md" and .class=="ledger" and .shared)' 'committed shared ledger path'
 assert_json '.projects[0].matrix | any(.path=="package.json" and .class=="mechanical" and .shared)' 'staged shared mechanical path'
 assert_json '.projects[0].matrix | any(.path=="code.sh" and .class=="code" and .shared)' 'unstaged shared code path'
-assert_json '.projects[0].matrix | any(.path=="new file.txt" and .class=="ledger" and .shared)' 'untracked spaced path stays intact'
+assert_json '.projects[0].matrix | any(.path=="new file.txt" and .class=="code" and .shared)' 'untracked spaced text path stays intact as code'
 assert_json '.projects[0].matrix | any(.path=="golden/questions.json" and .class=="ledger" and .shared)' 'explicit JSON ledger overrides code classification'
+assert_json '.projects[0].matrix | any(.path=="golden/ledger.txt" and .class=="ledger" and .shared)' 'explicit registry text ledger overrides code classification'
+assert_json '.projects[0].matrix | [.[] | select(.path|test("^docs/(README|INDEX|CHANGELOG|NOTES|VERIFY|BUILD-STATUS|readme\\.tXt|index\\.tXt|changelog\\.tXt|notes\\.tXt|verify\\.tXt|build-status\\.tXt|guide\\.(markdown|rst|adoc))$"))] | length==15 and all(.class=="ledger" and .shared)' 'only documentation basenames and document extensions are built-in ledgers'
+assert_json '.projects[0].matrix | [.[] | select(.path=="requirements.txt" or .path=="deps/requirements-dev.txt" or .path=="constraints.txt" or .path=="deps/constraints-test.txt")] | length==4 and all(.class=="mechanical" and .shared)' 'committed dependency text manifests are mechanical in both ships'
+assert_json '.projects[0].matrix | [.[] | select(.path=="CMakeLists.txt" or .path=="docs/input.txt" or .path=="docs/README.config")] | length==3 and all(.class=="code" and .shared)' 'build files, arbitrary text and non-document README extensions remain code'
 [ "$index_before" = "$(git -C "$TMP_ROOT/alpha" hash-object .git/index)" ] || fail 'radar changed worktree index'
 pass 'radar does not refresh index'
 bash "$RADAR" --json > "$TMP_ROOT/auto.json"
 jq -e '.projects|length==1' "$TMP_ROOT/auto.json" >/dev/null || fail 'automatic project selection'
-bash "$RADAR" --toon app | rg -q '^  "app","mechanical","package.json"' || fail 'TOON shared paths'
-pass 'automatic selection and TOON output'
+pass 'automatic project selection'
 
 cp "$FM_STATE_OVERRIDE/beta.meta" "$TMP_ROOT/beta.meta"
 sed 's|worktree=.*|worktree=/nonexistent/fixture|' "$TMP_ROOT/beta.meta" > "$FM_STATE_OVERRIDE/beta.meta"
@@ -152,18 +168,24 @@ bash "$RADAR" --json > "$TMP_ROOT/auto.json"
 jq -e '.projects|length==0' "$TMP_ROOT/auto.json" >/dev/null || fail 'scout counted as ship'
 pass 'automatic selection excludes scouts and single-ship projects'
 
-printf 'base_branch=main\n' >> "$FM_STATE_OVERRIDE/beta.meta"
 git -C "$TMP_ROOT/beta" symbolic-ref --delete refs/remotes/origin/HEAD
 run_radar
-assert_json '.projects[0].sources | any(.task_id=="beta" and .measurement=="measured")' 'explicit task base works without origin HEAD'
+assert_json '.projects[0].sources | any(.task_id=="beta" and .measurement=="unmeasured")' 'missing origin HEAD is unmeasured'
+git -C "$TMP_ROOT/beta" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+run_radar
+assert_json '.projects[0].sources | any(.task_id=="beta" and .measurement=="measured" and (.paths|index("README.md"))!=null)' 'restored origin HEAD measures committed task paths'
 
 cat > "$TOOLS/az" <<'EOF'
 #!/usr/bin/env bash
+set -eu
+[ "$*" = 'account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv' ] || exit 1
+printf 'token\n' >> "$RADAR_CALLS"
 printf 'fixture-token\n'
 EOF
 cat > "$TOOLS/curl" <<'EOF'
 #!/usr/bin/env bash
 set -eu
+[ -z "${FM_PR_ADO_TOKEN+x}" ] || exit 1
 printf '%s\n' "$*" >> "$RADAR_CALLS"
 case "$*" in *fixture-token*) exit 1 ;; esac
 authorization=$(cat <&3)
@@ -171,28 +193,98 @@ authorization=$(cat <&3)
 for url in "$@"; do :; done
 case "$url" in
   */pullRequests\?*) cat "$RADAR_FIXTURE/ado-prs.json" ;;
-  */iterations\?*) printf '{"value":[{"id":1},{"id":3},{"id":2}]}\n' ;;
+  */iterations\?*)
+    [ ! -e "$RADAR_FIXTURE/iterations-fail" ] || exit 1
+    cat "$RADAR_FIXTURE/iterations.json" ;;
+  */pullRequests/8/iterations/3/changes\?*)
+    printf '{"changeEntries":[{"item":{"path":"/requirements.txt"},"originalPath":"/constraints.txt"}],"nextSkip":0,"nextTop":0}\n' ;;
   */iterations/3/changes\?*compareTo=0*\$skip=0*)
     printf '{"changeEntries":[{"item":{"path":"/README.md"}},{"item":{"path":"/folder","isFolder":true}}],"nextSkip":1,"nextTop":1}\n' ;;
   */iterations/3/changes\?*compareTo=0*\$skip=1*)
     printf '{"changeEntries":[{"item":{"path":"/Directory.Packages.props"},"originalPath":"/old.props"}],"nextSkip":0,"nextTop":0}\n' ;;
-  */pullRequests/7\?*) printf '{"status":"completed"}\n' ;;
+  */iterations/4/changes\?*)
+    [ ! -e "$RADAR_FIXTURE/changes-fail" ] || exit 1
+    printf '{"changeEntries":[{"item":{"path":"/CMakeLists.txt"}},{"item":{"path":"/NOTES.txt"}}],"nextSkip":0,"nextTop":0}\n' ;;
+  */pullRequests/7\?*|*/pullRequests/8\?*) printf '{"status":"completed"}\n' ;;
   *) exit 1 ;;
 esac
 EOF
 chmod +x "$TOOLS/az" "$TOOLS/curl"
-printf '{"value":[{"pullRequestId":7,"repository":{"webUrl":"https://dev.azure.com/fixture/project/_git/app"},"sourceRefName":"refs/heads/ship/beta"}]}\n' > "$RADAR_FIXTURE/ado-prs.json"
+printf '{"value":[{"id":1},{"id":3},{"id":2}]}\n' > "$RADAR_FIXTURE/iterations.json"
+printf '{"value":[{"pullRequestId":7,"repository":{"webUrl":"https://dev.azure.com/fixture/project/_git/app"},"sourceRefName":"refs/heads/ship/beta"},{"pullRequestId":8,"repository":{"webUrl":"https://dev.azure.com/fixture/project/_git/app"},"sourceRefName":"refs/heads/ship/other"}]}\n' > "$RADAR_FIXTURE/ado-prs.json"
+assert_ado_calls() {
+  [ "$(awk '$0=="token" {count++} END {print count+0}' "$RADAR_CALLS")" -eq 1 ] || fail 'Azure token not acquired exactly once per run'
+  [ "$(awk '/\/iterations\?/ {count++} END {print count+0}' "$RADAR_CALLS")" -eq "$1" ] || fail 'unexpected Azure iterations reads'
+  [ "$(awk '/\/changes\?/ {count++} END {print count+0}' "$RADAR_CALLS")" -eq "$2" ] || fail 'unexpected Azure changes reads'
+  pass "$3"
+}
+: > "$RADAR_CALLS"
+bash -c '
+  set -eu
+  export FM_PR_ADO_TOKEN=untrusted-inherited-token
+  . "$1"
+  [ -z "$FM_PR_ADO_TOKEN" ]
+  url="https://dev.azure.com/fixture/project/_apis/git/repositories/app/pullRequests?api-version=7.1"
+  fm_pr_ado_request GET "$url" >/dev/null
+  response=$(fm_pr_ado_request GET "$url")
+  printf "%s" "$response" | jq -e ".value|length==2" >/dev/null
+  fm_pr_ado_request PUT "$url" "{\"vote\":10}" >/dev/null
+  fm_pr_ado_request PATCH "$url" "{\"status\":\"completed\"}" >/dev/null
+' _ "$ROOT/bin/fm-pr-lib.sh"
+assert_ado_calls 0 0 'shared Azure request boundary memoizes across direct and captured reads and writes'
+[ "$(awk '/--request GET / {count++} END {print count+0}' "$RADAR_CALLS")" -eq 2 ] || fail 'captured shared-library GET did not run'
+awk '/--request PUT / && /--data \{"vote":10\}/ {found=1} END {exit !found}' "$RADAR_CALLS" || fail 'shared-library PUT body changed'
+awk '/--request PATCH / && /--data \{"status":"completed"\}/ {found=1} END {exit !found}' "$RADAR_CALLS" || fail 'shared-library PATCH body changed'
+pass 'shared Azure requests preserve methods and JSON bodies without exporting a bearer'
 git -C "$TMP_ROOT/beta" remote set-url origin git@ssh.dev.azure.com:v3/fixture/project/app
 rm "$FM_STATE_OVERRIDE/conflict-radar/app.json"
+: > "$RADAR_CALLS"
 run_radar
+assert_ado_calls 2 3 'one run token covers both PR iterations and all change pages'
 assert_json '.projects[0] | (.unmeasured|length)==0 and any(.sources[]; .kind=="pr" and (.paths|length)==3 and (.paths|index("Directory.Packages.props"))!=null and (.paths|index("old.props"))!=null)' 'Azure latest iteration compares to base and follows both change pages'
 assert_json '.projects[0].matrix | any(.path=="Directory.Packages.props" and .class=="mechanical")' 'Azure paths normalize leading slash and classify package props'
 assert_json '.projects[0].matrix | any(.path=="README.md" and (.shared|not) and (.sources|length)==2)' 'Azure PR and its own task are not false overlap'
+assert_json '.projects[0].sources | [.[] | select(.kind=="pr")] | length==2 and all(.iteration_id==3)' 'latest measured iteration is persisted for each PR'
+assert_json '.projects[0].matrix | any(.path=="constraints.txt" and .class=="mechanical" and any(.sources[]; endswith("/pullrequest/8")))' 'renamed Azure dependency manifest uses shared classification'
+jq '.sources |= map(del(.iteration_id))' "$FM_STATE_OVERRIDE/conflict-radar/app.json" > "$TMP_ROOT/old-memory.json"
+mv "$TMP_ROOT/old-memory.json" "$FM_STATE_OVERRIDE/conflict-radar/app.json"
+: > "$RADAR_CALLS"
+run_radar
+assert_ado_calls 2 3 'older memory without iteration keys refreshes both file lists'
 git -C "$TMP_ROOT/beta" remote set-url origin https://fixture@dev.azure.com/fixture/project/_git/app
+: > "$RADAR_CALLS"
 run_radar
+assert_ado_calls 2 0 'unchanged PR iterations reuse independent cached file lists with a fresh run token'
 assert_json '.projects[0].unmeasured|length==0' 'Azure HTTPS clone userinfo is normalized without exposing credentials'
-printf '{"value":[]}\n' > "$RADAR_FIXTURE/ado-prs.json"
+assert_json '.projects[0].sources | any(.pr_id==7 and (.paths|index("Directory.Packages.props"))!=null) and any(.pr_id==8 and (.paths|index("constraints.txt"))!=null)' 'same iteration in different PRs never shares file-list cache'
+touch "$RADAR_FIXTURE/iterations-fail"
+: > "$RADAR_CALLS"
 run_radar
+assert_ado_calls 2 0 'failed iteration reads keep prior paths but do not claim a cache hit'
+assert_json '.projects[0].sources | [.[] | select(.kind=="pr")] | length==2 and all(.measurement=="unmeasured" and .iteration_id==null and (.paths|length)>0)' 'failed reads retain evidence without a reusable measured iteration'
+rm "$RADAR_FIXTURE/iterations-fail"
+: > "$RADAR_CALLS"
+run_radar
+assert_ado_calls 2 3 'a successful refresh replaces failed-read evidence before caching'
+printf '{"value":[{"id":3},{"id":4}]}\n' > "$RADAR_FIXTURE/iterations.json"
+touch "$RADAR_FIXTURE/changes-fail"
+: > "$RADAR_CALLS"
+run_radar
+assert_ado_calls 2 2 'new iteration reads changes and failed pages never become cached'
+assert_json '.projects[0].sources | any(.pr_id==7 and .measurement=="unmeasured" and .iteration_id==null and (.paths|index("README.md"))!=null)' 'failed new iteration retains old paths only as unmeasured evidence'
+rm "$RADAR_FIXTURE/changes-fail"
+: > "$RADAR_CALLS"
+run_radar
+assert_ado_calls 2 2 'recovery fetches new iteration rather than reusing stale paths'
+assert_json '.projects[0].sources | [.[] | select(.kind=="pr")] | length==2 and all(.measurement=="measured" and .iteration_id==4 and .paths==["CMakeLists.txt","NOTES.txt"])' 'fresh iteration replaces earlier paths and records its cache key'
+assert_json '.projects[0].matrix | any(.path=="CMakeLists.txt" and .class=="code") and any(.path=="NOTES.txt" and .class=="ledger")' 'Azure and task text paths share the same documentation-name policy'
+: > "$RADAR_CALLS"
+run_radar
+assert_ado_calls 2 0 'recovered new iteration is reusable on the next observation'
+printf '{"value":[]}\n' > "$RADAR_FIXTURE/ado-prs.json"
+: > "$RADAR_CALLS"
+run_radar
+assert_ado_calls 0 0 'PR listing and both completion checks share one token'
 assert_json '.projects[0].sources | any(.kind=="pr" and .status=="completed")' 'Azure completed PR retains paths until teardown'
 
 REAL_GIT=$(command -v git)
@@ -202,8 +294,6 @@ cat > "$TOOLS/git" <<'EOF'
 case "$*" in *symbolic-ref*) sleep 30 ;; *) exec "$REAL_GIT" "$@" ;; esac
 EOF
 chmod +x "$TOOLS/git"
-sed '/^base_branch=/d' "$FM_STATE_OVERRIDE/beta.meta" > "$TMP_ROOT/meta.next"
-mv "$TMP_ROOT/meta.next" "$FM_STATE_OVERRIDE/beta.meta"
 FM_CONFLICT_RADAR_TIMEOUT=1 run_radar
 assert_json '.projects[0].sources | any(.kind=="task" and .measurement=="unmeasured")' 'Git timeout is bounded and reported as unmeasured'
 rm "$TOOLS/git"

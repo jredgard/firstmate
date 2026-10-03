@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
 # Read-only project conflict candidates; writes only private radar memory.
-# Usage: fm-conflict-radar.sh [--json|--toon] [project-name]
+# Usage: fm-conflict-radar.sh [--json] [project-name]
 # No project selects projects with multiple tracked ship metas, including ships
 # awaiting validation or landing. Metadata is retained until task teardown;
 # status tails are not consulted as a liveness or completion authority.
 # Project names match a recorded project's basename (or a literal name).
 # FM_HOME, FM_STATE_OVERRIDE and FM_DATA_OVERRIDE select the operational home.
-# Every Git/forge command uses fm-timeout-lib.sh; FM_CONFLICT_RADAR_TIMEOUT
-# sets its positive whole-second bound (default 20). No fetch, checkout, index
+# Git/GitHub commands use fm-timeout-lib.sh; Azure requests use fm-pr-lib.sh's
+# bounded token acquisition and curl timeout. FM_CONFLICT_RADAR_TIMEOUT sets
+# their positive whole-second bound (default 20). No fetch, checkout, index
 # refresh, steering, merge, or project write is performed. Requires Git and jq;
 # optional forge reads use gh-axi API or fm-pr-lib.sh Azure bearer requests.
-# Task bases use metadata base_branch when present, otherwise local origin/HEAD;
+# Task bases always use local origin/HEAD;
 # missing refs are unmeasured, never repaired by fetching. Deltas include
 # committed, staged, unstaged, untracked and both sides of renamed paths.
 # Registry ledgers are queried only through fm-project-mode.sh --ledgers.
-# Built-in ledgers: .md/.markdown/.rst/.txt/.adoc and README/INDEX basenames.
+# Built-in ledgers: .md/.markdown/.rst/.adoc and documentation basenames
+# README, INDEX, CHANGELOG, NOTES, VERIFY and BUILD-STATUS, optionally .txt.
+# Other .txt files are code except requirements*.txt/constraints*.txt, which
+# are mechanical. Registry ledgers override these built-in classes.
 # Mechanical: .csproj/.fsproj/.vbproj, Directory.{Packages,Build}.props,
 # packages.lock.json, package-lock.json, npm-shrinkwrap.json, *.lock,
 # global.json, package.json, pnpm-lock.yaml,
@@ -23,13 +27,16 @@
 # state/conflict-radar/<project>.json holds schema_version, project,
 # project_path, timestamp, ledgers, sources, matrix and unmeasured. Sources
 # carry task/PR ids, task associations, paths, measurement, status and last
-# observed time. Matrix sources name evidence; participants collapse a task
+# observed time. Measured Azure PR sources also carry iteration_id; paths are
+# reused only for the same PR and iteration after one latest-iteration read.
+# One process-local Azure token is reused across all requests in a radar run.
+# Matrix sources name evidence; participants collapse a task
 # and its own PR so they alone never constitute an overlap.
 # Fresh measured paths replace prior paths; failed reads retain prior paths.
 # Closed PR evidence remains while an associated task meta exists. When both
 # task meta and PR are gone, the source is pruned; failed PR reads retain it.
-# JSON stdout is {projects:[<memory>...]}; TOON is a shared-path table plus
-# unmeasured lines. Human output names every shared path; "no overlap" is
+# JSON stdout is {projects:[<memory>...]}. Human output names every shared
+# path and unmeasured source; "no overlap" is
 # printed only when every relevant source and the forge were measured.
 # Exit 0 includes partial observations, explicitly marked unmeasured; exit 1
 # is a local dependency, argument, malformed memory or persistence failure.
@@ -52,7 +59,6 @@ PROJECT=
 for argument in "$@"; do
   case "$argument" in
     --json) FORMAT=json ;;
-    --toon) FORMAT=toon ;;
     --help|-h) sed -n '2,/^set -/p' "$0" | sed '$d;s/^# \{0,1\}//'; exit 0 ;;
     -*) printf 'error: unknown option %s\n' "$argument" >&2; exit 1 ;;
     *) [ -z "$PROJECT" ] || { echo 'error: expected one project' >&2; exit 1; }; PROJECT=$argument ;;
@@ -86,8 +92,7 @@ gh_json() {
 }
 
 ado_json() {
-  # shellcheck disable=SC2016
-  fm_run_timed "$TIMEOUT" bash -c '. "$1"; fm_pr_ado_request GET "$2"' _ "$SCRIPT_DIR/fm-pr-lib.sh" "$1" 2>/dev/null
+  FM_PR_ADO_TIMEOUT="$TIMEOUT" fm_pr_ado_request GET "$1" 2>/dev/null
 }
 
 append_source() {
@@ -109,9 +114,8 @@ for meta in "$STATE"/*.meta; do
   jq --arg project "$name" --arg project_path "$recorded" --arg id "task:$task_id" \
     --arg task_id "$task_id" --arg worktree "$(fm_meta_get "$meta" worktree)" \
     --arg branch "$(fm_meta_get "$meta" branch)" --arg pr_url "$(fm_meta_get "$meta" pr)" \
-    --arg base "$(fm_meta_get "$meta" base_branch)" \
     '. + [{project:$project,project_path:$project_path,id:$id,kind:"task",task_id:$task_id,
-      worktree:$worktree,branch:$branch,pr_url:$pr_url,base:$base}]' \
+      worktree:$worktree,branch:$branch,pr_url:$pr_url}]' \
     "$SCRATCH/tasks.json" > "$SCRATCH/next.json"
   mv "$SCRATCH/next.json" "$SCRATCH/tasks.json"
 done
@@ -153,7 +157,8 @@ forge_identity() {
 }
 
 pr_files() {
-  local number=$1 page=1 response count iteration skip=0 next_skip next_top=100
+  local number=$1 url=$2 page=1 response count iteration cached skip=0 next_skip next_top=100
+  PR_ITERATION=
   printf '[]\n' > "$SCRATCH/pr-paths.json"
   if [ "$PROVIDER" = github ]; then
     while [ "$page" -le 30 ]; do
@@ -170,6 +175,14 @@ pr_files() {
   fi
   response=$(ado_json "$ADO_BASE/pullRequests/$number/iterations?api-version=7.1") || return 1
   iteration=$(printf '%s' "$response" | jq -er '.value | map(.id) | max | select(type=="number" and .>0)') || return 1
+  if cached=$(jq -ce --arg url "$url" --argjson number "$number" --argjson iteration "$iteration" '
+    .sources[] | select(.kind=="pr" and .pr_id==$number and .url==$url
+      and .iteration_id==$iteration and .measurement=="measured") |
+    .paths | select(type=="array" and all(.[]; type=="string"))' "$SCRATCH/previous.json"); then
+    printf '%s\n' "$cached" > "$SCRATCH/pr-paths.json"
+    PR_ITERATION=$iteration
+    return 0
+  fi
   while [ "$page" -le 100 ]; do
     response=$(ado_json "$ADO_BASE/pullRequests/$number/iterations/$iteration/changes?compareTo=0&\$skip=$skip&\$top=$next_top&api-version=7.1") || return 1
     printf '%s' "$response" | jq -e '(.changeEntries|type)=="array" and all(.changeEntries[]; (.item.path|type)=="string")' >/dev/null || return 1
@@ -180,7 +193,7 @@ pr_files() {
     next_skip=$(printf '%s' "$response" | jq -er '.nextSkip // 0') || return 1
     next_top=$(printf '%s' "$response" | jq -er '.nextTop // 0') || return 1
     [[ "$next_skip" =~ ^[0-9]+$ && "$next_top" =~ ^[0-9]+$ ]] || return 1
-    [ "$next_top" -gt 0 ] || return 0
+    if [ "$next_top" -eq 0 ]; then PR_ITERATION=$iteration; return 0; fi
     [ "$next_skip" -gt "$skip" ] || return 1
     skip=$next_skip; page=$((page+1))
   done
@@ -233,14 +246,9 @@ while IFS= read -r project_json; do
   origin=
   while IFS= read -r task; do
     worktree=$(printf '%s' "$task" | jq -r '.worktree')
-    base=$(printf '%s' "$task" | jq -r '.base')
     measurement=measured
     : > "$SCRATCH/paths.nul"
-    if [ -z "$base" ]; then
-      base=$(radar_git "$worktree" symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null) || measurement=unmeasured
-    else
-      case "$base" in origin/*|refs/remotes/*) ;; *) base="origin/${base#refs/heads/}" ;; esac
-    fi
+    base=$(radar_git "$worktree" symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null) || measurement=unmeasured
     if [ "$measurement" = measured ]; then
       radar_git "$worktree" diff --no-ext-diff --no-textconv --no-renames --name-only -z "$base...HEAD" -- >> "$SCRATCH/paths.nul" 2>/dev/null || measurement=unmeasured
     fi
@@ -262,7 +270,9 @@ while IFS= read -r project_json; do
   forge_identity "$origin"
   forge_measured=false
   printf '[]\n' > "$SCRATCH/prs.json"
-  if [ "$PROVIDER" != none ] && open_prs; then
+  if [ "$PROVIDER" = ado ] && ! FM_PR_ADO_TIMEOUT="$TIMEOUT" fm_pr_ado_token 2>/dev/null; then
+    unmeasured 'forge: Azure token unavailable'
+  elif [ "$PROVIDER" != none ] && open_prs; then
     forge_measured=true
   else
     unmeasured 'forge: origin unsupported/unreadable or open PR listing failed'
@@ -272,9 +282,10 @@ while IFS= read -r project_json; do
     number=$(printf '%s' "$pr" | jq -r '.pr_id')
     url=$(printf '%s' "$pr" | jq -r '.url')
     measurement=measured
-    pr_files "$number" || measurement=unmeasured
+    pr_files "$number" "$url" || measurement=unmeasured
     pr=$(printf '%s' "$pr" | jq --arg id "pr:$url" --arg measurement "$measurement" --arg now "$now" \
-      --slurpfile paths "$SCRATCH/pr-paths.json" '. + {id:$id,kind:"pr",paths:$paths[0],measurement:$measurement,observed_at:$now}')
+      --argjson iteration "${PR_ITERATION:-null}" --slurpfile paths "$SCRATCH/pr-paths.json" \
+      '. + {id:$id,kind:"pr",paths:$paths[0],measurement:$measurement,observed_at:$now,iteration_id:$iteration}')
     append_source "$pr"
     [ "$measurement" = measured ] || unmeasured "pr:$url: changed files unreadable or pagination incomplete"
   done < <(jq -c '.[]' "$SCRATCH/prs.json")
@@ -311,8 +322,8 @@ while IFS= read -r project_json; do
         or (($pr.task_ids // [] | index($id))!=null)) | .task_id] else . end) as $sources |
     ($ledgers | split(",") | map(select(length>0))) as $ledger_paths |
     def class($path):
-      if ($ledger_paths|index($path))!=null or ($path|test("(?i)\\.(md|markdown|rst|txt|adoc)$|(^|/)(readme|index)$")) then "ledger"
-      elif ($path|test("(?i)\\.(csproj|fsproj|vbproj|lock|properties|ini|env)$|(^|/)(Directory\\.(Packages|Build)\\.props|packages\\.lock\\.json|package-lock\\.json|npm-shrinkwrap\\.json|global\\.json|package\\.json|pnpm-lock\\.yaml|\\.(env|editorconfig|npmrc|yarnrc))$")) then "mechanical"
+      if ($ledger_paths|index($path))!=null or ($path|test("(?i)\\.(md|markdown|rst|adoc)$|(^|/)(readme|index|changelog|notes|verify|build-status)(\\.txt)?$")) then "ledger"
+      elif ($path|test("(?i)\\.(csproj|fsproj|vbproj|lock|properties|ini|env)$|(^|/)(requirements|constraints)[^/]*\\.txt$|(^|/)(Directory\\.(Packages|Build)\\.props|packages\\.lock\\.json|package-lock\\.json|npm-shrinkwrap\\.json|global\\.json|package\\.json|pnpm-lock\\.yaml|\\.(env|editorconfig|npmrc|yarnrc))$")) then "mechanical"
       else "code" end;
     {schema_version:1,project:$project,project_path:$project_path,timestamp:$now,ledgers:$ledger_paths,
       sources:$sources,unmeasured:$unmeasured,
@@ -333,14 +344,12 @@ done < "$SCRATCH/names.jsonl"
 if [ "$FORMAT" = json ]; then
   jq '{projects:.}' "$SCRATCH/projects.json"
 else
-  if [ "$FORMAT" = toon ]; then echo 'shared{project,class,path,sources}:'; fi
-  jq -r --arg format "$FORMAT" '.[] |
+  jq -r '.[] |
     .project as $project | .unmeasured[] as $issue | "\($project): unmeasured: \($issue)"' "$SCRATCH/projects.json"
-  jq -r --arg format "$FORMAT" '.[] | .project as $project |
+  jq -r '.[] | .project as $project |
     [.matrix[]|select(.shared)] as $shared |
     if ($shared|length)>0 then $shared[] |
-      if $format=="toon" then "  " + ([$project,.class,.path,(.sources|join(";"))]|@csv)
-      else "\($project): \(.class) \(.path|tojson) sources=\(.sources|join(","))" end
+      "\($project): \(.class) \(.path|tojson) sources=\(.sources|join(","))"
     elif (.unmeasured|length)>0 then "\($project): overlap unmeasured (no measured shared paths)"
     else "\($project): no overlap" end' "$SCRATCH/projects.json"
   if [ "$(jq 'length' "$SCRATCH/projects.json")" -eq 0 ]; then echo 'no overlap (no project with multiple tracked ships)'; fi

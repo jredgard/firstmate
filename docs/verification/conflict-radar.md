@@ -13,7 +13,7 @@ bash bin/fm-doc-audience-check.sh
 bash bin/fm-test-run.sh --check-coverage
 ```
 
-The radar suite covers committed, staged, unstaged and untracked paths, all three classes, explicit JSON ledgers, disjoint changes, index preservation, unreadable and empty worktrees, task/PR deduplication, GitHub and Azure pagination, rename-source paths, completion retention, teardown pruning, failed-read retention, explicit bases, HTTPS userinfo normalization, bounded Git calls and corrupt-memory refusal.
+The radar suite covers committed, staged, unstaged and untracked paths, all three classes, documentation-named text ledgers, dependency text manifests, explicit registry ledgers, disjoint changes, index preservation, unreadable and empty worktrees, task/PR deduplication, GitHub and Azure pagination, rename-source paths, completion retention, teardown pruning, failed-read retention, local origin/HEAD bases, HTTPS userinfo normalization, bounded Git calls and corrupt-memory refusal.
 The existing delivery suite checks that the registry query preserves delivery, forge and branch behavior.
 
 ## Observed result
