@@ -196,10 +196,6 @@ printf '%s\n' "$*" >> "$FM_TEST_GH_LOG"
 case "${1:-} ${2:-}" in
   "pr view")
     case " $* " in
-      *" --json reviewDecision "*)
-        cat "$(dirname "$FM_TEST_GH_VIEW_JSON")/review-decision"
-        exit $?
-        ;;
       *" --json author "*)
         cat "$(dirname "$FM_TEST_GH_VIEW_JSON")/author-login"
         exit 0
