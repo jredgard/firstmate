@@ -48,11 +48,11 @@ class ConflictCliTests(unittest.TestCase):
                 cls.requests.append(("GET", route.path, query, self.headers.get("Authorization"), None))
                 if self.inject_response():
                     return
-                if route.path == "/fixture/_apis/git/repositories/repo/pullRequests/7/conflicts":
+                if route.path == f"{cls.route_prefix}/_apis/git/repositories/repo/pullRequests/7/conflicts":
                     self.reply(json.dumps({"count": len(cls.entries), "value": cls.entries}).encode())
-                elif route.path.startswith("/fixture/_apis/git/repositories/repo/blobs/"):
+                elif route.path.startswith(f"{cls.route_prefix}/_apis/git/repositories/repo/blobs/"):
                     self.reply(cls.blobs[route.path.rsplit("/", 1)[1]])
-                elif route.path == "/fixture/_apis/git/repositories/repo/pullRequests/7":
+                elif route.path == f"{cls.route_prefix}/_apis/git/repositories/repo/pullRequests/7":
                     pull_request = cls.pull_requests[0]
                     if len(cls.pull_requests) > 1:
                         cls.pull_requests.pop(0)
@@ -67,7 +67,7 @@ class ConflictCliTests(unittest.TestCase):
                                      self.headers.get("Authorization"), payload))
                 if self.inject_response():
                     return
-                if route.path == f"/fixture/_apis/git/repositories/repo/pullRequests/7/conflicts/{payload['conflictId']}":
+                if route.path == f"{cls.route_prefix}/_apis/git/repositories/repo/pullRequests/7/conflicts/{payload['conflictId']}":
                     if cls.resolution["resolutionStatus"] == "resolved" and cls.resolution.get("resolutionError") in (None, 0, "none"):
                         for entry in cls.entries:
                             if entry["conflictId"] == payload["conflictId"]:
@@ -103,6 +103,7 @@ class ConflictCliTests(unittest.TestCase):
         cls.temporary.cleanup()
 
     def setUp(self):
+        type(self).route_prefix = "/fixture"
         type(self).requests = []
         type(self).entries = []
         type(self).blobs = {"base": b"before\n", "source": b"source fact\n", "target": b"target fact\n"}
@@ -112,6 +113,7 @@ class ConflictCliTests(unittest.TestCase):
         type(self).override_status = None
         type(self).override_body = b"{}"
         self.environment = os.environ.copy()
+        self.environment.pop("FM_HOME", None)
         self.environment.update({
             "ADO_ORG": f"http://127.0.0.1:{self.server.server_port}",
             "ADO_PROJECT": "fixture",
@@ -121,13 +123,23 @@ class ConflictCliTests(unittest.TestCase):
             "TMPDIR": str(self.root),
         })
 
-    def invoke(self, *arguments, fast_poll=False, error=False):
-        command = [sys.executable, HELPER, *arguments]
-        if fast_poll:
-            command = [sys.executable, "-c",
-                       "import runpy, sys; from unittest.mock import patch; sys.argv = sys.argv[1:]\n"
-                       "with patch('time.sleep'): runpy.run_path(sys.argv[0], run_name='__main__')",
-                       HELPER, *arguments]
+    def invoke(self, *arguments, fast_poll=False, redirect_ado=False, error=False):
+        server_url = f"http://127.0.0.1:{self.server.server_port}"
+        command = [sys.executable, "-c",
+                   "import runpy, sys, urllib.request; from contextlib import nullcontext; "
+                   "from unittest.mock import patch\n"
+                   "original_urlopen = urllib.request.urlopen\n"
+                   "def offline_urlopen(request):\n"
+                   f"    if {redirect_ado!r}:\n"
+                   "        assert request.full_url.startswith('https://dev.azure.com/'), request.full_url\n"
+                   f"        request.full_url = request.full_url.replace('https://dev.azure.com', {server_url!r}, 1)\n"
+                   f"    assert request.full_url.startswith({server_url + '/'!r}), request.full_url\n"
+                   "    return original_urlopen(request)\n"
+                   "sys.argv = sys.argv[1:]\n"
+                   "with patch('urllib.request.urlopen', offline_urlopen), "
+                   f"patch('time.sleep') if {fast_poll!r} else nullcontext():\n"
+                   "    runpy.run_path(sys.argv[0], run_name='__main__')",
+                   HELPER, *arguments]
         result = subprocess.run(command, env=self.environment,
                                 capture_output=True, text=True, timeout=10)
         if error:
@@ -150,6 +162,136 @@ class ConflictCliTests(unittest.TestCase):
             for conflict_id, path in enumerate(paths, 1)
         ]
         return self.invoke("list", "repo", "7")
+
+    def home_origin(self, origin):
+        home = Path(tempfile.mkdtemp(prefix="home-", dir=self.root))
+        repository = home / "projects" / "repo"
+        repository.mkdir(parents=True)
+        subprocess.run(["git", "init", "--quiet", str(repository)], env=self.environment, check=True,
+                       capture_output=True, text=True)
+        subprocess.run(["git", "-C", str(repository), "remote", "add", "origin", origin],
+                       env=self.environment, check=True, capture_output=True, text=True)
+        self.environment["FM_HOME"] = str(home)
+        return repository
+
+    def test_home_derives_non_mosaiq_organization_and_project(self):
+        for origin, project in (
+            ("https://dev.azure.com/climsorg/PS_clims-poc/_git/repo", "PS_clims-poc"),
+            ("https://climsorg@dev.azure.com/climsorg/PS_clims-poc/_git/repo", "PS_clims-poc"),
+            ("git@ssh.dev.azure.com:v3/climsorg/PS_clims-poc/repo", "PS_clims-poc"),
+            ("https://dev.azure.com/climsorg/PS%20clims-poc/_git/repo", "PS%20clims-poc"),
+            ("git@ssh.dev.azure.com:v3/climsorg/PS%20clims-poc/repo", "PS%20clims-poc"),
+        ):
+            with self.subTest(origin=origin):
+                self.home_origin(origin)
+                self.environment.pop("ADO_ORG", None)
+                self.environment.pop("ADO_PROJECT", None)
+                type(self).requests = []
+                type(self).route_prefix = f"/climsorg/{project}"
+                result = self.invoke("list", "repo", "7", redirect_ado=True)
+                self.assertEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, "no conflicts\n")
+                self.assertEqual(len(self.requests), 1)
+                self.assertEqual(self.requests[0][1],
+                                 f"/climsorg/{project}/_apis/git/repositories/repo/pullRequests/7/conflicts")
+
+    def test_environment_overrides_win_per_axis(self):
+        self.home_origin("https://climsorg@dev.azure.com/climsorg/PS_clims-poc/_git/repo")
+        for override_org, override_project, prefix in (
+            (True, True, "/fixture"), (True, False, "/PS_clims-poc"),
+            (False, True, "/climsorg/fixture"),
+        ):
+            with self.subTest(override_org=override_org, override_project=override_project):
+                self.environment["ADO_ORG"] = f"http://127.0.0.1:{self.server.server_port}"
+                self.environment["ADO_PROJECT"] = "fixture"
+                if not override_org:
+                    self.environment.pop("ADO_ORG")
+                if not override_project:
+                    self.environment.pop("ADO_PROJECT")
+                type(self).requests = []
+                type(self).route_prefix = prefix
+                result = self.invoke("list", "repo", "7", redirect_ado=not override_org)
+                self.assertEqual(result.returncode, 0)
+                self.assertEqual(self.requests[0][1],
+                                 f"{prefix}/_apis/git/repositories/repo/pullRequests/7/conflicts")
+
+    def test_home_derivation_refuses_before_rest_when_unavailable(self):
+        for missing, origin in (
+            ("FM_HOME", None), ("projects/repo", None), ("origin", None),
+            ("Azure DevOps", "https://github.com/example/repo.git"),
+            ("Azure DevOps", "https://dev.azure.com/climsorg/repo"),
+            ("Azure DevOps", "https://[invalid/repo"),
+        ):
+            for overrides in ((), ("ADO_ORG",), ("ADO_PROJECT",)):
+                with self.subTest(missing=missing, overrides=overrides):
+                    self.environment.pop("FM_HOME", None)
+                    self.environment.pop("ADO_ORG", None)
+                    self.environment.pop("ADO_PROJECT", None)
+                    for override in overrides:
+                        self.environment[override] = "fixture"
+                    if missing == "projects/repo":
+                        self.environment["FM_HOME"] = str(self.root / "absent-home")
+                    elif missing in ("Azure DevOps", "origin"):
+                        repository = self.home_origin(origin or "https://github.com/example/repo.git")
+                        if missing == "origin":
+                            subprocess.run(["git", "-C", str(repository), "remote", "remove", "origin"],
+                                           env=self.environment, check=True, capture_output=True, text=True)
+                    result = self.invoke("list", "repo", "7", error=True)
+                    self.assertIn(missing, result.stderr)
+                    self.assertIn("ADO_ORG", result.stderr)
+                    self.assertIn("ADO_PROJECT", result.stderr)
+                    self.assertEqual(self.requests, [])
+
+    def test_complete_overrides_need_no_home_and_import_is_lazy(self):
+        self.home_origin("https://github.com/example/repo.git")
+        result = self.invoke("list", "repo", "7")
+        self.assertEqual(result.returncode, 0)
+        self.environment.pop("FM_HOME")
+        self.environment.pop("ADO_ORG")
+        result = subprocess.run([sys.executable, "-c", "import runpy, sys; runpy.run_path(sys.argv[1])", HELPER],
+                                env=self.environment, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stderr, "")
+
+    def test_null_and_missing_conflict_status_are_unresolved(self):
+        for missing in (False, True):
+            with self.subTest(missing=missing):
+                self.list_conflicts(["/README.md"])
+                type(self).requests = []
+                if missing:
+                    self.entries[0].pop("resolutionStatus")
+                else:
+                    self.entries[0]["resolutionStatus"] = None
+                result = self.invoke("list", "repo", "7")
+                self.assertEqual(result.returncode, 0)
+                self.assertIn("status=unresolved class=doc\n", result.stdout)
+                self.assertEqual(len(self.requests), 4)
+
+    def test_non_string_non_null_conflict_status_is_malformed(self):
+        for status in (7, False, [], {}):
+            with self.subTest(status=status):
+                self.list_conflicts(["/README.md"])
+                type(self).requests = []
+                self.entries[0]["resolutionStatus"] = status
+                result = self.invoke("list", "repo", "7", error=True)
+                self.assertIn("resolutionStatus", result.stderr)
+                self.assertEqual(len(self.requests), 1)
+
+    def test_apply_counts_null_and_missing_status_before_polling(self):
+        resolution = self.root / "resolution.md"
+        resolution.write_bytes(b"merged facts\n")
+        for missing in (False, True):
+            with self.subTest(missing=missing):
+                self.list_conflicts(["/README.md", "/notes.txt"])
+                type(self).requests = []
+                if missing:
+                    self.entries[1].pop("resolutionStatus")
+                else:
+                    self.entries[1]["resolutionStatus"] = None
+                result = self.invoke("apply", "repo", "7", "1", str(resolution))
+                self.assertEqual(result.returncode, 1)
+                self.assertEqual(result.stdout, "resolution: resolved None\n1 conflicts remaining\n")
+                self.assertEqual(len(self.requests), 3)
 
     def test_usage_errors_do_not_return_conflict_codes(self):
         for arguments in ((), ("unknown",), ("list", "repo"), ("list", "repo", "7", "extra"),

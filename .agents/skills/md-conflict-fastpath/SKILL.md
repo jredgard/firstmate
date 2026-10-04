@@ -50,14 +50,15 @@ If any conflict touches code, config, infrastructure, a lockfile, or is not `edi
    The worker that owns the run aborts it: `no-mistakes axi abort --run <id>` and confirms with `axi status` that no run is active for the branch.
    An aborted run releases branch custody; nothing is discarded.
 2. **Inspect.**
-   `python3 .agents/skills/md-conflict-fastpath/resolve-md-conflict.py list <repo> <pr>` prints each conflict with its three blob files and the three-way diff hunks (`git merge-file`).
+   `FM_HOME=<home> python3 .agents/skills/md-conflict-fastpath/resolve-md-conflict.py list <repo> <pr>` prints each conflict with its three blob files and the three-way diff hunks (`git merge-file`).
+   The helper's header owns home-derived Azure DevOps routing and the per-axis `ADO_ORG` / `ADO_PROJECT` overrides; there is no default organization or project.
    The `three-way` file keeps the conflict markers and is an inspection aid only; never apply it as the resolution.
 3. **Write the resolution.**
    Save the full resolved file.
    Combine both sides' facts in one line where they describe the same thing (for example `Service Bus, Redis; opt-in PostgreSQL`).
 4. **Apply on the forge.**
    The task worker, or firstmate with the captain's explicit word for that PR, runs `resolve-md-conflict.py apply <repo> <pr> <conflictId> <resolved-file>`.
-   The helper's header owns PATCH encoding and result polling.
+   The helper uses the same home-derived routing or explicit overrides; its header owns PATCH encoding and result polling.
    Resolve each reported remaining conflict before landing; a pending or failed final merge is not ready to land.
 5. **Land.**
    Re-cast the vote if the policy dropped it, then `bin/fm-pr-merge.sh <task> <url>` as usual.
@@ -67,4 +68,4 @@ If any conflict touches code, config, infrastructure, a lockfile, or is not `edi
 
 Resolving on the forge writes documentation content into the merge commit, so it is a project write.
 A crewmate may do it inside its task; firstmate does it only with the captain's explicit word for that PR, and hard rule 1 gains no standing authority from this skill.
-The helper's header and usage output own authentication and conflicts API calls.
+The helper's header and usage output own home-derived routing, environment overrides, authentication and conflicts API calls.
