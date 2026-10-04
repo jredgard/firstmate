@@ -11,20 +11,23 @@ PATCH pullRequests/{prId}/conflicts/{conflictId} submits a UserMerged resolution
 the JSON body uses mergeType="userMerged", resolutionStatus="resolved" and
 userMergedContent as an array of file bytes.
 GET pullRequests/{prId} records lastMergeCommit before PATCH and polls mergeStatus
-only after re-listing conflicts confirms no unresolved entries remain.
+only after re-listing conflicts confirms no unresolved entries remain;
+a missing or null resolutionStatus counts as unresolved in list and re-list output.
 An unchanged conflicts status may be stale; poll at most 30 times, two seconds apart.
 The conflicts API uses api-version=7.1-preview.1; blobs and PR reads use 7.1.
 
 usage: resolve-md-conflict.py list  <repo> <prId>
        resolve-md-conflict.py apply <repo> <prId> <conflictId> <resolvedFile>
-env:   ADO_ORG (default https://dev.azure.com/tuvsud01), ADO_PROJECT (default DS_mosaiq-poc),
+env:   FM_HOME derives organization and project from projects/<repo>'s origin.
+       ADO_ORG (full base URL) and ADO_PROJECT override their respective axes;
+       missing overrides require a home origin in Azure DevOps HTTPS or SSH form.
        ADO_TOKEN, otherwise az account get-access-token --resource
        499b84ac-1321-427f-aa17-267ca6975798 --query accessToken --output tsv.
 list exits: 0 no conflicts or doc-only candidates, 1 mechanical candidates, 2 code/non-editEdit.
 apply exits: 0 merge succeeded, 1 unresolved conflicts remain, 3 resolution/merge
 failed, 4 merge result still pending after bounded polling.
-Both commands exit 5 for usage, authentication, REST, malformed response, file I/O
-or subprocess errors, with a concise diagnostic on stderr.
+Both commands exit 5 for usage, home derivation, authentication, REST, malformed
+response, file I/O or subprocess errors, with a concise diagnostic on stderr.
 Classification is a path hint only; the owner skill requires inspecting use and hunks.
 """
 import http.client
@@ -37,9 +40,8 @@ import tempfile
 import time
 import urllib.request
 from pathlib import Path
+from urllib.parse import quote, unquote, urlsplit
 
-ORG = os.environ.get("ADO_ORG", "https://dev.azure.com/tuvsud01")
-PROJ = os.environ.get("ADO_PROJECT", "DS_mosaiq-poc")
 API = "api-version=7.1-preview.1"
 DOC_EXT = (".md", ".markdown", ".rst", ".adoc")
 DOC_TEXT_NAMES = ("readme.txt", "index.txt", "changelog.txt", "notes.txt", "verify.txt", "build-status.txt")
@@ -82,8 +84,44 @@ def req(url, method="GET", body=None, raw=False):
     return response
 
 
+def ado_location(repo):
+    organization = os.environ.get("ADO_ORG")
+    project = os.environ.get("ADO_PROJECT")
+    if organization and project:
+        return organization, project
+    override_hint = "; set ADO_ORG and ADO_PROJECT explicitly"
+    home = os.environ.get("FM_HOME")
+    if not home:
+        raise ValueError("FM_HOME is unset" + override_hint)
+    repository = Path(home) / "projects" / repo
+    if not repository.is_dir():
+        raise ValueError(f"repository directory is missing: {repository}" + override_hint)
+    try:
+        origin = subprocess.check_output(
+            ["git", "-C", str(repository), "remote", "get-url", "origin"],
+            text=True, stderr=subprocess.PIPE,
+        ).strip()
+    except (OSError, subprocess.SubprocessError) as error:
+        raise ValueError(f"origin is unavailable for {repository}" + override_hint) from error
+    match = re.fullmatch(
+        r"(?:git@ssh\.dev\.azure\.com:v3|ssh://git@ssh\.dev\.azure\.com/v3)/([^/]+)/([^/]+)/[^/]+/?",
+        origin,
+    )
+    if not match:
+        try:
+            remote = urlsplit(origin)
+        except ValueError:
+            remote = None
+        if remote and remote.scheme == "https" and remote.hostname == "dev.azure.com":
+            match = re.fullmatch(r"/([^/]+)/([^/]+)/_git/[^/]+/?", remote.path)
+    if not match:
+        raise ValueError(f"origin is not a supported Azure DevOps URL for {repository}" + override_hint)
+    return organization or f"https://dev.azure.com/{match[1]}", project or match[2]
+
+
 def base(repo):
-    return f"{ORG}/{PROJ}/_apis/git/repositories/{repo}"
+    organization, project = ado_location(repo)
+    return f"{organization}/{quote(unquote(project), safe='')}/_apis/git/repositories/{repo}"
 
 
 def conflicts(repo, pr):
@@ -91,8 +129,11 @@ def conflicts(repo, pr):
     if not isinstance(entries, list) or any(not isinstance(entry, dict) for entry in entries):
         raise ValueError("conflicts response value must be an array of objects")
     for entry in entries:
-        if not isinstance(entry["resolutionStatus"], str):
-            raise ValueError("conflict resolutionStatus must be a string")
+        status = entry.get("resolutionStatus")
+        if status is None:
+            entry["resolutionStatus"] = "unresolved"
+        elif not isinstance(status, str):
+            raise ValueError("conflict resolutionStatus must be a string or null")
     return entries
 
 
