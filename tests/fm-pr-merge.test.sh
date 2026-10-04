@@ -184,7 +184,7 @@ case "${1:-} ${2:-}" in
     case " $* " in
       *" --json reviewDecision "*)
         cat "$(dirname "$FM_TEST_GH_VIEW_JSON")/review-decision"
-        exit 0
+        exit $?
         ;;
       *" --json author "*)
         cat "$(dirname "$FM_TEST_GH_VIEW_JSON")/author-login"
@@ -3838,24 +3838,33 @@ test_ado_approval_actions() {
 
 test_github_approval_actions() {
   local dir kind rc url=https://github.com/example/repo/pull/9
-  for kind in classic ruleset approve-only complete-only complete-unapproved author missing red; do
+  for kind in classic ruleset approve-only complete-only complete-unapproved author missing red classic-author classic-missing \
+    classic-approved-missing classic-approved-author classic-approved-reviewer \
+    ruleset-approved-missing ruleset-approved-author ruleset-approved-reviewer \
+    classic-approved-red ruleset-approved-red unprotected-missing unprotected-author unreadable; do
     dir=$(make_case "github-approval-$kind")
     add_gh_mocks "$dir" "$MR_HEAD"
+    : > "$dir/gh-axi.log"
     printf 'reviewer\n' > "$dir/reviewer-login"
     printf 'author\n' > "$dir/author-login"
-    printf 'APPROVED\n' > "$dir/review-decision"
+    printf 'REVIEW_REQUIRED\n' > "$dir/review-decision"
     printf 'fixture-reviewer-token\n' > "$dir/home/config/github-reviewer-token"
-    if [ "$kind" = classic ]; then
-      jq '.protected = true | .required_pull_request_reviews = {required_approving_review_count:1}' "$dir/github-branch.json" > "$dir/updated.json"
-      mv "$dir/updated.json" "$dir/github-branch.json"
-    else
-      printf '%s\n' '[{"type":"pull_request","parameters":{"required_approving_review_count":1}}]' > "$dir/github-required-rules.json"
-    fi
     case "$kind" in
-      author) printf 'AUTHOR\n' > "$dir/reviewer-login" ;;
-      missing) rm "$dir/home/config/github-reviewer-token" ;;
-      red) write_github_red_json "$dir" "$MR_HEAD" ci ;;
-      complete-unapproved) printf 'REVIEW_REQUIRED\n' > "$dir/review-decision" ;;
+      classic|classic-*)
+        jq '.protected = true | .required_pull_request_reviews = {required_approving_review_count:1}' "$dir/github-branch.json" > "$dir/updated.json"
+        mv "$dir/updated.json" "$dir/github-branch.json"
+        ;;
+      unprotected-*) printf 'null\n' > "$dir/review-decision" ;;
+      *) printf '%s\n' '[{"type":"pull_request","parameters":{"required_approving_review_count":1}}]' > "$dir/github-required-rules.json" ;;
+    esac
+    case "$kind" in
+      approve-only|complete-only|*-approved-*) printf 'APPROVED\n' > "$dir/review-decision" ;;
+      unreadable) rm "$dir/review-decision" ;;
+    esac
+    case "$kind" in
+      author|*-author) printf 'AUTHOR\n' > "$dir/reviewer-login" ;;
+      missing|*-missing) rm "$dir/home/config/github-reviewer-token" ;;
+      red|*-red) write_github_red_json "$dir" "$MR_HEAD" ci ;;
     esac
     rc=0
     case "$kind" in
@@ -3868,15 +3877,23 @@ test_github_approval_actions() {
       *) run_pr_merge "$dir" task-x1 "$url" > "$dir/stdout" 2> "$dir/stderr" || rc=$? ;;
     esac
     case "$kind" in
-      author|missing|red|complete-unapproved)
+      author|classic-author|missing|classic-missing|red|*-red|complete-unapproved|unreadable)
         expect_code 1 "$rc" "GitHub approval $kind"
         [ ! -e "$dir/github-reviewed" ] || fail "GitHub $kind fixture was approved"
         assert_no_grep 'pr merge ' "$dir/gh.log" "GitHub $kind fixture merged"
+        case "$kind" in
+          missing|classic-missing) assert_grep 'configure config/github-reviewer-token or FM_GITHUB_REVIEWER_TOKEN' "$dir/stderr" "needed approval omitted missing reviewer credential" ;;
+          *) assert_no_grep 'configure config/github-reviewer-token or FM_GITHUB_REVIEWER_TOKEN' "$dir/stderr" "GitHub $kind incorrectly requested a reviewer credential" ;;
+        esac
         ;;
-      complete-only)
-        expect_code 0 "$rc" "GitHub completion-only"
-        [ ! -e "$dir/github-reviewed" ] || fail "GitHub completion-only approved"
-        assert_grep 'pr merge ' "$dir/gh.log" "GitHub completion-only did not merge"
+      complete-only|*-approved-*|unprotected-*)
+        expect_code 0 "$rc" "GitHub $kind: $(cat "$dir/stderr")"
+        [ ! -e "$dir/github-reviewed" ] || fail "GitHub $kind approved"
+        assert_no_grep 'api /user' "$dir/gh-axi.log" "GitHub $kind accessed reviewer identity"
+        assert_no_grep 'api POST' "$dir/gh-axi.log" "GitHub $kind posted a review"
+        assert_no_grep 'github-reviewer-token' "$dir/stderr" "GitHub $kind requested a reviewer credential"
+        assert_no_grep 'FM_GITHUB_REVIEWER_TOKEN' "$dir/stderr" "GitHub $kind requested a reviewer credential"
+        assert_logged_gh_merge "$dir" 9 example/repo --squash
         ;;
       *)
         expect_code 0 "$rc" "GitHub approval $kind: $(cat "$dir/stderr")"

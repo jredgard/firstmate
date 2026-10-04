@@ -118,8 +118,9 @@
 # GitHub approval uses FM_GITHUB_REVIEWER_TOKEN or the one-line regular
 # config/github-reviewer-token file, never the ambient merger token. The token's
 # login must differ from the live PR author. Default execution approves only
-# when classic protection or an effective pull_request rule requires approvals;
-# an unreadable review requirement refuses. The review binds the verified head.
+# when classic protection or an effective pull_request rule requires approvals
+# and reviewDecision is not APPROVED; an unreadable review requirement refuses.
+# The review binds the verified head.
 # --approve-only votes without completing or recording merge acceptance;
 # --complete-only never votes and requires policies already satisfied.
 # The default approves then completes. These actions apply to ADO and GitHub,
@@ -1694,14 +1695,18 @@ case "$PROVIDER" in
     require_current_away_authority || away_status=$?
     [ "$away_status" -eq 0 ] || exit "$away_status"
     refuse_github_queue_while_away || exit 2
-    if [ "$MERGE_ACTION" = complete-only ] && [ "$FM_PR_GITHUB_REVIEW_REQUIRED" = true ]; then
-      if ! review_decision=$(gh pr view "$URL" --json reviewDecision --jq '.reviewDecision' 2>/dev/null) \
-        || [ "$review_decision" != APPROVED ]; then
+    review_decision=
+    if [ "$MERGE_ACTION" != approve-only ] && [ "$FM_PR_GITHUB_REVIEW_REQUIRED" = true ]; then
+      if ! review_decision=$(gh pr view "$URL" --json reviewDecision --jq '.reviewDecision' 2>/dev/null); then
+        echo "error: could not read the GitHub approving-review policy for $URL" >&2
+        exit 1
+      fi
+      if [ "$MERGE_ACTION" = complete-only ] && [ "$review_decision" != APPROVED ]; then
         echo "error: --complete-only requires the GitHub approving-review policy already satisfied for $URL" >&2
         exit 1
       fi
     fi
-    if [ "$MERGE_ACTION" = approve-only ] || { [ "$MERGE_ACTION" = approve-complete ] && [ "$FM_PR_GITHUB_REVIEW_REQUIRED" = true ]; }; then
+    if [ "$MERGE_ACTION" = approve-only ] || { [ "$MERGE_ACTION" = approve-complete ] && [ "$FM_PR_GITHUB_REVIEW_REQUIRED" = true ] && [ "$review_decision" != APPROVED ]; }; then
       approved_head=$FM_PR_MERGE_HEAD
       github_approve || exit 1
       if [ "$MERGE_ACTION" = approve-only ]; then
