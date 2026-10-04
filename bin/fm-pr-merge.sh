@@ -118,8 +118,7 @@
 # GitHub approval uses FM_GITHUB_REVIEWER_TOKEN or the one-line regular
 # config/github-reviewer-token file, never the ambient merger token. The token's
 # login must differ from the live PR author. Default execution approves only
-# when classic protection or an effective pull_request rule requires approvals
-# and reviewDecision is not APPROVED; an unreadable review requirement refuses.
+# when the live reviewDecision is REVIEW_REQUIRED; an unreadable decision refuses.
 # A changes request refuses approval, including --approve-only.
 # The review binds the verified head.
 # --approve-only votes without completing or recording merge acceptance;
@@ -668,7 +667,7 @@ ado_verify_policies() {
                 != "fa4e907d-c16b-4a4c-9dfa-4916e5d171ab")
             | select(.configuration.type.displayName != $allowed)
             | select($phase != "approve" or .status != "queued" or
-                 .configuration.type.displayName != "Minimum number of reviewers")
+                 (.configuration.type.id // "" | ascii_downcase) != "fa4e907d-c16b-4a4c-9dfa-4906e5d171dd")
             | .configuration.type.displayName + "=" + .status] | join(", ")
       else error("invalid policy evaluations") end' 2>/dev/null); then
     echo "error: could not parse Azure DevOps policies for $URL" >&2
@@ -677,7 +676,7 @@ ado_verify_policies() {
   if [ -n "$bad" ]; then
     if [ -z "$ADO_REVIEWER_ID" ] && printf '%s' "$policies" | jq -e '
       any(.value[]; .status == "queued" and .configuration.isBlocking != false and
-        .configuration.type.displayName == "Minimum number of reviewers")' >/dev/null; then
+        (.configuration.type.id // "" | ascii_downcase) == "fa4e907d-c16b-4a4c-9dfa-4906e5d171dd")' >/dev/null; then
       echo "error: Azure DevOps reviewer policy is queued; configure config/ado-reviewer-id before approving $URL" >&2
       return 1
     fi
@@ -694,7 +693,7 @@ ado_wait_for_reviewer_policy() {
       || ! queued=$(printf '%s' "$policies" | jq -er '
         if (.value | type) != "array" then error("invalid policy evaluations") else
           any(.value[]; .status == "queued" and .configuration.isBlocking != false and
-             .configuration.type.displayName == "Minimum number of reviewers") | tostring end' 2>/dev/null); then
+             (.configuration.type.id // "" | ascii_downcase) == "fa4e907d-c16b-4a4c-9dfa-4906e5d171dd") | tostring end' 2>/dev/null); then
       echo "error: could not read Azure DevOps reviewer policy after voting for $URL" >&2
       return 1
     fi
@@ -786,10 +785,9 @@ github_checks_not_green() {
 FM_PR_GITHUB_REQUIRED=
 FM_PR_GITHUB_REQUIRED_ERROR=
 github_read_required_contexts() {
-  local base=$1 branch_path branch_json rules_json classic='' ruleset='' api_err api_err_text review_json review_count
+  local base=$1 branch_path branch_json rules_json classic='' ruleset='' api_err api_err_text
   FM_PR_GITHUB_REQUIRED='[]'
   FM_PR_GITHUB_REQUIRED_ERROR=
-  FM_PR_GITHUB_REVIEW_REQUIRED=false
   branch_path=$(github_urlencode_path_segment "$base")
 
   if ! branch_json=$(gh api "repos/$PR_OWNER/$PR_REPO/branches/$branch_path" 2>/dev/null) \
@@ -816,21 +814,6 @@ github_read_required_contexts() {
     FM_PR_GITHUB_REQUIRED_ERROR="the branch protection summary for base branch $base could not be read"
   fi
 
-  if printf '%s' "${branch_json:-}" | jq -e '.protected == true' >/dev/null 2>&1; then
-    if ! review_json=$(gh api "repos/$PR_OWNER/$PR_REPO/branches/$branch_path/protection" 2>/dev/null) \
-      || ! review_count=$(printf '%s' "$review_json" | jq -er '
-        if type != "object" or (has("required_pull_request_reviews") | not) then error("invalid protection")
-        elif .required_pull_request_reviews == null then 0
-        elif (.required_pull_request_reviews.required_approving_review_count | type) == "number" then
-          .required_pull_request_reviews.required_approving_review_count
-        else error("invalid review requirement") end' 2>/dev/null); then
-      FM_PR_GITHUB_REQUIRED_ERROR="${FM_PR_GITHUB_REQUIRED_ERROR:+$FM_PR_GITHUB_REQUIRED_ERROR
-}the approving-review requirement for base branch $base could not be read"
-    elif [ "$review_count" != 0 ]; then
-      FM_PR_GITHUB_REVIEW_REQUIRED=true
-    fi
-  fi
-
   if ! api_err=$(mktemp "${TMPDIR:-/tmp}/fm-pr-merge-required-rules.XXXXXX"); then
     FM_PR_GITHUB_REQUIRED_ERROR="${FM_PR_GITHUB_REQUIRED_ERROR:+$FM_PR_GITHUB_REQUIRED_ERROR
 }the branch rules for base branch $base could not be read"
@@ -853,18 +836,6 @@ github_read_required_contexts() {
       ruleset=''
       FM_PR_GITHUB_REQUIRED_ERROR="${FM_PR_GITHUB_REQUIRED_ERROR:+$FM_PR_GITHUB_REQUIRED_ERROR
 }the branch rules for base branch $base could not be read"
-    fi
-    if [ -n "${rules_json:-}" ]; then
-      if ! review_count=$(printf '%s' "$rules_json" | jq -ser '
-        [.[] | if type == "array" then .[] else error("invalid rules") end
-          | select(.type == "pull_request")
-          | .parameters.required_approving_review_count
-          | if type == "number" then . else error("invalid review count") end] | max // 0' 2>/dev/null); then
-        FM_PR_GITHUB_REQUIRED_ERROR="${FM_PR_GITHUB_REQUIRED_ERROR:+$FM_PR_GITHUB_REQUIRED_ERROR
-}the approving-review rules for base branch $base could not be read"
-      elif [ "$review_count" != 0 ]; then
-        FM_PR_GITHUB_REVIEW_REQUIRED=true
-      fi
     fi
     rm -f "$api_err"
   fi
@@ -891,10 +862,13 @@ github_approve() {
       return 1
       ;;
   esac
-  if ! identity=$(GH_TOKEN="$token" GITHUB_TOKEN="$token" gh-axi api /user --jq '"reviewer_login=" + .login' --full 2>/dev/null) \
+  if ! identity=$(GH_TOKEN="$token" GITHUB_TOKEN="$token" gh-axi api /user --jq '.login | @base64' --full 2>/dev/null) \
     || ! login=$(printf '%s\n' "$identity" | awk '
-      /^[[:space:]]*body: reviewer_login=[A-Za-z0-9-]+$/ { sub(/^[[:space:]]*body: reviewer_login=/, ""); value=$0; count++ }
-      END { if (count == 1) print value; else exit 1 }') \
+      /^  body: / { sub(/^  body: /, ""); body=$0; bodies++ }
+      /^  truncated: / { if ($2 == "false") complete++; else invalid=1 }
+      END { if (bodies == 1 && complete == 1 && !invalid) print body; else exit 1 }' \
+      | jq -Rer '(fromjson? // .) | @base64d | select(test("^[A-Za-z0-9-]+(\\[bot\\])?$"))') \
+    || [ -z "$login" ] \
     || ! author=$(gh pr view "$URL" --json author --jq '.author.login' 2>/dev/null) \
     || [ -z "$author" ]; then
     echo "error: could not verify GitHub reviewer identity and PR author for $URL" >&2
@@ -939,20 +913,23 @@ github_required_checks_missing() {
 github_verify_mergeable() {
   local json fields line red name covered missing unreported producers runs
   local total=0 named=0 refusals='' mergeable_refusal=''
-  local state='' draft='' mergeable='' merge_state='' live_head='' base=''
+  local state='' draft='' mergeable='' merge_state='' live_head='' base='' review_decision=''
 
-  if ! json=$(gh pr view "$URL" --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup 2>/dev/null) \
+  if ! json=$(gh pr view "$URL" --json state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup,reviewDecision 2>/dev/null) \
     || [ -z "$json" ]; then
     echo "error: could not read the GitHub pull request state before merging" >&2
     return 1
   fi
   if ! fields=$(printf '%s' "$json" | jq -r '
-      if type == "object" then
+      if type == "object" and has("reviewDecision") then
         "state=" + ((.state // "") | tostring),
         "mergeable=" + ((.mergeable // "") | tostring),
         "merge_state=" + ((.mergeStateStatus // "") | tostring),
         "head=" + ((.headRefOid // "") | tostring),
-        "base=" + ((.baseRefName // "") | tostring)
+        "base=" + ((.baseRefName // "") | tostring),
+        "review=" + (if .reviewDecision == null or .reviewDecision == "" then ""
+          elif .reviewDecision == "APPROVED" or .reviewDecision == "REVIEW_REQUIRED" or .reviewDecision == "CHANGES_REQUESTED" then .reviewDecision
+          else error("invalid review decision") end)
       else
         error("pull request payload is not an object")
       end' 2>/dev/null); then
@@ -967,13 +944,14 @@ github_verify_mergeable() {
       merge_state=*) merge_state=${line#merge_state=} ;;
       head=*) live_head=${line#head=} ;;
       base=*) base=${line#base=} ;;
+      review=*) review_decision=${line#review=} ;;
       *) continue ;;
     esac
     named=$((named + 1))
   done <<FIELDS
 $fields
 FIELDS
-  if [ "$named" -ne 5 ] || [ "$total" -ne 5 ] || [ -z "$base" ]; then
+  if [ "$named" -ne 6 ] || [ "$total" -ne 6 ] || [ -z "$base" ]; then
     echo "error: could not read the GitHub pull request state before merging" >&2
     return 1
   fi
@@ -997,6 +975,9 @@ FIELDS
   esac
   [ "$draft" = false ] \
     || refusals="$refusals  - the pull request is a draft
+"
+  [ "$review_decision" != CHANGES_REQUESTED ] \
+    || refusals="$refusals  - GitHub changes request is outstanding (CHANGES_REQUESTED); nothing was approved or merged
 "
   [ "$mergeable" = MERGEABLE ] \
     || mergeable_refusal="  - mergeable is \"${mergeable:-unreadable}\", not MERGEABLE
@@ -1078,6 +1059,29 @@ EOF
     "$URL" "$live_head" >&2
   FM_PR_MERGE_HEAD=$live_head
   FM_PR_GITHUB_BASE=$base
+  FM_PR_GITHUB_REVIEW_DECISION=$review_decision
+}
+
+github_wait_for_mergeable() {
+  local retry_delay=${FM_PR_GITHUB_MERGEABLE_RETRY_DELAY:-3} attempt=1 status
+  case "$retry_delay" in
+    [0-9] | 10) ;;
+    *) retry_delay=3 ;;
+  esac
+  while :; do
+    status=0
+    github_verify_mergeable || status=$?
+    [ "$status" -ne 0 ] || return 0
+    if [ "$status" -ne 3 ]; then
+      return "$status"
+    fi
+    if [ "$attempt" -ge 5 ]; then
+      printf 'error: mergeability for %s is still being computed by GitHub; retry shortly\n' "$URL" >&2
+      return 1
+    fi
+    sleep "$retry_delay"
+    attempt=$((attempt + 1))
+  done
 }
 
 # Read one live GitHub pull request view after gh returns. The selected
@@ -1660,35 +1664,7 @@ case "$PROVIDER" in
       merge_args=(--squash)
     fi
     FM_PR_GITHUB_CALLER_METHOD=$(caller_merge_method "$@")
-    # mergeable reads UNKNOWN for a short while after a push or base-branch
-    # change while GitHub recomputes it; retry a bounded number of times,
-    # re-reading and re-checking every live condition on each attempt, rather
-    # than refusing a pull request that is simply still being computed. The
-    # delay is capped at 0-10 seconds so the wait stays short under the lock.
-    mergeable_retry_delay=${FM_PR_GITHUB_MERGEABLE_RETRY_DELAY:-3}
-    case "$mergeable_retry_delay" in
-      [0-9] | 10) ;;
-      *) mergeable_retry_delay=3 ;;
-    esac
-    mergeable_attempt=1
-    while :; do
-      mergeable_status=0
-      github_verify_mergeable || mergeable_status=$?
-      if [ "$mergeable_status" -eq 0 ]; then
-        break
-      fi
-      if [ "$mergeable_status" -ne 3 ] || [ "$mergeable_attempt" -ge 5 ]; then
-        break
-      fi
-      sleep "$mergeable_retry_delay"
-      mergeable_attempt=$((mergeable_attempt + 1))
-    done
-    if [ "$mergeable_status" -ne 0 ]; then
-      if [ "$mergeable_status" -eq 3 ]; then
-        printf 'error: mergeability for %s is still being computed by GitHub; retry shortly\n' "$URL" >&2
-      fi
-      exit 1
-    fi
+    github_wait_for_mergeable || exit 1
     # The posture record is locked first, so this last presence and authority read
     # and the forge command below share one live-owner critical section.
     hold_away_record_for_merge || exit 1
@@ -1696,29 +1672,18 @@ case "$PROVIDER" in
     require_current_away_authority || away_status=$?
     [ "$away_status" -eq 0 ] || exit "$away_status"
     refuse_github_queue_while_away || exit 2
-    review_decision=
-    if [ "$MERGE_ACTION" = approve-only ] || [ "$FM_PR_GITHUB_REVIEW_REQUIRED" = true ]; then
-      if ! review_decision=$(gh pr view "$URL" --json reviewDecision --jq '.reviewDecision' 2>/dev/null); then
-        echo "error: could not read the GitHub approving-review policy for $URL" >&2
-        exit 1
-      fi
-      if [ "$review_decision" = CHANGES_REQUESTED ]; then
-        echo "error: GitHub changes request is outstanding (CHANGES_REQUESTED) for $URL; nothing was approved or merged" >&2
-        exit 1
-      fi
-      if [ "$MERGE_ACTION" = complete-only ] && [ "$review_decision" != APPROVED ]; then
-        echo "error: --complete-only requires the GitHub approving-review policy already satisfied for $URL" >&2
-        exit 1
-      fi
+    if [ "$MERGE_ACTION" = complete-only ] && [ "$FM_PR_GITHUB_REVIEW_DECISION" = REVIEW_REQUIRED ]; then
+      echo "error: --complete-only requires the GitHub approving-review policy already satisfied for $URL" >&2
+      exit 1
     fi
-    if [ "$MERGE_ACTION" = approve-only ] || { [ "$MERGE_ACTION" = approve-complete ] && [ "$FM_PR_GITHUB_REVIEW_REQUIRED" = true ] && [ "$review_decision" != APPROVED ]; }; then
+    if [ "$MERGE_ACTION" = approve-only ] || { [ "$MERGE_ACTION" = approve-complete ] && [ "$FM_PR_GITHUB_REVIEW_DECISION" = REVIEW_REQUIRED ]; }; then
       approved_head=$FM_PR_MERGE_HEAD
       github_approve || exit 1
       if [ "$MERGE_ACTION" = approve-only ]; then
         printf 'approved: %s at head %s; nothing was merged\n' "$URL" "$FM_PR_MERGE_HEAD"
         exit 0
       fi
-      github_verify_mergeable || exit 1
+      github_wait_for_mergeable || exit 1
       if [ "$FM_PR_MERGE_HEAD" != "$approved_head" ]; then
         echo "error: GitHub head changed after approval for $URL; retry to verify and approve its current head" >&2
         exit 1
