@@ -98,21 +98,33 @@
 # reported rather than trusted, because a rebase moves the head and leaves the
 # recorded value stale. Reading that state needs glab and jq, and either one
 # absent stops the merge before any state is recorded.
-# Azure DevOps requires FM_ADO_REVIEWER_ID or the one-line local
-# config/ado-reviewer-id file. It refuses a missing or malformed identity,
-# then checks active, succeeded mergeStatus, and non-draft live, and that
-# every blocking policy evaluation is approved or notApplicable; a
+# Azure DevOps approval requires FM_ADO_REVIEWER_ID or the one-line local
+# config/ado-reviewer-id file. It checks active, succeeded mergeStatus,
+# non-draft, and the recorded head before voting, and refuses every failing
+# blocking policy except a queued minimum-reviewer evaluation before the vote.
+# After voting it polls that evaluation for up to 30 seconds (including reads),
+# then checks every blocking policy evaluation is approved or notApplicable; a
 # non-blocking evaluation never refuses, and the blocking merge-strategy
 # policy - matched by its type id fa4e907d-c16b-4a4c-9dfa-4916e5d171ab, never
 # by its localizable display name - is fulfilled by the squash completion
-# itself. The configured reviewer votes +10, and the PATCH binds the verified
-# source commit with squash; source-branch deletion and work-item transition
+# itself. The configured reviewer votes +10 idempotently, and the PATCH binds
+# the verified source commit with squash; source-branch deletion and work-item transition
 # stay off for GitHub parity unless FM_ADO_DELETE_SOURCE_BRANCH or
 # FM_ADO_TRANSITION_WORK_ITEMS is exactly "true", or is unset while the local
 # config/ado-delete-source-branch or config/ado-transition-work-items flag
 # file exists. A completed-status readback at the verified live head is required
 # for a landed result.
 # No prompt or extra forge arguments are accepted on that path.
+# GitHub approval uses FM_GITHUB_REVIEWER_TOKEN or the one-line regular
+# config/github-reviewer-token file, never the ambient merger token. The token's
+# login must differ from the live PR author. Default execution approves only
+# when classic protection or an effective pull_request rule requires approvals;
+# an unreadable review requirement refuses. The review binds the verified head.
+# --approve-only votes without completing or recording merge acceptance;
+# --complete-only never votes and requires policies already satisfied.
+# The default approves then completes. These actions apply to ADO and GitHub,
+# retain the same green/head/authority guards, and accept no extra merge args
+# with --approve-only. Mechanics are owned here; docs/agent-control.md links here.
 #
 # Before any forge merge, the task's existing per-task control lock
 # serializes the captain-hold check through the forge command. A still-held or
@@ -152,7 +164,7 @@
 # explicit captain instruction and never skips the live green check, the
 # away-record read, or a captain hold.
 #
-# Usage: fm-pr-merge.sh <task-id> <pr-url> [--attended-override] [--allow-red <check-name>] [--allow-missing <check-name>] [-- <extra forge merge args>]
+# Usage: fm-pr-merge.sh <task-id> <pr-url> [--approve-only | --complete-only] [--attended-override] [--allow-red <check-name>] [--allow-missing <check-name>] [-- <extra forge merge args>]
 #
 # On GitLab, this script confirms the MR is actually merged before reporting it;
 # an auto-merge-queued or unconfirmed request leaves the poll armed and records
@@ -213,8 +225,18 @@ shift 2
 ATTENDED_OVERRIDE=false
 ALLOW_RED=()
 ALLOW_MISSING=()
+MERGE_ACTION=approve-complete
 while [ "$#" -gt 0 ]; do
   case "$1" in
+    --approve-only|--complete-only)
+      [ "$MERGE_ACTION" = approve-complete ] || { echo "error: approval actions are mutually exclusive and may be specified only once" >&2; exit 2; }
+      MERGE_ACTION=${1#--}
+      shift
+      ;;
+    --approve-only=*|--complete-only=*)
+      echo "error: approval actions take no value" >&2
+      exit 2
+      ;;
     --attended-override)
       ATTENDED_OVERRIDE=true
       shift
@@ -257,6 +279,14 @@ if [ "${#ALLOW_MISSING[@]}" -gt 0 ] && [ "$PROVIDER" = gitlab ]; then
 fi
 if [ "${#ALLOW_MISSING[@]}" -gt 0 ] && [ "$PROVIDER" = ado ]; then
   echo "error: --allow-missing applies only to GitHub required checks" >&2
+  exit 2
+fi
+if [ "$MERGE_ACTION" != approve-complete ] && [ "$PROVIDER" != ado ] && [ "$PROVIDER" != github ]; then
+  echo "error: approval actions apply only to Azure DevOps and GitHub" >&2
+  exit 2
+fi
+if [ "$MERGE_ACTION" = approve-only ] && [ "$#" -gt 0 ]; then
+  echo "error: --approve-only accepts no extra forge merge arguments" >&2
   exit 2
 fi
 if [ "$PROVIDER" = ado ] && [ "$#" -gt 0 ]; then
@@ -588,8 +618,8 @@ FIELDS
 
 # ADO's completion PATCH carries the exact source commit observed here. The
 # server rejects a changed head, while policy evaluations guard the same PR.
-ado_verify_mergeable() {
-  local status merge_status draft head project_id policies bad allowed=${ALLOW_RED[0]:-}
+ado_verify_preconditions() {
+  local status merge_status draft head project_id
   if ! fm_pr_ado_read_pr "$URL"; then
     echo "error: could not read the Azure DevOps pull request before completing $URL" >&2
     return 1
@@ -609,6 +639,12 @@ ado_verify_mergeable() {
     echo "error: Azure DevOps head changed after recording $URL; retry to verify and record its current head" >&2
     return 1
   fi
+  FM_PR_MERGE_HEAD=$head
+  ADO_POLICY_URL="https://dev.azure.com/${PR_PATH%%/*}/$project_id/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/$project_id/$PR_NUMBER&api-version=7.1-preview.1"
+}
+
+ado_verify_policies() {
+  local phase=${1:-complete} policies bad allowed=${ALLOW_RED[0]:-}
   # An evaluation passes when ADO itself would complete past it: approved,
   # notApplicable, or non-blocking. The blocking merge-strategy policy is
   # fulfilled by the squash completion itself and is matched by its type id,
@@ -616,12 +652,11 @@ ado_verify_mergeable() {
   # fails closed unless the one named exception was explicitly requested in an
   # attended session.
   # Verified 2026-09-28 against live policy evaluations.
-  if ! policies=$(fm_pr_ado_request GET \
-    "https://dev.azure.com/${PR_PATH%%/*}/$project_id/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/$project_id/$PR_NUMBER&api-version=7.1-preview.1" 2>/dev/null); then
+  if ! policies=$(fm_pr_ado_request GET "$ADO_POLICY_URL" 2>/dev/null); then
     echo "error: could not read Azure DevOps policies for $URL" >&2
     return 1
   fi
-  if ! bad=$(printf '%s' "$policies" | jq -er --arg allowed "$allowed" '
+  if ! bad=$(printf '%s' "$policies" | jq -er --arg allowed "$allowed" --arg phase "$phase" '
       if type == "object" and (.value | type) == "array" and
          all(.value[]; (.status | type) == "string" and
              (.configuration.type.displayName | type) == "string" and .configuration.type.displayName != "")
@@ -630,17 +665,42 @@ ado_verify_mergeable() {
             | select((.configuration.type.id // "" | ascii_downcase)
                 != "fa4e907d-c16b-4a4c-9dfa-4916e5d171ab")
             | select(.configuration.type.displayName != $allowed)
+            | select($phase != "approve" or .status != "queued" or
+                 .configuration.type.displayName != "Minimum number of reviewers")
             | .configuration.type.displayName + "=" + .status] | join(", ")
       else error("invalid policy evaluations") end' 2>/dev/null); then
     echo "error: could not parse Azure DevOps policies for $URL" >&2
     return 1
   fi
   if [ -n "$bad" ]; then
+    if [ -z "$ADO_REVIEWER_ID" ] && printf '%s' "$policies" | jq -e '
+      any(.value[]; .status == "queued" and .configuration.isBlocking != false and
+        .configuration.type.displayName == "Minimum number of reviewers")' >/dev/null; then
+      echo "error: Azure DevOps reviewer policy is queued; configure config/ado-reviewer-id before approving $URL" >&2
+      return 1
+    fi
     echo "error: refusing to complete $URL: policies not approved: $bad" >&2
     return 1
   fi
-  FM_PR_MERGE_HEAD=$head
-  printf 'verified: %s is active, mergeable, and policy approved at head %s\n' "$URL" "$head" >&2
+}
+
+ado_wait_for_reviewer_policy() {
+  local deadline=$((SECONDS + 30)) remaining policies queued
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    remaining=$((deadline - SECONDS))
+    if ! policies=$(FM_PR_ADO_TIMEOUT=$remaining fm_pr_ado_request GET "$ADO_POLICY_URL" 2>/dev/null) \
+      || ! queued=$(printf '%s' "$policies" | jq -er '
+        if (.value | type) != "array" then error("invalid policy evaluations") else
+          any(.value[]; .status == "queued" and .configuration.isBlocking != false and
+             .configuration.type.displayName == "Minimum number of reviewers") | tostring end' 2>/dev/null); then
+      echo "error: could not read Azure DevOps reviewer policy after voting for $URL" >&2
+      return 1
+    fi
+    [ "$queued" = true ] || return 0
+    [ "$SECONDS" -lt "$deadline" ] && sleep 1
+  done
+  echo "error: Azure DevOps reviewer policy is still queued after 30 seconds for $URL; nothing was completed" >&2
+  return 1
 }
 
 # Every GitHub check that is not green in the given live pull-request JSON, one
@@ -724,9 +784,10 @@ github_checks_not_green() {
 FM_PR_GITHUB_REQUIRED=
 FM_PR_GITHUB_REQUIRED_ERROR=
 github_read_required_contexts() {
-  local base=$1 branch_path branch_json rules_json classic='' ruleset='' api_err api_err_text
+  local base=$1 branch_path branch_json rules_json classic='' ruleset='' api_err api_err_text review_json review_count
   FM_PR_GITHUB_REQUIRED='[]'
   FM_PR_GITHUB_REQUIRED_ERROR=
+  FM_PR_GITHUB_REVIEW_REQUIRED=false
   branch_path=$(github_urlencode_path_segment "$base")
 
   if ! branch_json=$(gh api "repos/$PR_OWNER/$PR_REPO/branches/$branch_path" 2>/dev/null) \
@@ -753,6 +814,21 @@ github_read_required_contexts() {
     FM_PR_GITHUB_REQUIRED_ERROR="the branch protection summary for base branch $base could not be read"
   fi
 
+  if printf '%s' "${branch_json:-}" | jq -e '.protected == true' >/dev/null 2>&1; then
+    if ! review_json=$(gh api "repos/$PR_OWNER/$PR_REPO/branches/$branch_path/protection" 2>/dev/null) \
+      || ! review_count=$(printf '%s' "$review_json" | jq -er '
+        if type != "object" or (has("required_pull_request_reviews") | not) then error("invalid protection")
+        elif .required_pull_request_reviews == null then 0
+        elif (.required_pull_request_reviews.required_approving_review_count | type) == "number" then
+          .required_pull_request_reviews.required_approving_review_count
+        else error("invalid review requirement") end' 2>/dev/null); then
+      FM_PR_GITHUB_REQUIRED_ERROR="${FM_PR_GITHUB_REQUIRED_ERROR:+$FM_PR_GITHUB_REQUIRED_ERROR
+}the approving-review requirement for base branch $base could not be read"
+    elif [ "$review_count" != 0 ]; then
+      FM_PR_GITHUB_REVIEW_REQUIRED=true
+    fi
+  fi
+
   if ! api_err=$(mktemp "${TMPDIR:-/tmp}/fm-pr-merge-required-rules.XXXXXX"); then
     FM_PR_GITHUB_REQUIRED_ERROR="${FM_PR_GITHUB_REQUIRED_ERROR:+$FM_PR_GITHUB_REQUIRED_ERROR
 }the branch rules for base branch $base could not be read"
@@ -776,6 +852,18 @@ github_read_required_contexts() {
       FM_PR_GITHUB_REQUIRED_ERROR="${FM_PR_GITHUB_REQUIRED_ERROR:+$FM_PR_GITHUB_REQUIRED_ERROR
 }the branch rules for base branch $base could not be read"
     fi
+    if [ -n "${rules_json:-}" ]; then
+      if ! review_count=$(printf '%s' "$rules_json" | jq -ser '
+        [.[] | if type == "array" then .[] else error("invalid rules") end
+          | select(.type == "pull_request")
+          | .parameters.required_approving_review_count
+          | if type == "number" then . else error("invalid review count") end] | max // 0' 2>/dev/null); then
+        FM_PR_GITHUB_REQUIRED_ERROR="${FM_PR_GITHUB_REQUIRED_ERROR:+$FM_PR_GITHUB_REQUIRED_ERROR
+}the approving-review rules for base branch $base could not be read"
+      elif [ "$review_count" != 0 ]; then
+        FM_PR_GITHUB_REVIEW_REQUIRED=true
+      fi
+    fi
     rm -f "$api_err"
   fi
 
@@ -783,6 +871,43 @@ github_read_required_contexts() {
     unique_by([.context, .app_id]) | group_by(.context)
     | map(if any(.[]; .app_id != null) then map(select(.app_id != null)) else . end) | add // []')
   [ -z "$FM_PR_GITHUB_REQUIRED_ERROR" ]
+}
+
+github_approve() {
+  local token=${FM_GITHUB_REVIEWER_TOKEN:-} token_file="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}/github-reviewer-token"
+  local identity login author body
+  if [ -z "$token" ] && { [ -e "$token_file" ] || [ -L "$token_file" ]; }; then
+    if [ ! -f "$token_file" ] || [ -L "$token_file" ]; then
+      echo "error: GitHub reviewer credential $token_file is not a regular file" >&2
+      return 1
+    fi
+    token=$(cat "$token_file") || return 1
+  fi
+  case "$token" in
+    ''|*$'\n'*|*$'\r'*)
+      echo "error: configure config/github-reviewer-token or FM_GITHUB_REVIEWER_TOKEN; approval never uses the ambient merger credential" >&2
+      return 1
+      ;;
+  esac
+  if ! identity=$(GH_TOKEN="$token" GITHUB_TOKEN="$token" gh-axi api /user --jq '"reviewer_login=" + .login' --full 2>/dev/null) \
+    || ! login=$(printf '%s\n' "$identity" | awk '
+      /^[[:space:]]*body: reviewer_login=[A-Za-z0-9-]+$/ { sub(/^[[:space:]]*body: reviewer_login=/, ""); value=$0; count++ }
+      END { if (count == 1) print value; else exit 1 }') \
+    || ! author=$(gh pr view "$URL" --json author --jq '.author.login' 2>/dev/null) \
+    || [ -z "$author" ]; then
+    echo "error: could not verify GitHub reviewer identity and PR author for $URL" >&2
+    return 1
+  fi
+  if [ "$(printf '%s' "$login" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$author" | tr '[:upper:]' '[:lower:]')" ]; then
+    echo "error: configured GitHub reviewer is the PR author; self-approval is refused for $URL" >&2
+    return 1
+  fi
+  body=$(jq -nc --arg head "$FM_PR_MERGE_HEAD" '{event:"APPROVE",commit_id:$head}') || return 1
+  if ! printf '%s' "$body" | GH_TOKEN="$token" GITHUB_TOKEN="$token" gh-axi api POST \
+    "/repos/$PR_OWNER/$PR_REPO/pulls/$PR_NUMBER/reviews" --input - >/dev/null; then
+    echo "error: GitHub reviewer approval failed for $URL; nothing was merged" >&2
+    return 1
+  fi
 }
 
 github_required_checks_missing() {
@@ -1470,26 +1595,43 @@ case "$PROVIDER" in
       fi
       ADO_REVIEWER_ID=$(cat "$ADO_REVIEWER_FILE") || exit 1
     fi
-    if [ -z "$ADO_REVIEWER_ID" ]; then
-      echo "error: FM_ADO_REVIEWER_ID or config/ado-reviewer-id is not configured; cannot cast the required Azure DevOps approval vote for $URL" >&2
+    if [ -z "$ADO_REVIEWER_ID" ] && [ "$MERGE_ACTION" != complete-only ]; then
+      echo "error: FM_ADO_REVIEWER_ID or config/ado-reviewer-id is not configured; configure config/ado-reviewer-id to cast the required Azure DevOps approval vote for $URL" >&2
       exit 1
     fi
-    if ! [[ "$ADO_REVIEWER_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+    if [ -n "$ADO_REVIEWER_ID" ] && ! [[ "$ADO_REVIEWER_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
       echo "error: Azure DevOps reviewer identity must be a UUID (FM_ADO_REVIEWER_ID or config/ado-reviewer-id)" >&2
       exit 1
     fi
-    ado_verify_mergeable || exit 1
+    ado_verify_preconditions || exit 1
+    if [ "$MERGE_ACTION" = complete-only ]; then
+      ado_verify_policies || exit 1
+    else
+      ado_verify_policies approve || exit 1
+    fi
     hold_away_record_for_merge || exit 1
     away_status=0
     require_current_away_authority || away_status=$?
     [ "$away_status" -eq 0 ] || exit "$away_status"
     # The identity comes only from this home, never from a repository-specific
     # constant or a prompt that an away session cannot answer.
-    if ! fm_pr_ado_request PUT "$FM_PR_ADO_BASE/reviewers/$ADO_REVIEWER_ID?api-version=7.1" \
-      '{"vote":10}' >/dev/null; then
-      echo "error: Azure DevOps reviewer approval failed for $URL; nothing was completed" >&2
-      exit 1
+    if [ "$MERGE_ACTION" != complete-only ]; then
+      if ! fm_pr_ado_request PUT "$FM_PR_ADO_BASE/reviewers/$ADO_REVIEWER_ID?api-version=7.1" \
+        '{"vote":10}' >/dev/null; then
+        echo "error: Azure DevOps reviewer approval failed for $URL; nothing was completed" >&2
+        exit 1
+      fi
+      if [ "$MERGE_ACTION" = approve-only ]; then
+        printf 'approved: %s at head %s; nothing was completed\n' "$URL" "$FM_PR_MERGE_HEAD"
+        exit 0
+      fi
+      ado_wait_for_reviewer_policy || exit 1
     fi
+    ado_verify_preconditions || exit 1
+    ado_verify_policies || exit 1
+    away_status=0
+    require_current_away_authority || away_status=$?
+    [ "$away_status" -eq 0 ] || exit "$away_status"
     ado_delete_source=$(ado_completion_option FM_ADO_DELETE_SOURCE_BRANCH ado-delete-source-branch)
     ado_transition_items=$(ado_completion_option FM_ADO_TRANSITION_WORK_ITEMS ado-transition-work-items)
     ado_body=$(jq -nc --arg head "$FM_PR_MERGE_HEAD" \
@@ -1552,6 +1694,30 @@ case "$PROVIDER" in
     require_current_away_authority || away_status=$?
     [ "$away_status" -eq 0 ] || exit "$away_status"
     refuse_github_queue_while_away || exit 2
+    if [ "$MERGE_ACTION" = complete-only ] && [ "$FM_PR_GITHUB_REVIEW_REQUIRED" = true ]; then
+      if ! review_decision=$(gh pr view "$URL" --json reviewDecision --jq '.reviewDecision' 2>/dev/null) \
+        || [ "$review_decision" != APPROVED ]; then
+        echo "error: --complete-only requires the GitHub approving-review policy already satisfied for $URL" >&2
+        exit 1
+      fi
+    fi
+    if [ "$MERGE_ACTION" = approve-only ] || { [ "$MERGE_ACTION" = approve-complete ] && [ "$FM_PR_GITHUB_REVIEW_REQUIRED" = true ]; }; then
+      approved_head=$FM_PR_MERGE_HEAD
+      github_approve || exit 1
+      if [ "$MERGE_ACTION" = approve-only ]; then
+        printf 'approved: %s at head %s; nothing was merged\n' "$URL" "$FM_PR_MERGE_HEAD"
+        exit 0
+      fi
+      github_verify_mergeable || exit 1
+      if [ "$FM_PR_MERGE_HEAD" != "$approved_head" ]; then
+        echo "error: GitHub head changed after approval for $URL; retry to verify and approve its current head" >&2
+        exit 1
+      fi
+      away_status=0
+      require_current_away_authority || away_status=$?
+      [ "$away_status" -eq 0 ] || exit "$away_status"
+      refuse_github_queue_while_away || exit 2
+    fi
     merge_status=0
     merge_output=$(gh pr merge "$PR_NUMBER" --repo "$PR_OWNER/$PR_REPO" \
       --match-head-commit "$FM_PR_MERGE_HEAD" \

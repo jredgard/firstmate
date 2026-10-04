@@ -83,7 +83,7 @@ write_github_required() {
       *) fail "write_github_required: unknown spec '$spec'" ;;
     esac
   done
-  printf '{"name":"main","protected":%s,"protection":{"enabled":%s,"required_status_checks":{"enforcement_level":"%s","contexts":[%s],"checks":[%s]}}}\n' \
+  printf '{"name":"main","required_pull_request_reviews":null,"protected":%s,"protection":{"enabled":%s,"required_status_checks":{"enforcement_level":"%s","contexts":[%s],"checks":[%s]}}}\n' \
     "$protected" "$protected" "$([ "$protected" = true ] && echo non_admins || echo off)" "$contexts" "$checks" \
     > "$case_dir/github-branch.json"
   printf '[{"type":"deletion"}%s]\n' "${rules:+,$rules}" > "$case_dir/github-required-rules.json"
@@ -160,6 +160,15 @@ add_gh_mocks() {
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$FM_TEST_GH_AXI_LOG"
 case "${1:-} ${2:-}" in
+  "api /user")
+    [ "${GH_TOKEN:-}" = fixture-reviewer-token ] || exit 2
+    printf 'api_response:\n  body: reviewer_login=%s\n  truncated: false\n' "$(cat "$(dirname "$FM_TEST_GH_VIEW_JSON")/reviewer-login")"
+    ;;
+  "api POST")
+    [ "${GH_TOKEN:-}" = fixture-reviewer-token ] || exit 2
+    cat > "$(dirname "$FM_TEST_GH_VIEW_JSON")/review-body.json"
+    : > "$(dirname "$FM_TEST_GH_VIEW_JSON")/github-reviewed"
+    ;;
   "pr view")
     [ "$#" -eq 5 ] && [ "${4:-}" = --repo ] || exit 2
     printf 'pull_request:\n  number: %s\n  state: %s\n' "$3" "${FM_TEST_GH_MERGE_STATE:-merged}"
@@ -173,6 +182,14 @@ printf '%s\n' "$*" >> "$FM_TEST_GH_LOG"
 case "${1:-} ${2:-}" in
   "pr view")
     case " $* " in
+      *" --json reviewDecision "*)
+        cat "$(dirname "$FM_TEST_GH_VIEW_JSON")/review-decision"
+        exit 0
+        ;;
+      *" --json author "*)
+        cat "$(dirname "$FM_TEST_GH_VIEW_JSON")/author-login"
+        exit 0
+        ;;
       *statusCheckRollup*)
         if [ -n "${FM_TEST_GH_MERGEABLE_SEQUENCE:-}" ]; then
           call_n=$(( $(cat "$FM_TEST_GH_MERGEABLE_CALLS" 2>/dev/null || echo 0) + 1 ))
@@ -3541,13 +3558,26 @@ case "$method:$url" in
     [ ! -e "$FM_TEST_ADO_DIR/ado-conflict" ] || merge_status=conflicts
     printf '{"pullRequestId":42,"status":"%s","mergeStatus":"%s","isDraft":false,"lastMergeSourceCommit":{"commitId":"%s"},"repository":{"project":{"id":"11111111-1111-1111-1111-111111111111"}}}\n' "$status" "$merge_status" "$head"
     ;;
-  GET:*'/_apis/policy/evaluations?'*) cat "$FM_TEST_ADO_DIR/ado-policies.json" ;;
+  GET:*'/_apis/policy/evaluations?'*)
+    if [ -e "$FM_TEST_ADO_DIR/ado-voted" ] && [ -f "$FM_TEST_ADO_DIR/ado-policies-after-vote.json" ]; then
+      if [ -e "$FM_TEST_ADO_DIR/ado-policy-polls" ] && [ "$(cat "$FM_TEST_ADO_DIR/ado-policy-polls")" -lt 2 ]; then
+        reads=$(cat "$FM_TEST_ADO_DIR/ado-policy-polls")
+        printf '%s\n' "$((reads + 1))" > "$FM_TEST_ADO_DIR/ado-policy-polls"
+        cat "$FM_TEST_ADO_DIR/ado-policies.json"
+      else
+        cat "$FM_TEST_ADO_DIR/ado-policies-after-vote.json"
+      fi
+    else
+      cat "$FM_TEST_ADO_DIR/ado-policies.json"
+    fi
+    ;;
   PUT:*'/reviewers/22222222-2222-2222-2222-222222222222?api-version=7.1')
     [ "$body" = '{"vote":10}' ] || exit 2
+    [ ! -e "$FM_TEST_ADO_DIR/ado-vote-fails" ] || exit 1
     : > "$FM_TEST_ADO_DIR/ado-voted"
     ;;
   PATCH:*'/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1')
-    [ -e "$FM_TEST_ADO_DIR/ado-voted" ] || exit 2
+    [ -e "$FM_TEST_ADO_DIR/ado-voted" ] || [ -e "$FM_TEST_ADO_DIR/ado-already-approved" ] || exit 2
     del=false twi=false
     [ ! -e "$FM_TEST_ADO_DIR/ado-expect-delete-branch" ] || del=true
     [ ! -e "$FM_TEST_ADO_DIR/ado-expect-transition" ] || twi=true
@@ -3733,6 +3763,135 @@ SH
   expect_code 1 "$rc" "Azure DevOps unconfirmed completion"
   grep -qF 'unconfirmed' "$dir/stderr" || fail "Azure DevOps unconfirmed completion was not reported"
   pass "Azure DevOps green merge is headless and verifies vote, policies, head, and completion"
+}
+
+test_ado_approval_actions() {
+  local dir rc url=https://dev.azure.com/example/Project/_git/Backend/pullrequest/42
+  dir=$(make_case ado-reviewer-queued)
+  add_ado_merge_mocks "$dir"
+  printf '%s\n' '{"value":[{"status":"queued","configuration":{"isBlocking":true,"type":{"displayName":"Minimum number of reviewers"}}},{"status":"approved","configuration":{"isBlocking":true,"type":{"displayName":"Build"}}}]}' > "$dir/ado-policies.json"
+  jq '.value[0].status = "approved"' "$dir/ado-policies.json" > "$dir/ado-policies-after-vote.json"
+  printf '0\n' > "$dir/ado-policy-polls"
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    run_pr_merge "$dir" task-x1 "$url" > "$dir/stdout" 2> "$dir/stderr" \
+    || fail "queued reviewer policy did not complete after voting: $(cat "$dir/stderr")"
+  [ -e "$dir/ado-voted" ] && [ -e "$dir/ado-complete" ] || fail "queued reviewer fixture was not voted and completed"
+  [ "$(cat "$dir/ado-policy-polls")" -eq 2 ] || fail "queued reviewer evaluation was not polled again"
+
+  dir=$(make_case ado-build-rejected-after-vote)
+  add_ado_merge_mocks "$dir"
+  jq '.value[0].status = "rejected"' "$dir/ado-policies.json" > "$dir/ado-policies-after-vote.json"
+  rc=0
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    run_pr_merge "$dir" task-x1 "$url" > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+  expect_code 1 "$rc" "build rejected after vote"
+  [ -e "$dir/ado-voted" ] && [ ! -e "$dir/ado-complete" ] || fail "post-vote policy failure completed"
+
+  dir=$(make_case ado-vote-fails)
+  add_ado_merge_mocks "$dir"
+  touch "$dir/ado-vote-fails"
+  rc=0
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    run_pr_merge "$dir" task-x1 "$url" > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+  expect_code 1 "$rc" "failed reviewer vote"
+  [ ! -e "$dir/ado-complete" ] || fail "failed reviewer vote completed"
+
+  dir=$(make_case ado-rejected-build-before-vote)
+  add_ado_merge_mocks "$dir"
+  printf '%s\n' '{"value":[{"status":"queued","configuration":{"type":{"displayName":"Minimum number of reviewers"}}},{"status":"rejected","configuration":{"isBlocking":true,"type":{"displayName":"Build"}}}]}' > "$dir/ado-policies.json"
+  rc=0
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    run_pr_merge "$dir" task-x1 "$url" > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+  expect_code 1 "$rc" "rejected build before vote"
+  [ ! -e "$dir/ado-voted" ] && [ ! -e "$dir/ado-complete" ] || fail "rejected build was approved or completed"
+
+  dir=$(make_case ado-approve-only)
+  add_ado_merge_mocks "$dir"
+  printf '%s\n' '{"value":[{"status":"queued","configuration":{"type":{"displayName":"Minimum number of reviewers"}}}]}' > "$dir/ado-policies.json"
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    run_pr_merge "$dir" task-x1 "$url" --approve-only > "$dir/stdout" 2> "$dir/stderr" \
+    || fail "approval-only failed: $(cat "$dir/stderr")"
+  [ -e "$dir/ado-voted" ] && [ ! -e "$dir/ado-complete" ] || fail "approval-only did not vote only"
+  assert_no_grep 'PATCH ' "$dir/ado.log" "approval-only attempted completion"
+  assert_no_grep 'pr_merge_authority=' "$dir/state/task-x1.meta" "approval-only recorded merge acceptance"
+
+  dir=$(make_case ado-complete-only)
+  add_ado_merge_mocks "$dir"
+  touch "$dir/ado-already-approved"
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID='' \
+    run_pr_merge "$dir" task-x1 "$url" --complete-only > "$dir/stdout" 2> "$dir/stderr" \
+    || fail "completion-only failed: $(cat "$dir/stderr")"
+  [ -e "$dir/ado-complete" ] && [ ! -e "$dir/ado-voted" ] || fail "completion-only cast a vote or did not complete"
+  assert_no_grep 'PUT ' "$dir/ado.log" "completion-only attempted a vote"
+
+  dir=$(make_case ado-complete-only-queued-no-reviewer)
+  add_ado_merge_mocks "$dir"
+  printf '%s\n' '{"value":[{"status":"queued","configuration":{"type":{"displayName":"Minimum number of reviewers"}}}]}' > "$dir/ado-policies.json"
+  rc=0
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID='' \
+    run_pr_merge "$dir" task-x1 "$url" --complete-only > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+  expect_code 1 "$rc" "completion-only queued policy without reviewer"
+  assert_grep 'configure config/ado-reviewer-id' "$dir/stderr" "queued reviewer refusal omitted configuration"
+  [ ! -e "$dir/ado-voted" ] && [ ! -e "$dir/ado-complete" ] || fail "completion-only queued fixture changed PR"
+  pass "queued reviewer policy completes after the configured vote"
+}
+
+test_github_approval_actions() {
+  local dir kind rc url=https://github.com/example/repo/pull/9
+  for kind in classic ruleset approve-only complete-only complete-unapproved author missing red; do
+    dir=$(make_case "github-approval-$kind")
+    add_gh_mocks "$dir" "$MR_HEAD"
+    printf 'reviewer\n' > "$dir/reviewer-login"
+    printf 'author\n' > "$dir/author-login"
+    printf 'APPROVED\n' > "$dir/review-decision"
+    printf 'fixture-reviewer-token\n' > "$dir/home/config/github-reviewer-token"
+    if [ "$kind" = classic ]; then
+      jq '.protected = true | .required_pull_request_reviews = {required_approving_review_count:1}' "$dir/github-branch.json" > "$dir/updated.json"
+      mv "$dir/updated.json" "$dir/github-branch.json"
+    else
+      printf '%s\n' '[{"type":"pull_request","parameters":{"required_approving_review_count":1}}]' > "$dir/github-required-rules.json"
+    fi
+    case "$kind" in
+      author) printf 'AUTHOR\n' > "$dir/reviewer-login" ;;
+      missing) rm "$dir/home/config/github-reviewer-token" ;;
+      red) write_github_red_json "$dir" "$MR_HEAD" ci ;;
+      complete-unapproved) printf 'REVIEW_REQUIRED\n' > "$dir/review-decision" ;;
+    esac
+    rc=0
+    case "$kind" in
+      complete-unapproved)
+        run_pr_merge "$dir" task-x1 "$url" --complete-only > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+        ;;
+      approve-only|complete-only)
+        run_pr_merge "$dir" task-x1 "$url" "--$kind" > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+        ;;
+      *) run_pr_merge "$dir" task-x1 "$url" > "$dir/stdout" 2> "$dir/stderr" || rc=$? ;;
+    esac
+    case "$kind" in
+      author|missing|red|complete-unapproved)
+        expect_code 1 "$rc" "GitHub approval $kind"
+        [ ! -e "$dir/github-reviewed" ] || fail "GitHub $kind fixture was approved"
+        assert_no_grep 'pr merge ' "$dir/gh.log" "GitHub $kind fixture merged"
+        ;;
+      complete-only)
+        expect_code 0 "$rc" "GitHub completion-only"
+        [ ! -e "$dir/github-reviewed" ] || fail "GitHub completion-only approved"
+        assert_grep 'pr merge ' "$dir/gh.log" "GitHub completion-only did not merge"
+        ;;
+      *)
+        expect_code 0 "$rc" "GitHub approval $kind: $(cat "$dir/stderr")"
+        [ -e "$dir/github-reviewed" ] || fail "GitHub $kind did not approve"
+        jq -e --arg head "$MR_HEAD" '.event == "APPROVE" and .commit_id == $head' "$dir/review-body.json" >/dev/null \
+          || fail "GitHub approval did not bind the verified head"
+        if [ "$kind" = approve-only ]; then
+          assert_no_grep 'pr merge ' "$dir/gh.log" "GitHub approval-only merged"
+        else
+          assert_grep 'pr merge ' "$dir/gh.log" "GitHub $kind did not merge after approving"
+        fi
+        ;;
+    esac
+  done
+  pass "GitHub approvals use a non-author credential and explicit actions preserve the green guards"
 }
 
 test_ado_policy_gate_matches_ado_completion_semantics() {
@@ -4252,6 +4411,8 @@ test_gitlab_head_override_args_refuse_before_recording
 test_ado_headless_merge_and_refusals
 test_quiet_words_keep_ado_green_and_completion_guards
 test_ado_policy_gate_matches_ado_completion_semantics
+test_ado_approval_actions
+test_github_approval_actions
 test_ado_completion_options_are_home_opt_ins
 test_ado_requests_are_bounded_and_keep_tokens_off_argv
 test_secondmate_merge_reports_upward_once
