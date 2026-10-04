@@ -1,0 +1,260 @@
+======== S1: BEFORE (base 0a16d76f) — cLims home, no overrides ========
+### base helper defaults to DS_mosaiq-poc
+$ env FM_HOME=$LAB/home-clims-https python3 $LAB/old-resolve-md-conflict.py list cLimsPoc.Evaluation 42 
+[stderr] error: HTTPError: HTTP Error 404: Not Found
+[exit 5]
+[requests seen by fake dev.azure.com]
+  GET https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42/conflicts?api-version=7.1-preview.1&includeObsolete=false auth=yes
+
+======== S1: AFTER — cLims home (HTTPS origin), no overrides ========
+### list derives tuvsud01/PS_clims-poc from origin
+$ env FM_HOME=$LAB/home-clims-https python3 $WT/.agents/skills/md-conflict-fastpath/resolve-md-conflict.py list cLimsPoc.Evaluation 42 
+conflict 11 editEdit /docs/NOTES.md status=unresolved class=doc
+  files: $LAB/tmp/mdconflict-_omga2g7/base $LAB/tmp/mdconflict-_omga2g7/source $LAB/tmp/mdconflict-_omga2g7/target  three-way (with markers): $LAB/tmp/mdconflict-_omga2g7/three-way
+  hunk at line 2
+    <<<<<<< PR branch
+    PR fact: Redis
+    =======
+    target fact: Service Bus
+    >>>>>>> target branch
+verdict: doc-only candidate, eligible for forge-side resolution (tier 1) after verifying no code or tooling reads these files
+[exit 0]
+[requests seen by fake dev.azure.com]
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42/conflicts?api-version=7.1-preview.1&includeObsolete=false auth=yes
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/blobs/b?api-version=7.1&$format=octetStream auth=yes
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/blobs/s?api-version=7.1&$format=octetStream auth=yes
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/blobs/t?api-version=7.1&$format=octetStream auth=yes
+
+======== S2: SSH origins ========
+### scp-form origin
+$ env FM_HOME=$LAB/home-clims-scp python3 $WT/.agents/skills/md-conflict-fastpath/resolve-md-conflict.py list cLimsPoc.Evaluation 42 
+conflict 11 editEdit /docs/NOTES.md status=unresolved class=doc
+  files: $LAB/tmp/mdconflict-atdjk_s5/base $LAB/tmp/mdconflict-atdjk_s5/source $LAB/tmp/mdconflict-atdjk_s5/target  three-way (with markers): $LAB/tmp/mdconflict-atdjk_s5/three-way
+  hunk at line 2
+    <<<<<<< PR branch
+    PR fact: Redis
+    =======
+    target fact: Service Bus
+    >>>>>>> target branch
+verdict: doc-only candidate, eligible for forge-side resolution (tier 1) after verifying no code or tooling reads these files
+[exit 0]
+[requests seen by fake dev.azure.com]
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42/conflicts?api-version=7.1-preview.1&includeObsolete=false auth=yes
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/blobs/b?api-version=7.1&$format=octetStream auth=yes
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/blobs/s?api-version=7.1&$format=octetStream auth=yes
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/blobs/t?api-version=7.1&$format=octetStream auth=yes
+
+### ssh:// URL origin
+$ env FM_HOME=$LAB/home-clims-sshurl python3 $WT/.agents/skills/md-conflict-fastpath/resolve-md-conflict.py list cLimsPoc.Evaluation 42 
+conflict 11 editEdit /docs/NOTES.md status=unresolved class=doc
+  files: $LAB/tmp/mdconflict-almwaw9y/base $LAB/tmp/mdconflict-almwaw9y/source $LAB/tmp/mdconflict-almwaw9y/target  three-way (with markers): $LAB/tmp/mdconflict-almwaw9y/three-way
+  hunk at line 2
+    <<<<<<< PR branch
+    PR fact: Redis
+    =======
+    target fact: Service Bus
+    >>>>>>> target branch
+verdict: doc-only candidate, eligible for forge-side resolution (tier 1) after verifying no code or tooling reads these files
+[exit 0]
+[requests seen by fake dev.azure.com]
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42/conflicts?api-version=7.1-preview.1&includeObsolete=false auth=yes
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/blobs/b?api-version=7.1&$format=octetStream auth=yes
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/blobs/s?api-version=7.1&$format=octetStream auth=yes
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/blobs/t?api-version=7.1&$format=octetStream auth=yes
+
+======== S3: apply end-to-end from derived cLims home ========
+### apply resolves conflict 11 via derived routing
+$ env FM_HOME=$LAB/home-clims-https python3 $WT/.agents/skills/md-conflict-fastpath/resolve-md-conflict.py apply cLimsPoc.Evaluation 42 11 $LAB/resolved.md 
+resolution: resolved none
+mergeStatus: succeeded lastMergeCommit: fedcba98
+[exit 0]
+[requests seen by fake dev.azure.com]
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42?api-version=7.1 auth=yes
+  PATCH https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42/conflicts/11?api-version=7.1-preview.1 auth=yes
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42/conflicts?api-version=7.1-preview.1&includeObsolete=false auth=yes
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42?api-version=7.1 auth=yes
+
+patched content recorded by fake ADO: '# Notes\nService Bus, Redis\n'
+
+======== S4: per-axis overrides ========
+### ADO_PROJECT override, org derived
+$ env FM_HOME=$LAB/home-clims-https ADO_PROJECT=Override_proj python3 $WT/.agents/skills/md-conflict-fastpath/resolve-md-conflict.py list cLimsPoc.Evaluation 42 
+no conflicts
+[exit 0]
+[requests seen by fake dev.azure.com]
+  GET https://dev.azure.com/tuvsud01/Override_proj/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42/conflicts?api-version=7.1-preview.1&includeObsolete=false auth=yes
+
+### ADO_ORG override, project derived
+$ env FM_HOME=$LAB/home-clims-https ADO_ORG=https://dev.azure.com/otherorg python3 $WT/.agents/skills/md-conflict-fastpath/resolve-md-conflict.py list cLimsPoc.Evaluation 42 
+no conflicts
+[exit 0]
+[requests seen by fake dev.azure.com]
+  GET https://dev.azure.com/otherorg/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42/conflicts?api-version=7.1-preview.1&includeObsolete=false auth=yes
+
+### both overrides, no FM_HOME needed
+$ env ADO_ORG=https://dev.azure.com/otherorg ADO_PROJECT=Both python3 $WT/.agents/skills/md-conflict-fastpath/resolve-md-conflict.py list cLimsPoc.Evaluation 42 
+no conflicts
+[exit 0]
+[requests seen by fake dev.azure.com]
+  GET https://dev.azure.com/otherorg/Both/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42/conflicts?api-version=7.1-preview.1&includeObsolete=false auth=yes
+
+### raw space in ADO_PROJECT override
+$ env FM_HOME=$LAB/home-clims-https ADO_PROJECT=PS\ clims-poc python3 $WT/.agents/skills/md-conflict-fastpath/resolve-md-conflict.py list cLimsPoc.Evaluation 42 
+no conflicts
+[exit 0]
+[requests seen by fake dev.azure.com]
+  GET https://dev.azure.com/tuvsud01/PS%20clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42/conflicts?api-version=7.1-preview.1&includeObsolete=false auth=yes
+
+### pre-encoded ADO_PROJECT override (no double encoding)
+$ env FM_HOME=$LAB/home-clims-https ADO_PROJECT=PS%20clims-poc python3 $WT/.agents/skills/md-conflict-fastpath/resolve-md-conflict.py list cLimsPoc.Evaluation 42 
+no conflicts
+[exit 0]
+[requests seen by fake dev.azure.com]
+  GET https://dev.azure.com/tuvsud01/PS%20clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42/conflicts?api-version=7.1-preview.1&includeObsolete=false auth=yes
+
+======== S5: refusal when derivation unavailable (adversarial) ========
+### FM_HOME unset
+$ python3 $WT/.agents/skills/md-conflict-fastpath/resolve-md-conflict.py list cLimsPoc.Evaluation 42 
+[stderr] error: ValueError: FM_HOME is unset; set ADO_ORG and ADO_PROJECT explicitly
+[exit 5]
+[requests seen by fake dev.azure.com]
+  (none)
+
+### FM_HOME unset, only ADO_ORG set
+$ env ADO_ORG=https://dev.azure.com/tuvsud01 python3 $WT/.agents/skills/md-conflict-fastpath/resolve-md-conflict.py list cLimsPoc.Evaluation 42 
+[stderr] error: ValueError: FM_HOME is unset; set ADO_ORG and ADO_PROJECT explicitly
+[exit 5]
+[requests seen by fake dev.azure.com]
+  (none)
+
+### repo missing from home
+$ env FM_HOME=$LAB/home-clims-https python3 $WT/.agents/skills/md-conflict-fastpath/resolve-md-conflict.py list OtherRepo 42 
+[stderr] error: ValueError: repository directory is missing: $LAB/home-clims-https/projects/OtherRepo; set ADO_ORG and ADO_PROJECT explicitly
+[exit 5]
+[requests seen by fake dev.azure.com]
+  (none)
+
+### home repo has no origin
+$ env FM_HOME=$LAB/home-noorigin python3 $WT/.agents/skills/md-conflict-fastpath/resolve-md-conflict.py list cLimsPoc.Evaluation 42 
+[stderr] error: ValueError: origin is unavailable for $LAB/home-noorigin/projects/cLimsPoc.Evaluation; set ADO_ORG and ADO_PROJECT explicitly
+[exit 5]
+[requests seen by fake dev.azure.com]
+  (none)
+
+### home repo origin is GitHub
+$ env FM_HOME=$LAB/home-github python3 $WT/.agents/skills/md-conflict-fastpath/resolve-md-conflict.py apply cLimsPoc.Evaluation 42 11 $LAB/resolved.md 
+[stderr] error: ValueError: origin is not a supported Azure DevOps URL for $LAB/home-github/projects/cLimsPoc.Evaluation; set ADO_ORG and ADO_PROJECT explicitly
+[exit 5]
+[requests seen by fake dev.azure.com]
+  (none)
+
+======== S6: null / missing resolutionStatus in list ========
+### BEFORE: base helper, null status (ADO_ORG/PROJECT set)
+$ env ADO_ORG=https://dev.azure.com/tuvsud01 ADO_PROJECT=PS_clims-poc python3 $LAB/old-resolve-md-conflict.py list cLimsPoc.Evaluation 42 
+[stderr] error: ValueError: conflict resolutionStatus must be a string
+[exit 5]
+[requests seen by fake dev.azure.com]
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42/conflicts?api-version=7.1-preview.1&includeObsolete=false auth=yes
+
+### AFTER: null status
+$ env FM_HOME=$LAB/home-clims-https python3 $WT/.agents/skills/md-conflict-fastpath/resolve-md-conflict.py list cLimsPoc.Evaluation 42 
+conflict 11 editEdit /docs/NOTES.md status=unresolved class=doc
+  files: $LAB/tmp/mdconflict-61jax_p0/base $LAB/tmp/mdconflict-61jax_p0/source $LAB/tmp/mdconflict-61jax_p0/target  three-way (with markers): $LAB/tmp/mdconflict-61jax_p0/three-way
+  hunk at line 2
+    <<<<<<< PR branch
+    PR fact: Redis
+    =======
+    target fact: Service Bus
+    >>>>>>> target branch
+verdict: doc-only candidate, eligible for forge-side resolution (tier 1) after verifying no code or tooling reads these files
+[exit 0]
+[requests seen by fake dev.azure.com]
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42/conflicts?api-version=7.1-preview.1&includeObsolete=false auth=yes
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/blobs/b?api-version=7.1&$format=octetStream auth=yes
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/blobs/s?api-version=7.1&$format=octetStream auth=yes
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/blobs/t?api-version=7.1&$format=octetStream auth=yes
+
+### BEFORE: base helper, missing status
+$ env ADO_ORG=https://dev.azure.com/tuvsud01 ADO_PROJECT=PS_clims-poc python3 $LAB/old-resolve-md-conflict.py list cLimsPoc.Evaluation 42 
+[stderr] error: KeyError: 'resolutionStatus'
+[exit 5]
+[requests seen by fake dev.azure.com]
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42/conflicts?api-version=7.1-preview.1&includeObsolete=false auth=yes
+
+### AFTER: missing status
+$ env FM_HOME=$LAB/home-clims-https python3 $WT/.agents/skills/md-conflict-fastpath/resolve-md-conflict.py list cLimsPoc.Evaluation 42 
+conflict 11 editEdit /docs/NOTES.md status=unresolved class=doc
+  files: $LAB/tmp/mdconflict-bhsr4por/base $LAB/tmp/mdconflict-bhsr4por/source $LAB/tmp/mdconflict-bhsr4por/target  three-way (with markers): $LAB/tmp/mdconflict-bhsr4por/three-way
+  hunk at line 2
+    <<<<<<< PR branch
+    PR fact: Redis
+    =======
+    target fact: Service Bus
+    >>>>>>> target branch
+verdict: doc-only candidate, eligible for forge-side resolution (tier 1) after verifying no code or tooling reads these files
+[exit 0]
+[requests seen by fake dev.azure.com]
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42/conflicts?api-version=7.1-preview.1&includeObsolete=false auth=yes
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/blobs/b?api-version=7.1&$format=octetStream auth=yes
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/blobs/s?api-version=7.1&$format=octetStream auth=yes
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/blobs/t?api-version=7.1&$format=octetStream auth=yes
+
+======== S7: null / missing status counted as remaining in apply ========
+### apply 11 while 12 has null status
+$ env FM_HOME=$LAB/home-clims-https python3 $WT/.agents/skills/md-conflict-fastpath/resolve-md-conflict.py apply cLimsPoc.Evaluation 42 11 $LAB/resolved.md 
+resolution: resolved none
+1 conflicts remaining
+[exit 1]
+[requests seen by fake dev.azure.com]
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42?api-version=7.1 auth=yes
+  PATCH https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42/conflicts/11?api-version=7.1-preview.1 auth=yes
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42/conflicts?api-version=7.1-preview.1&includeObsolete=false auth=yes
+
+### apply 11 while 12 has no status key
+$ env FM_HOME=$LAB/home-clims-https python3 $WT/.agents/skills/md-conflict-fastpath/resolve-md-conflict.py apply cLimsPoc.Evaluation 42 11 $LAB/resolved.md 
+resolution: resolved none
+1 conflicts remaining
+[exit 1]
+[requests seen by fake dev.azure.com]
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42?api-version=7.1 auth=yes
+  PATCH https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42/conflicts/11?api-version=7.1-preview.1 auth=yes
+  GET https://dev.azure.com/tuvsud01/PS_clims-poc/_apis/git/repositories/cLimsPoc.Evaluation/pullRequests/42/conflicts?api-version=7.1-preview.1&includeObsolete=false auth=yes
+
+======== S8: usage text ========
+### no arguments prints usage
+$ python3 $WT/.agents/skills/md-conflict-fastpath/resolve-md-conflict.py 
+List or resolve documentation-only Azure DevOps PR conflicts on the forge.
+
+Owner: .agents/skills/md-conflict-fastpath/SKILL.md.
+Path classification taxonomy owner: bin/fm-conflict-radar.sh; this helper mirrors
+its documentation text basenames and dependency text manifests alongside the
+approved .NET package/lock and simple key-value settings subset for tier 4.
+GET pullRequests/{prId}/conflicts?includeObsolete=false lists conflicts;
+GET blobs/{objectId} retrieves the base, source and target bytes;
+PATCH pullRequests/{prId}/conflicts/{conflictId} submits a UserMerged resolution;
+the JSON body uses mergeType="userMerged", resolutionStatus="resolved" and
+userMergedContent as an array of file bytes.
+GET pullRequests/{prId} records lastMergeCommit before PATCH and polls mergeStatus
+only after re-listing conflicts confirms no unresolved entries remain.
+An unchanged conflicts status may be stale; poll at most 30 times, two seconds apart.
+The conflicts API uses api-version=7.1-preview.1; blobs and PR reads use 7.1.
+
+usage: resolve-md-conflict.py list  <repo> <prId>
+       resolve-md-conflict.py apply <repo> <prId> <conflictId> <resolvedFile>
+env:   FM_HOME derives organization and project from projects/<repo>'s origin.
+       ADO_ORG (full base URL) and ADO_PROJECT override their respective axes;
+       missing overrides require a home origin in Azure DevOps HTTPS or SSH form.
+       ADO_TOKEN, otherwise az account get-access-token --resource
+       499b84ac-1321-427f-aa17-267ca6975798 --query accessToken --output tsv.
+list exits: 0 no conflicts or doc-only candidates, 1 mechanical candidates, 2 code/non-editEdit.
+apply exits: 0 merge succeeded, 1 unresolved conflicts remain, 3 resolution/merge
+failed, 4 merge result still pending after bounded polling.
+Both commands exit 5 for usage, home derivation, authentication, REST, malformed
+response, file I/O or subprocess errors, with a concise diagnostic on stderr.
+Classification is a path hint only; the owner skill requires inspecting use and hunks.
+
+[stderr] error: ValueError: expected list <repo> <prId> or apply <repo> <prId> <conflictId> <resolvedFile>
+[exit 5]
+[requests seen by fake dev.azure.com]
+  (none)
+

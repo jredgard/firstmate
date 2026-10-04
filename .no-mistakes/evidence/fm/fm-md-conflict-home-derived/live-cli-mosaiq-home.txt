@@ -1,0 +1,6 @@
+### Mosaiq home still routes to DS_mosaiq-poc (no overrides)
+$ env FM_HOME=$LAB/home-mosaiq python3 $WT/.agents/skills/md-conflict-fastpath/resolve-md-conflict.py list Mosaiq 9
+no conflicts
+[exit 0]
+[requests seen by fake dev.azure.com]
+  GET https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_apis/git/repositories/Mosaiq/pullRequests/9/conflicts?api-version=7.1-preview.1&includeObsolete=false auth=yes

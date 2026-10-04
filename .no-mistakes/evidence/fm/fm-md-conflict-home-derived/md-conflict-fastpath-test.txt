@@ -1,0 +1,8 @@
+test_token_is_fetched_with_azure_cli_when_not_supplied (__main__.ConflictCliTests.test_token_is_fetched_with_azure_cli_when_not_supplied) ... ok
+test_usage_errors_do_not_return_conflict_codes (__main__.ConflictCliTests.test_usage_errors_do_not_return_conflict_codes) ... ok
+
+----------------------------------------------------------------------
+Ran 29 tests in 16.022s
+
+OK
+ok - md-conflict-fastpath CLI classifies paths and exercises REST with an isolated stub
