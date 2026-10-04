@@ -3838,10 +3838,10 @@ test_ado_approval_actions() {
 
 test_github_approval_actions() {
   local dir kind rc url=https://github.com/example/repo/pull/9
-  for kind in classic ruleset approve-only complete-only complete-unapproved author missing red classic-author classic-missing \
+  for kind in classic ruleset approve-only approve-only-unprotected complete-only complete-unapproved author missing red classic-author classic-missing \
     classic-approved-missing classic-approved-author classic-approved-reviewer \
     ruleset-approved-missing ruleset-approved-author ruleset-approved-reviewer \
-    classic-approved-red ruleset-approved-red unprotected-missing unprotected-author unreadable; do
+    classic-approved-red ruleset-approved-red unprotected-missing unprotected-author unreadable unreadable-approve-only; do
     dir=$(make_case "github-approval-$kind")
     add_gh_mocks "$dir" "$MR_HEAD"
     : > "$dir/gh-axi.log"
@@ -3854,12 +3854,12 @@ test_github_approval_actions() {
         jq '.protected = true | .required_pull_request_reviews = {required_approving_review_count:1}' "$dir/github-branch.json" > "$dir/updated.json"
         mv "$dir/updated.json" "$dir/github-branch.json"
         ;;
-      unprotected-*) printf 'null\n' > "$dir/review-decision" ;;
+      unprotected-*|approve-only-unprotected) printf 'null\n' > "$dir/review-decision" ;;
       *) printf '%s\n' '[{"type":"pull_request","parameters":{"required_approving_review_count":1}}]' > "$dir/github-required-rules.json" ;;
     esac
     case "$kind" in
       approve-only|complete-only|*-approved-*) printf 'APPROVED\n' > "$dir/review-decision" ;;
-      unreadable) rm "$dir/review-decision" ;;
+      unreadable|unreadable-approve-only) rm "$dir/review-decision" ;;
     esac
     case "$kind" in
       author|*-author) printf 'AUTHOR\n' > "$dir/reviewer-login" ;;
@@ -3874,10 +3874,13 @@ test_github_approval_actions() {
       approve-only|complete-only)
         run_pr_merge "$dir" task-x1 "$url" "--$kind" > "$dir/stdout" 2> "$dir/stderr" || rc=$?
         ;;
+      approve-only-unprotected|unreadable-approve-only)
+        run_pr_merge "$dir" task-x1 "$url" --approve-only > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+        ;;
       *) run_pr_merge "$dir" task-x1 "$url" > "$dir/stdout" 2> "$dir/stderr" || rc=$? ;;
     esac
     case "$kind" in
-      author|classic-author|missing|classic-missing|red|*-red|complete-unapproved|unreadable)
+      author|classic-author|missing|classic-missing|red|*-red|complete-unapproved|unreadable|unreadable-approve-only)
         expect_code 1 "$rc" "GitHub approval $kind"
         [ ! -e "$dir/github-reviewed" ] || fail "GitHub $kind fixture was approved"
         assert_no_grep 'pr merge ' "$dir/gh.log" "GitHub $kind fixture merged"
@@ -3900,7 +3903,7 @@ test_github_approval_actions() {
         [ -e "$dir/github-reviewed" ] || fail "GitHub $kind did not approve"
         jq -e --arg head "$MR_HEAD" '.event == "APPROVE" and .commit_id == $head' "$dir/review-body.json" >/dev/null \
           || fail "GitHub approval did not bind the verified head"
-        if [ "$kind" = approve-only ]; then
+        if [ "$kind" = approve-only ] || [ "$kind" = approve-only-unprotected ]; then
           assert_no_grep 'pr merge ' "$dir/gh.log" "GitHub approval-only merged"
         else
           assert_grep 'pr merge ' "$dir/gh.log" "GitHub $kind did not merge after approving"
@@ -3909,6 +3912,48 @@ test_github_approval_actions() {
     esac
   done
   pass "GitHub approvals use a non-author credential and explicit actions preserve the green guards"
+}
+
+test_github_changes_requested_refuses_approval() {
+  local dir protection action credential rc url=https://github.com/example/repo/pull/9
+  for protection in classic ruleset unprotected; do
+    for action in default approve-only; do
+      [ "$protection" != unprotected ] || [ "$action" = approve-only ] || continue
+      for credential in configured missing; do
+        dir=$(make_case "github-changes-requested-$protection-$action-$credential")
+        add_gh_mocks "$dir" "$MR_HEAD"
+        : > "$dir/gh-axi.log"
+        printf 'reviewer\n' > "$dir/reviewer-login"
+        printf 'author\n' > "$dir/author-login"
+        printf 'CHANGES_REQUESTED\n' > "$dir/review-decision"
+        if [ "$credential" = configured ]; then
+          printf 'fixture-reviewer-token\n' > "$dir/home/config/github-reviewer-token"
+        fi
+        case "$protection" in
+          classic)
+            jq '.protected = true | .required_pull_request_reviews = {required_approving_review_count:1}' "$dir/github-branch.json" > "$dir/updated.json"
+            mv "$dir/updated.json" "$dir/github-branch.json"
+            ;;
+          ruleset) printf '%s\n' '[{"type":"pull_request","parameters":{"required_approving_review_count":1}}]' > "$dir/github-required-rules.json" ;;
+        esac
+        rc=0
+        if [ "$action" = approve-only ]; then
+          run_pr_merge "$dir" task-x1 "$url" --approve-only > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+        else
+          run_pr_merge "$dir" task-x1 "$url" > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+        fi
+        expect_code 1 "$rc" "GitHub changes request $protection $action $credential"
+        assert_grep 'changes request' "$dir/stderr" "GitHub changes-request refusal omitted the reason"
+        [ ! -e "$dir/github-reviewed" ] || fail "GitHub changes request was approved"
+        assert_no_grep 'api /user' "$dir/gh-axi.log" "GitHub changes request accessed reviewer credentials"
+        assert_no_grep 'api POST' "$dir/gh-axi.log" "GitHub changes request posted a review"
+        assert_no_grep 'pr merge ' "$dir/gh.log" "GitHub changes request attempted a merge"
+        assert_no_grep 'github-reviewer-token' "$dir/stderr" "GitHub changes request incorrectly requested a credential"
+        assert_no_grep 'pr_merge_authority=' "$dir/state/task-x1.meta" "GitHub changes request recorded merge acceptance"
+      done
+    done
+  done
+  pass "GitHub approval actions refuse outstanding changes requests before accessing reviewer credentials"
 }
 
 test_ado_policy_gate_matches_ado_completion_semantics() {
@@ -4430,6 +4475,7 @@ test_quiet_words_keep_ado_green_and_completion_guards
 test_ado_policy_gate_matches_ado_completion_semantics
 test_ado_approval_actions
 test_github_approval_actions
+test_github_changes_requested_refuses_approval
 test_ado_completion_options_are_home_opt_ins
 test_ado_requests_are_bounded_and_keep_tokens_off_argv
 test_secondmate_merge_reports_upward_once

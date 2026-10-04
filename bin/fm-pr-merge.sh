@@ -120,6 +120,7 @@
 # login must differ from the live PR author. Default execution approves only
 # when classic protection or an effective pull_request rule requires approvals
 # and reviewDecision is not APPROVED; an unreadable review requirement refuses.
+# A changes request refuses approval, including --approve-only.
 # The review binds the verified head.
 # --approve-only votes without completing or recording merge acceptance;
 # --complete-only never votes and requires policies already satisfied.
@@ -1696,9 +1697,13 @@ case "$PROVIDER" in
     [ "$away_status" -eq 0 ] || exit "$away_status"
     refuse_github_queue_while_away || exit 2
     review_decision=
-    if [ "$MERGE_ACTION" != approve-only ] && [ "$FM_PR_GITHUB_REVIEW_REQUIRED" = true ]; then
+    if [ "$MERGE_ACTION" = approve-only ] || [ "$FM_PR_GITHUB_REVIEW_REQUIRED" = true ]; then
       if ! review_decision=$(gh pr view "$URL" --json reviewDecision --jq '.reviewDecision' 2>/dev/null); then
         echo "error: could not read the GitHub approving-review policy for $URL" >&2
+        exit 1
+      fi
+      if [ "$review_decision" = CHANGES_REQUESTED ]; then
+        echo "error: GitHub changes request is outstanding (CHANGES_REQUESTED) for $URL; nothing was approved or merged" >&2
         exit 1
       fi
       if [ "$MERGE_ACTION" = complete-only ] && [ "$review_decision" != APPROVED ]; then
