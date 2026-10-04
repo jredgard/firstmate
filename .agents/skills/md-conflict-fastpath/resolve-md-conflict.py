@@ -115,12 +115,12 @@ def ado_location(repo):
             match = re.fullmatch(r"/([^/]+)/([^/]+)/_git/[^/]+/?", remote.path)
     if not match:
         raise ValueError(f"origin is not a supported Azure DevOps URL for {repository}" + override_hint)
-    return organization or f"https://dev.azure.com/{match[1]}", project or unquote(match[2])
+    return organization or f"https://dev.azure.com/{match[1]}", project or match[2]
 
 
 def base(repo):
     organization, project = ado_location(repo)
-    return f"{organization}/{quote(project, safe='')}/_apis/git/repositories/{repo}"
+    return f"{organization}/{quote(unquote(project), safe='')}/_apis/git/repositories/{repo}"
 
 
 def conflicts(repo, pr):

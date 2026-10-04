@@ -217,6 +217,44 @@ class ConflictCliTests(unittest.TestCase):
                 self.assertEqual(self.requests[0][1],
                                  f"{prefix}/_apis/git/repositories/repo/pullRequests/7/conflicts")
 
+    def test_project_override_encoding_for_list_and_apply(self):
+        self.home_origin("https://dev.azure.com/climsorg/PS_clims-poc/_git/repo")
+        home = self.environment["FM_HOME"]
+        resolution = self.root / "resolution.md"
+        resolution.write_bytes(b"merged facts\n")
+        for project in ("PS clims-poc", "PS%20clims-poc"):
+            for override_org in (True, False):
+                for command in (("list", "repo", "7"), ("apply", "repo", "7", "1", str(resolution))):
+                    with self.subTest(project=project, override_org=override_org, command=command[0]):
+                        self.environment["ADO_PROJECT"] = project
+                        if override_org:
+                            self.environment["ADO_ORG"] = f"http://127.0.0.1:{self.server.server_port}"
+                            self.environment.pop("FM_HOME", None)
+                        else:
+                            self.environment.pop("ADO_ORG", None)
+                            self.environment["FM_HOME"] = home
+                        type(self).route_prefix = "/PS%20clims-poc" if override_org else "/climsorg/PS%20clims-poc"
+                        type(self).requests = []
+                        type(self).entries = [{
+                            "conflictId": 1, "conflictPath": "/README.md", "conflictType": "editEdit",
+                            "resolutionStatus": "unresolved", "baseBlob": {"objectId": "base"},
+                            "sourceBlob": {"objectId": "source"}, "targetBlob": {"objectId": "target"},
+                        }]
+                        result = self.invoke(*command, redirect_ado=not override_org)
+                        self.assertEqual(result.returncode, 0)
+                        repository_path = f"{self.route_prefix}/_apis/git/repositories/repo"
+                        pull_request_path = f"{repository_path}/pullRequests/7"
+                        if command[0] == "list":
+                            self.assertIn("status=unresolved class=doc\n", result.stdout)
+                            expected_paths = [f"{pull_request_path}/conflicts"] + [
+                                f"{repository_path}/blobs/{side}" for side in ("base", "source", "target")
+                            ]
+                        else:
+                            self.assertIn("mergeStatus: succeeded", result.stdout)
+                            expected_paths = [pull_request_path, f"{pull_request_path}/conflicts/1",
+                                              f"{pull_request_path}/conflicts", pull_request_path]
+                        self.assertEqual([request[1] for request in self.requests], expected_paths)
+
     def test_home_derivation_refuses_before_rest_when_unavailable(self):
         for missing, origin in (
             ("FM_HOME", None), ("projects/repo", None), ("origin", None),
