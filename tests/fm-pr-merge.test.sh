@@ -160,6 +160,29 @@ add_gh_mocks() {
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$FM_TEST_GH_AXI_LOG"
 case "${1:-} ${2:-}" in
+  "api /user")
+    [ "${GH_TOKEN:-}" = fixture-reviewer-token ] || exit 2
+    if [ -f "$(dirname "$FM_TEST_GH_VIEW_JSON")/reviewer-response" ]; then
+      cat "$(dirname "$FM_TEST_GH_VIEW_JSON")/reviewer-response"
+    else
+      printf 'api_response:\n  body: %s\n  truncated: false\n' "$(jq -Rn --arg login "$(cat "$(dirname "$FM_TEST_GH_VIEW_JSON")/reviewer-login")" '$login | @base64')"
+    fi
+    ;;
+  "api POST")
+    [ "${GH_TOKEN:-}" = fixture-reviewer-token ] || exit 2
+    cat > "$(dirname "$FM_TEST_GH_VIEW_JSON")/review-body.json"
+    : > "$(dirname "$FM_TEST_GH_VIEW_JSON")/github-reviewed"
+    printf 'APPROVED\n' > "$(dirname "$FM_TEST_GH_VIEW_JSON")/review-decision"
+    if [ -f "$(dirname "$FM_TEST_GH_VIEW_JSON")/review-after-approval" ]; then
+      cp "$(dirname "$FM_TEST_GH_VIEW_JSON")/review-after-approval" "$(dirname "$FM_TEST_GH_VIEW_JSON")/review-decision"
+    fi
+    if [ -f "$(dirname "$FM_TEST_GH_VIEW_JSON")/github-after-approval.json" ]; then
+      cp "$(dirname "$FM_TEST_GH_VIEW_JSON")/github-after-approval.json" "$FM_TEST_GH_VIEW_JSON"
+    fi
+    if [ -e "$(dirname "$FM_TEST_GH_VIEW_JSON")/invalidate-away-after-approval" ]; then
+      printf 'invalid-contract\n' > "$FM_STATE_OVERRIDE/.afk-contract"
+    fi
+    ;;
   "pr view")
     [ "$#" -eq 5 ] && [ "${4:-}" = --repo ] || exit 2
     printf 'pull_request:\n  number: %s\n  state: %s\n' "$3" "${FM_TEST_GH_MERGE_STATE:-merged}"
@@ -173,7 +196,18 @@ printf '%s\n' "$*" >> "$FM_TEST_GH_LOG"
 case "${1:-} ${2:-}" in
   "pr view")
     case " $* " in
+      *" --json author "*)
+        cat "$(dirname "$FM_TEST_GH_VIEW_JSON")/author-login"
+        exit 0
+        ;;
       *statusCheckRollup*)
+        case_dir=$(dirname "$FM_TEST_GH_VIEW_JSON")
+        if [ -f "$case_dir/review-unreadable" ]; then exit 1; fi
+        review=null
+        if [ -f "$case_dir/review-decision" ]; then
+          review=$(cat "$case_dir/review-decision")
+          if [ "$review" != null ]; then review=$(jq -Rn --arg review "$review" '$review'); fi
+        fi
         if [ -n "${FM_TEST_GH_MERGEABLE_SEQUENCE:-}" ]; then
           call_n=$(( $(cat "$FM_TEST_GH_MERGEABLE_CALLS" 2>/dev/null || echo 0) + 1 ))
           printf '%s\n' "$call_n" > "$FM_TEST_GH_MERGEABLE_CALLS"
@@ -181,11 +215,11 @@ case "${1:-} ${2:-}" in
           [ -n "$call_m" ] || call_m=$(tail -n1 "$FM_TEST_GH_MERGEABLE_SEQUENCE")
           # An optional second word overrides the first check's conclusion.
           read -r call_m call_c <<< "$call_m"
-          jq -c --arg m "$call_m" --arg c "${call_c:-}" \
-            '.mergeable = $m | if $c != "" then .statusCheckRollup[0].conclusion = $c else . end' \
+          jq -c --arg m "$call_m" --arg c "${call_c:-}" --argjson review "$review" \
+            '.reviewDecision = $review | .mergeable = $m | if $c != "" then .statusCheckRollup[0].conclusion = $c else . end' \
             "$FM_TEST_GH_VIEW_JSON"
         else
-          cat "$FM_TEST_GH_VIEW_JSON"
+          jq -c --argjson review "$review" '.reviewDecision = $review' "$FM_TEST_GH_VIEW_JSON"
         fi
         if [ -f "${FM_TEST_AWAY_RECORD_AFTER_VIEW:-}" ]; then
           if [ -s "${FM_TEST_AWAY_RECORD_AFTER_VIEW}" ]; then
@@ -256,10 +290,16 @@ case "${1:-} ${2:-}" in
       *" repos/"*"/rules/branches/"*)
         if [ -f "${FM_TEST_GH_REQUIRED_RULES_FAIL:-}" ]; then
           cat "$FM_TEST_GH_REQUIRED_RULES_FAIL" >&2
+          jq -Rn --arg message "$(cat "$FM_TEST_GH_REQUIRED_RULES_FAIL")" '{message:$message,status:"403"}'
           exit 1
         fi
         cat "$FM_TEST_GH_REQUIRED_RULES"
         exit 0
+        ;;
+      *" repos/"*"/branches/"*"/protection"*)
+        printf '%s\n' '{"message":"Resource not accessible by personal access token","status":"403"}'
+        echo 'gh: Resource not accessible by personal access token (HTTP 403)' >&2
+        exit 1
         ;;
       *" repos/"*"/branches/"*)
         if [ -f "${FM_TEST_GH_BRANCH_FAIL:-}" ]; then
@@ -272,6 +312,7 @@ case "${1:-} ${2:-}" in
     esac
     if [ -f "${FM_TEST_GH_RULES_FAIL_BODY:-}" ]; then
       cat "$FM_TEST_GH_RULES_FAIL_BODY" >&2
+      jq -Rn --arg message "$(cat "$FM_TEST_GH_RULES_FAIL_BODY")" '{message:$message,status:"403"}'
       exit 1
     fi
     if [ -f "${FM_TEST_GH_RULES_FAIL:-}" ]; then
@@ -1097,6 +1138,7 @@ test_away_plan_gated_403_does_not_block_the_merge() {
   add_gh_mocks "$case_dir" "$head"
   printf 'gh: Upgrade to GitHub Pro or make this repository public to enable this feature (HTTP 403)\n' \
     > "$case_dir/github-rules-fail-body"
+  cp "$case_dir/github-rules-fail-body" "$case_dir/github-required-rules-fail"
   printf '\nyolo=on\n' >> "$case_dir/state/task-x1.meta"
   write_away_record "$case_dir"
   FM_TEST_HOME="$case_dir/home" run_pr_merge "$case_dir" task-x1 "$url" \
@@ -3541,13 +3583,26 @@ case "$method:$url" in
     [ ! -e "$FM_TEST_ADO_DIR/ado-conflict" ] || merge_status=conflicts
     printf '{"pullRequestId":42,"status":"%s","mergeStatus":"%s","isDraft":false,"lastMergeSourceCommit":{"commitId":"%s"},"repository":{"project":{"id":"11111111-1111-1111-1111-111111111111"}}}\n' "$status" "$merge_status" "$head"
     ;;
-  GET:*'/_apis/policy/evaluations?'*) cat "$FM_TEST_ADO_DIR/ado-policies.json" ;;
+  GET:*'/_apis/policy/evaluations?'*)
+    if [ -e "$FM_TEST_ADO_DIR/ado-voted" ] && [ -f "$FM_TEST_ADO_DIR/ado-policies-after-vote.json" ]; then
+      if [ -e "$FM_TEST_ADO_DIR/ado-policy-polls" ] && [ "$(cat "$FM_TEST_ADO_DIR/ado-policy-polls")" -lt 2 ]; then
+        reads=$(cat "$FM_TEST_ADO_DIR/ado-policy-polls")
+        printf '%s\n' "$((reads + 1))" > "$FM_TEST_ADO_DIR/ado-policy-polls"
+        cat "$FM_TEST_ADO_DIR/ado-policies.json"
+      else
+        cat "$FM_TEST_ADO_DIR/ado-policies-after-vote.json"
+      fi
+    else
+      cat "$FM_TEST_ADO_DIR/ado-policies.json"
+    fi
+    ;;
   PUT:*'/reviewers/22222222-2222-2222-2222-222222222222?api-version=7.1')
     [ "$body" = '{"vote":10}' ] || exit 2
+    [ ! -e "$FM_TEST_ADO_DIR/ado-vote-fails" ] || exit 1
     : > "$FM_TEST_ADO_DIR/ado-voted"
     ;;
   PATCH:*'/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1')
-    [ -e "$FM_TEST_ADO_DIR/ado-voted" ] || exit 2
+    [ -e "$FM_TEST_ADO_DIR/ado-voted" ] || [ -e "$FM_TEST_ADO_DIR/ado-already-approved" ] || exit 2
     del=false twi=false
     [ ! -e "$FM_TEST_ADO_DIR/ado-expect-delete-branch" ] || del=true
     [ ! -e "$FM_TEST_ADO_DIR/ado-expect-transition" ] || twi=true
@@ -3733,6 +3788,308 @@ SH
   expect_code 1 "$rc" "Azure DevOps unconfirmed completion"
   grep -qF 'unconfirmed' "$dir/stderr" || fail "Azure DevOps unconfirmed completion was not reported"
   pass "Azure DevOps green merge is headless and verifies vote, policies, head, and completion"
+}
+
+test_ado_approval_actions() {
+  local dir rc url=https://dev.azure.com/example/Project/_git/Backend/pullrequest/42
+  dir=$(make_case ado-reviewer-queued)
+  add_ado_merge_mocks "$dir"
+  printf '%s\n' '{"value":[{"status":"queued","configuration":{"isBlocking":true,"type":{"id":"FA4E907D-C16B-4A4C-9DFA-4906E5D171DD","displayName":"Mindestanzahl von Prüfern"}}},{"status":"approved","configuration":{"isBlocking":true,"type":{"displayName":"Build"}}}]}' > "$dir/ado-policies.json"
+  jq '.value[0].status = "approved"' "$dir/ado-policies.json" > "$dir/ado-policies-after-vote.json"
+  printf '0\n' > "$dir/ado-policy-polls"
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    run_pr_merge "$dir" task-x1 "$url" > "$dir/stdout" 2> "$dir/stderr" \
+    || fail "queued reviewer policy did not complete after voting: $(cat "$dir/stderr")"
+  [ -e "$dir/ado-voted" ] && [ -e "$dir/ado-complete" ] || fail "queued reviewer fixture was not voted and completed"
+  [ "$(cat "$dir/ado-policy-polls")" -eq 2 ] || fail "queued reviewer evaluation was not polled again"
+
+  dir=$(make_case ado-build-rejected-after-vote)
+  add_ado_merge_mocks "$dir"
+  jq '.value[0].status = "rejected"' "$dir/ado-policies.json" > "$dir/ado-policies-after-vote.json"
+  rc=0
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    run_pr_merge "$dir" task-x1 "$url" > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+  expect_code 1 "$rc" "build rejected after vote"
+  [ -e "$dir/ado-voted" ] && [ ! -e "$dir/ado-complete" ] || fail "post-vote policy failure completed"
+
+  dir=$(make_case ado-vote-fails)
+  add_ado_merge_mocks "$dir"
+  touch "$dir/ado-vote-fails"
+  rc=0
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    run_pr_merge "$dir" task-x1 "$url" > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+  expect_code 1 "$rc" "failed reviewer vote"
+  [ ! -e "$dir/ado-complete" ] || fail "failed reviewer vote completed"
+
+  dir=$(make_case ado-rejected-build-before-vote)
+  add_ado_merge_mocks "$dir"
+  printf '%s\n' '{"value":[{"status":"queued","configuration":{"type":{"id":"fa4e907d-c16b-4a4c-9dfa-4906e5d171dd","displayName":"Minimum number of reviewers"}}},{"status":"rejected","configuration":{"isBlocking":true,"type":{"displayName":"Build"}}}]}' > "$dir/ado-policies.json"
+  rc=0
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    run_pr_merge "$dir" task-x1 "$url" > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+  expect_code 1 "$rc" "rejected build before vote"
+  [ ! -e "$dir/ado-voted" ] && [ ! -e "$dir/ado-complete" ] || fail "rejected build was approved or completed"
+
+  dir=$(make_case ado-approve-only)
+  add_ado_merge_mocks "$dir"
+  printf '%s\n' '{"value":[{"status":"queued","configuration":{"type":{"id":"fa4e907d-c16b-4a4c-9dfa-4906e5d171dd","displayName":"Nombre minimum de réviseurs"}}}]}' > "$dir/ado-policies.json"
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    run_pr_merge "$dir" task-x1 "$url" --approve-only > "$dir/stdout" 2> "$dir/stderr" \
+    || fail "approval-only failed: $(cat "$dir/stderr")"
+  [ -e "$dir/ado-voted" ] && [ ! -e "$dir/ado-complete" ] || fail "approval-only did not vote only"
+  assert_no_grep 'PATCH ' "$dir/ado.log" "approval-only attempted completion"
+  assert_no_grep 'pr_merge_authority=' "$dir/state/task-x1.meta" "approval-only recorded merge acceptance"
+
+  dir=$(make_case ado-complete-only)
+  add_ado_merge_mocks "$dir"
+  touch "$dir/ado-already-approved"
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID='' \
+    run_pr_merge "$dir" task-x1 "$url" --complete-only > "$dir/stdout" 2> "$dir/stderr" \
+    || fail "completion-only failed: $(cat "$dir/stderr")"
+  [ -e "$dir/ado-complete" ] && [ ! -e "$dir/ado-voted" ] || fail "completion-only cast a vote or did not complete"
+  assert_no_grep 'PUT ' "$dir/ado.log" "completion-only attempted a vote"
+
+  dir=$(make_case ado-complete-only-queued-no-reviewer)
+  add_ado_merge_mocks "$dir"
+  printf '%s\n' '{"value":[{"status":"queued","configuration":{"type":{"id":"FA4E907D-C16B-4A4C-9DFA-4906E5D171DD","displayName":"Mindestanzahl von Prüfern"}}}]}' > "$dir/ado-policies.json"
+  rc=0
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID='' \
+    run_pr_merge "$dir" task-x1 "$url" --complete-only > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+  expect_code 1 "$rc" "completion-only queued policy without reviewer"
+  assert_grep 'configure config/ado-reviewer-id' "$dir/stderr" "queued reviewer refusal omitted configuration"
+  [ ! -e "$dir/ado-voted" ] && [ ! -e "$dir/ado-complete" ] || fail "completion-only queued fixture changed PR"
+  dir=$(make_case ado-reviewer-display-name-collision)
+  add_ado_merge_mocks "$dir"
+  printf '%s\n' '{"value":[{"status":"queued","configuration":{"type":{"id":"11111111-1111-1111-1111-111111111111","displayName":"Minimum number of reviewers"}}}]}' > "$dir/ado-policies.json"
+  rc=0
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    run_pr_merge "$dir" task-x1 "$url" > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+  expect_code 1 "$rc" "non-reviewer policy with matching display name"
+  [ ! -e "$dir/ado-voted" ] && [ ! -e "$dir/ado-complete" ] || fail "display name exempted an unrelated policy"
+  pass "queued reviewer policy completes after the configured vote"
+}
+
+test_github_approval_actions() {
+  local dir kind rc url=https://github.com/example/repo/pull/9
+  for kind in classic ruleset approve-only approve-only-unprotected complete-only complete-unapproved author missing red classic-author classic-missing \
+    classic-approved-missing classic-approved-author classic-approved-reviewer \
+    ruleset-approved-missing ruleset-approved-author ruleset-approved-reviewer \
+    classic-approved-red ruleset-approved-red unprotected-missing unprotected-author classic-no-review classic-no-review-complete unreadable unreadable-approve-only; do
+    dir=$(make_case "github-approval-$kind")
+    add_gh_mocks "$dir" "$MR_HEAD"
+    : > "$dir/gh-axi.log"
+    printf 'reviewer\n' > "$dir/reviewer-login"
+    printf 'author\n' > "$dir/author-login"
+    printf 'REVIEW_REQUIRED\n' > "$dir/review-decision"
+    printf 'fixture-reviewer-token\n' > "$dir/home/config/github-reviewer-token"
+    case "$kind" in
+      classic|classic-*)
+        write_github_required "$dir" classic:ci
+        ;;
+      unprotected-*|approve-only-unprotected) printf 'null\n' > "$dir/review-decision" ;;
+      *) printf '%s\n' '[{"type":"pull_request","parameters":{"required_approving_review_count":1}}]' > "$dir/github-required-rules.json" ;;
+    esac
+    case "$kind" in
+      approve-only|complete-only|*-approved-*) printf 'APPROVED\n' > "$dir/review-decision" ;;
+      classic-no-review*) printf 'null\n' > "$dir/review-decision" ;;
+      unreadable|unreadable-approve-only) touch "$dir/review-unreadable" ;;
+    esac
+    case "$kind" in
+      author|*-author) printf 'AUTHOR\n' > "$dir/reviewer-login" ;;
+      missing|*-missing|classic-no-review*) rm "$dir/home/config/github-reviewer-token" ;;
+      red|*-red) write_github_red_json "$dir" "$MR_HEAD" ci ;;
+    esac
+    rc=0
+    case "$kind" in
+      complete-unapproved|classic-no-review-complete)
+        run_pr_merge "$dir" task-x1 "$url" --complete-only > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+        ;;
+      approve-only|complete-only)
+        run_pr_merge "$dir" task-x1 "$url" "--$kind" > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+        ;;
+      approve-only-unprotected|unreadable-approve-only)
+        run_pr_merge "$dir" task-x1 "$url" --approve-only > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+        ;;
+      *) run_pr_merge "$dir" task-x1 "$url" > "$dir/stdout" 2> "$dir/stderr" || rc=$? ;;
+    esac
+    case "$kind" in
+      author|classic-author|missing|classic-missing|red|*-red|complete-unapproved|unreadable|unreadable-approve-only)
+        expect_code 1 "$rc" "GitHub approval $kind"
+        [ ! -e "$dir/github-reviewed" ] || fail "GitHub $kind fixture was approved"
+        assert_no_grep 'pr merge ' "$dir/gh.log" "GitHub $kind fixture merged"
+        case "$kind" in
+          missing|classic-missing) assert_grep 'configure config/github-reviewer-token or FM_GITHUB_REVIEWER_TOKEN' "$dir/stderr" "needed approval omitted missing reviewer credential" ;;
+          *) assert_no_grep 'configure config/github-reviewer-token or FM_GITHUB_REVIEWER_TOKEN' "$dir/stderr" "GitHub $kind incorrectly requested a reviewer credential" ;;
+        esac
+        ;;
+      complete-only|*-approved-*|unprotected-*|classic-no-review*)
+        expect_code 0 "$rc" "GitHub $kind: $(cat "$dir/stderr")"
+        [ ! -e "$dir/github-reviewed" ] || fail "GitHub $kind approved"
+        assert_no_grep 'api /user' "$dir/gh-axi.log" "GitHub $kind accessed reviewer identity"
+        assert_no_grep 'api POST' "$dir/gh-axi.log" "GitHub $kind posted a review"
+        assert_no_grep 'github-reviewer-token' "$dir/stderr" "GitHub $kind requested a reviewer credential"
+        assert_no_grep 'FM_GITHUB_REVIEWER_TOKEN' "$dir/stderr" "GitHub $kind requested a reviewer credential"
+        assert_logged_gh_merge "$dir" 9 example/repo --squash
+        ;;
+      *)
+        expect_code 0 "$rc" "GitHub approval $kind: $(cat "$dir/stderr")"
+        [ -e "$dir/github-reviewed" ] || fail "GitHub $kind did not approve"
+        jq -e --arg head "$MR_HEAD" '.event == "APPROVE" and .commit_id == $head' "$dir/review-body.json" >/dev/null \
+          || fail "GitHub approval did not bind the verified head"
+        if [ "$kind" = approve-only ] || [ "$kind" = approve-only-unprotected ]; then
+          assert_no_grep 'pr merge ' "$dir/gh.log" "GitHub approval-only merged"
+        else
+          assert_grep 'pr merge ' "$dir/gh.log" "GitHub $kind did not merge after approving"
+        fi
+        ;;
+    esac
+    assert_no_grep '/protection' "$dir/gh.log" "GitHub $kind required administration-only protection access"
+  done
+  pass "GitHub approvals use a non-author credential and explicit actions preserve the green guards"
+}
+
+test_github_changes_requested_refuses_approval() {
+  local dir protection action credential rc url=https://github.com/example/repo/pull/9
+  for protection in classic ruleset unprotected; do
+    for action in default approve-only; do
+      [ "$protection" != unprotected ] || [ "$action" = approve-only ] || continue
+      for credential in configured missing; do
+        dir=$(make_case "github-changes-requested-$protection-$action-$credential")
+        add_gh_mocks "$dir" "$MR_HEAD"
+        : > "$dir/gh-axi.log"
+        printf 'reviewer\n' > "$dir/reviewer-login"
+        printf 'author\n' > "$dir/author-login"
+        printf 'CHANGES_REQUESTED\n' > "$dir/review-decision"
+        if [ "$credential" = configured ]; then
+          printf 'fixture-reviewer-token\n' > "$dir/home/config/github-reviewer-token"
+        fi
+        case "$protection" in
+          classic)
+            write_github_required "$dir" classic:ci
+            ;;
+          ruleset) printf '%s\n' '[{"type":"pull_request","parameters":{"required_approving_review_count":1}}]' > "$dir/github-required-rules.json" ;;
+        esac
+        rc=0
+        if [ "$action" = approve-only ]; then
+          run_pr_merge "$dir" task-x1 "$url" --approve-only > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+        else
+          run_pr_merge "$dir" task-x1 "$url" > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+        fi
+        expect_code 1 "$rc" "GitHub changes request $protection $action $credential"
+        assert_grep 'changes request' "$dir/stderr" "GitHub changes-request refusal omitted the reason"
+        [ ! -e "$dir/github-reviewed" ] || fail "GitHub changes request was approved"
+        assert_no_grep 'api /user' "$dir/gh-axi.log" "GitHub changes request accessed reviewer credentials"
+        assert_no_grep 'api POST' "$dir/gh-axi.log" "GitHub changes request posted a review"
+        assert_no_grep 'pr merge ' "$dir/gh.log" "GitHub changes request attempted a merge"
+        assert_no_grep 'github-reviewer-token' "$dir/stderr" "GitHub changes request incorrectly requested a credential"
+        assert_no_grep 'pr_merge_authority=' "$dir/state/task-x1.meta" "GitHub changes request recorded merge acceptance"
+      done
+    done
+  done
+  pass "GitHub approval actions refuse outstanding changes requests before accessing reviewer credentials"
+}
+
+test_github_reviewer_response_contract() {
+  local dir kind rc encoded url=https://github.com/example/repo/pull/9
+  for kind in quoted unquoted bot bot-author truncated duplicate invalid; do
+    dir=$(make_case "github-reviewer-response-$kind")
+    add_gh_mocks "$dir" "$MR_HEAD"
+    printf 'REVIEW_REQUIRED\n' > "$dir/review-decision"
+    printf 'author\n' > "$dir/author-login"
+    printf 'fixture-reviewer-token\n' > "$dir/home/config/github-reviewer-token"
+    encoded=$(jq -Rn --arg login 'reviewer[bot]' '$login | @base64')
+    case "$kind" in
+      unquoted) encoded=$(printf '%s' "$encoded" | jq -r .) ;;
+      bot-author) printf 'REVIEWER[bot]\n' > "$dir/author-login" ;;
+      invalid) encoded='"not-base64!"' ;;
+    esac
+    printf 'api_response:\n  body: %s\n  truncated: false\n' "$encoded" > "$dir/reviewer-response"
+    case "$kind" in
+      bot) rm "$dir/reviewer-response"; printf 'reviewer[bot]\n' > "$dir/reviewer-login" ;;
+      truncated) printf 'api_response:\n  body: %s\n  truncated: true\n' "$encoded" > "$dir/reviewer-response" ;;
+      duplicate) printf '  body: %s\n' "$encoded" >> "$dir/reviewer-response" ;;
+    esac
+    rc=0
+    run_pr_merge "$dir" task-x1 "$url" --approve-only > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+    case "$kind" in
+      bot-author|truncated|duplicate|invalid)
+        expect_code 1 "$rc" "GitHub reviewer response $kind"
+        [ ! -e "$dir/github-reviewed" ] || fail "invalid reviewer response approved"
+        assert_no_grep 'api POST' "$dir/gh-axi.log" "invalid reviewer response posted a review"
+        if [ "$kind" = bot-author ]; then
+          assert_grep 'self-approval is refused' "$dir/stderr" "bot self-approval did not refuse"
+        fi
+        ;;
+      *)
+        expect_code 0 "$rc" "GitHub reviewer response $kind: $(cat "$dir/stderr")"
+        [ -e "$dir/github-reviewed" ] || fail "valid reviewer response did not approve"
+        jq -e --arg head "$MR_HEAD" '.event == "APPROVE" and .commit_id == $head' "$dir/review-body.json" >/dev/null \
+          || fail "reviewer response approval did not bind head"
+        ;;
+    esac
+    assert_no_grep 'pr merge ' "$dir/gh.log" "reviewer response approval-only merged"
+  done
+  pass "gh-axi complete quoted and unquoted response bodies accept bot logins and reject self-approval"
+}
+
+test_github_post_approval_mergeability() {
+  local dir kind rc expected_reads url=https://github.com/example/repo/pull/9
+  for kind in resolves pending red missing head changes-requested away-unreadable; do
+    dir=$(make_case "github-post-approval-$kind")
+    add_gh_mocks "$dir" "$MR_HEAD"
+    printf 'REVIEW_REQUIRED\n' > "$dir/review-decision"
+    printf 'reviewer\n' > "$dir/reviewer-login"
+    printf 'author\n' > "$dir/author-login"
+    printf 'fixture-reviewer-token\n' > "$dir/home/config/github-reviewer-token"
+    printf 'MERGEABLE\nUNKNOWN\nMERGEABLE\n' > "$dir/mergeable-sequence"
+    expected_reads=3
+    case "$kind" in
+      pending) printf 'MERGEABLE\nUNKNOWN\n' > "$dir/mergeable-sequence"; expected_reads=6 ;;
+      red) printf 'MERGEABLE\nUNKNOWN\nMERGEABLE FAILURE\n' > "$dir/mergeable-sequence" ;;
+      missing)
+        write_github_required "$dir" classic:ci ruleset:validate
+        write_github_rollup_json "$dir" "$MR_HEAD" "$(check_run ci COMPLETED SUCCESS)" "$(check_run validate COMPLETED SUCCESS)"
+        jq '.statusCheckRollup |= map(select(.name != "validate"))' "$dir/github-view.json" > "$dir/github-after-approval.json"
+        expected_reads=2
+        ;;
+      head)
+        jq --arg head "$MR_STALE_HEAD" '.headRefOid = $head' "$dir/github-view.json" > "$dir/github-after-approval.json"
+        ;;
+      changes-requested)
+        printf 'MERGEABLE\n' > "$dir/mergeable-sequence"
+        printf 'CHANGES_REQUESTED\n' > "$dir/review-after-approval"
+        expected_reads=2
+        ;;
+      away-unreadable)
+        write_away_record "$dir"
+        printf 'MERGEABLE\n' > "$dir/mergeable-sequence"
+        touch "$dir/invalidate-away-after-approval"
+        expected_reads=2
+        ;;
+    esac
+    rc=0
+    FM_TEST_GH_MERGEABLE_SEQUENCE="$dir/mergeable-sequence" FM_PR_GITHUB_MERGEABLE_RETRY_DELAY=0 \
+      run_pr_merge "$dir" task-x1 "$url" > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+    [ -e "$dir/github-reviewed" ] || fail "post-approval fixture did not approve"
+    [ "$(cat "$dir/mergeable-calls")" -eq "$expected_reads" ] || fail "post-approval $kind had wrong retry count"
+    [ "$(grep -c '^api POST ' "$dir/gh-axi.log")" -eq 1 ] || fail "post-approval retry posted duplicate approval"
+    if [ "$kind" = resolves ]; then
+      expect_code 0 "$rc" "post-approval UNKNOWN resolves: $(cat "$dir/stderr")"
+      assert_logged_gh_merge "$dir" 9 example/repo --squash
+    else
+      expect_code 1 "$rc" "post-approval refusal $kind"
+      assert_no_grep 'pr merge ' "$dir/gh.log" "post-approval refusal attempted merge"
+      case "$kind" in
+        pending) assert_grep 'still being computed by GitHub; retry shortly' "$dir/stderr" "post-approval UNKNOWN refusal was silent" ;;
+        red) assert_grep "check 'ci' is not green" "$dir/stderr" "post-approval retry ignored red check" ;;
+        missing) assert_grep "required check 'validate' has not reported" "$dir/stderr" "post-approval retry ignored missing check" ;;
+        head) assert_grep 'head changed after approval' "$dir/stderr" "post-approval retry ignored moving head" ;;
+        changes-requested) assert_grep 'changes request' "$dir/stderr" "post-approval retry ignored changes request" ;;
+        away-unreadable) assert_grep 'posture record could not be read' "$dir/stderr" "post-approval retry ignored unreadable authority" ;;
+      esac
+    fi
+  done
+  pass "post-approval UNKNOWN retries preserve one approval, green checks, current head, and changes requests"
 }
 
 test_ado_policy_gate_matches_ado_completion_semantics() {
@@ -4252,6 +4609,11 @@ test_gitlab_head_override_args_refuse_before_recording
 test_ado_headless_merge_and_refusals
 test_quiet_words_keep_ado_green_and_completion_guards
 test_ado_policy_gate_matches_ado_completion_semantics
+test_ado_approval_actions
+test_github_approval_actions
+test_github_changes_requested_refuses_approval
+test_github_reviewer_response_contract
+test_github_post_approval_mergeability
 test_ado_completion_options_are_home_opt_ins
 test_ado_requests_are_bounded_and_keep_tokens_off_argv
 test_secondmate_merge_reports_upward_once

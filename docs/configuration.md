@@ -14,6 +14,7 @@ Start with the directory layout, then use the setting reference for the behavior
 | Supervision and presentation | [Pi supervision branch](#pi-supervision-branch), [supervision host](#supervision-host-configsupervision-host), and [Calm preference](#calm-preference-configcalm) |
 | Persistent secondmates | [Secondmate routes](#secondmate-routes-datasecondmatesmd) |
 | Azure DevOps PR approval | [Azure DevOps reviewer identity](#azure-devops-reviewer-identity-configado-reviewer-id--fm_ado_reviewer_id) and [completion options](#azure-devops-completion-options-configado-delete-source-branch--configado-transition-work-items) |
+| GitHub PR approval | [GitHub reviewer credential](#github-reviewer-credential-configgithub-reviewer-token--fm_github_reviewer_token) |
 | Per-run overrides and tuning | [Environment variables](#environment-variables) |
 
 ## FM_HOME
@@ -618,10 +619,18 @@ The flag is a home-local supervision-noise preference and is not inherited by se
 
 ## Azure DevOps reviewer identity (config/ado-reviewer-id / FM_ADO_REVIEWER_ID)
 
-For a home that completes Azure DevOps pull requests, put its reviewer identity UUID on one line in the local `config/ado-reviewer-id` file.
+For a home that approves Azure DevOps pull requests, put its reviewer identity UUID on one line in the local `config/ado-reviewer-id` file.
 `FM_ADO_REVIEWER_ID` overrides that file for one invocation.
-The merge script refuses completion when neither is set, so an away session needs this configuration before it starts.
+The reviewer identity is required for approval paths and optional for `--complete-only`, which casts no vote and requires policies already satisfied.
 Azure CLI must already be signed in to obtain a token for resource `499b84ac-1321-427f-aa17-267ca6975798`.
+[`bin/fm-pr-merge.sh`](../bin/fm-pr-merge.sh)'s header owns the action and credential mechanics.
+
+## GitHub reviewer credential (config/github-reviewer-token / FM_GITHUB_REVIEWER_TOKEN)
+
+For a home that approves GitHub pull requests, store a reviewer token on one line in a local regular `config/github-reviewer-token` file with mode `0600`, or supply it through `FM_GITHUB_REVIEWER_TOKEN` for one invocation.
+The token must authenticate an identity different from the PR author and able to submit an approving review; approval never uses the ambient merger credential.
+Already-approved PRs need no reviewer token for default completion, and `--complete-only` never approves.
+[`bin/fm-pr-merge.sh`](../bin/fm-pr-merge.sh)'s header owns the action and credential mechanics.
 
 ## Azure DevOps completion options (config/ado-delete-source-branch / config/ado-transition-work-items)
 
