@@ -11,7 +11,8 @@ PATCH pullRequests/{prId}/conflicts/{conflictId} submits a UserMerged resolution
 the JSON body uses mergeType="userMerged", resolutionStatus="resolved" and
 userMergedContent as an array of file bytes.
 GET pullRequests/{prId} records lastMergeCommit before PATCH and polls mergeStatus
-only after re-listing conflicts confirms no unresolved entries remain.
+only after re-listing conflicts confirms no unresolved entries remain;
+a missing or null resolutionStatus counts as unresolved in list and re-list output.
 An unchanged conflicts status may be stale; poll at most 30 times, two seconds apart.
 The conflicts API uses api-version=7.1-preview.1; blobs and PR reads use 7.1.
 
