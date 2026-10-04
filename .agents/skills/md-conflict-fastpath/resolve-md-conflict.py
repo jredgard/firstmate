@@ -102,7 +102,10 @@ def ado_location(repo):
         ).strip()
     except (OSError, subprocess.SubprocessError) as error:
         raise ValueError(f"origin is unavailable for {repository}" + override_hint) from error
-    match = re.fullmatch(r"git@ssh\.dev\.azure\.com:v3/([^/]+)/([^/]+)/[^/]+/?", origin)
+    match = re.fullmatch(
+        r"(?:git@ssh\.dev\.azure\.com:v3|ssh://git@ssh\.dev\.azure\.com/v3)/([^/]+)/([^/]+)/[^/]+/?",
+        origin,
+    )
     if not match:
         try:
             remote = urlsplit(origin)

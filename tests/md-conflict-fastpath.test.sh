@@ -179,8 +179,10 @@ class ConflictCliTests(unittest.TestCase):
             ("https://dev.azure.com/climsorg/PS_clims-poc/_git/repo", "PS_clims-poc"),
             ("https://climsorg@dev.azure.com/climsorg/PS_clims-poc/_git/repo", "PS_clims-poc"),
             ("git@ssh.dev.azure.com:v3/climsorg/PS_clims-poc/repo", "PS_clims-poc"),
+            ("ssh://git@ssh.dev.azure.com/v3/climsorg/PS_clims-poc/repo", "PS_clims-poc"),
             ("https://dev.azure.com/climsorg/PS%20clims-poc/_git/repo", "PS%20clims-poc"),
             ("git@ssh.dev.azure.com:v3/climsorg/PS%20clims-poc/repo", "PS%20clims-poc"),
+            ("ssh://git@ssh.dev.azure.com/v3/climsorg/PS%20clims-poc/repo", "PS%20clims-poc"),
         ):
             with self.subTest(origin=origin):
                 self.home_origin(origin)
