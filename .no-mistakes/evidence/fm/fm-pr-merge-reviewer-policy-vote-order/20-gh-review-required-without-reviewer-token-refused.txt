@@ -1,0 +1,26 @@
+### scenario: 20-gh-review-required-without-reviewer-token-refused
+### script: change under test 95ccaa89 bin/fm-pr-merge.sh
+### command: X=1 fm-pr-merge.sh task-g20 https://github.com/acme/widgets/pull/9
+### away record present: yes
+### emulator state before: {"github":{"repo":"acme/widgets","number":9,"state":"OPEN","head":"abcdef0123456789abcdef0123456789abcdef01","author":"captain-dev","merger":"fm-merger","tokens":{"lab-merger-token":"fm-merger","lab-reviewer-token":"fm-reviewer"},"requiredApprovals":1,"changesRequested":false,"reviews":[],"unknownReads":0}}
+### exit code: 1   (elapsed 2s)
+### stdout:
+armed: state/task-g20.check.sh
+### stderr (watcher-supervision banners from the lab home filtered):
+verified: https://github.com/acme/widgets/pull/9 is open and mergeable, with every unwaived required check reported and every unwaived check green at head abcdef0123456789abcdef0123456789abcdef01
+error: configure config/github-reviewer-token or FM_GITHUB_REVIEWER_TOKEN; approval never uses the ambient merger credential
+### forge requests seen by the emulator:
+21:32:25 api.github.com POST /graphql graphql  query PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) { repository(owner: $owner, name: $repo) { pullRequest(number: $pr_number) {headRe -> 200 {"data": {"repository": {"pullRequest": {"id": "PR_node9", "number": 9, "title": "lab PR", "url": "https://github.co
+21:32:25 api.github.com POST /graphql graphql  query PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) { repository(owner: $owner, name: $repo) { pullRequest(number: $pr_number) {state, -> 200 {"data": {"repository": {"pullRequest": {"id": "PR_node9", "number": 9, "title": "lab PR", "url": "https://github.co
+21:32:26 api.github.com GET /repos/acme/widgets/branches/main  -> 200 {"name": "main", "protected": true, "protection": {"enabled": true, "required_status_checks": {"enforcement_level": "non_admins", "contexts": [], "checks": []}}}
+21:32:26 api.github.com GET /repos/acme/widgets/rules/branches/main?per_page=100  -> 200 []
+21:32:26 api.github.com GET /repos/acme/widgets/rules/branches/main?per_page=100  -> 200 []
+### emulator state after: {"github":{"repo":"acme/widgets","number":9,"state":"OPEN","head":"abcdef0123456789abcdef0123456789abcdef01","author":"captain-dev","merger":"fm-merger","tokens":{"lab-merger-token":"fm-merger","lab-reviewer-token":"fm-reviewer"},"requiredApprovals":1,"changesRequested":false,"reviews":[],"unknownReads":0}}
+### task meta after:
+window=fm-task-g20
+worktree=/tmp/fm-lab.V0GmFX/wt-task-g20
+project=/tmp/fm-lab.V0GmFX/project
+kind=ship
+mode=no-mistakes
+pr=https://github.com/acme/widgets/pull/9
+pr_head=abcdef0123456789abcdef0123456789abcdef01

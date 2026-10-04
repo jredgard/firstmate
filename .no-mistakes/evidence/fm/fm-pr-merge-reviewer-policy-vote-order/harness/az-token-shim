@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Disposable stand-in for the Azure CLI token read only: the real az would
+# refresh the operator's MSAL cache. Prints the emulator's lab token.
+[ "$*" = 'account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv' ] || { echo "lab az: unsupported $*" >&2; exit 2; }
+printf '%s\n' lab-ado-token

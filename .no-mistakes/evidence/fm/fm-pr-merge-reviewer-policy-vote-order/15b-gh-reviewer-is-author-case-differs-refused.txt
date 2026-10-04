@@ -1,0 +1,28 @@
+### scenario: 15b-gh-reviewer-is-author-case-differs-refused
+### script: change under test 95ccaa89 bin/fm-pr-merge.sh
+### command: X=1 fm-pr-merge.sh task-g15b https://github.com/acme/widgets/pull/9
+### away record present: yes
+### emulator state before: {"github":{"repo":"acme/widgets","number":9,"state":"OPEN","head":"abcdef0123456789abcdef0123456789abcdef01","author":"captain-dev","merger":"fm-merger","tokens":{"lab-merger-token":"fm-merger","lab-reviewer-token":"Captain-Dev"},"requiredApprovals":1,"changesRequested":false,"reviews":[],"unknownReads":0}}
+### exit code: 1   (elapsed 1s)
+### stdout:
+armed: state/task-g15b.check.sh
+### stderr (watcher-supervision banners from the lab home filtered):
+verified: https://github.com/acme/widgets/pull/9 is open and mergeable, with every unwaived required check reported and every unwaived check green at head abcdef0123456789abcdef0123456789abcdef01
+error: configured GitHub reviewer is the PR author; self-approval is refused for https://github.com/acme/widgets/pull/9
+### forge requests seen by the emulator:
+21:32:59 api.github.com POST /graphql graphql  query PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) { repository(owner: $owner, name: $repo) { pullRequest(number: $pr_number) {headRe -> 200 {"data": {"repository": {"pullRequest": {"id": "PR_node9", "number": 9, "title": "lab PR", "url": "https://github.co
+21:33:00 api.github.com POST /graphql graphql  query PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) { repository(owner: $owner, name: $repo) { pullRequest(number: $pr_number) {state, -> 200 {"data": {"repository": {"pullRequest": {"id": "PR_node9", "number": 9, "title": "lab PR", "url": "https://github.co
+21:33:00 api.github.com GET /repos/acme/widgets/branches/main  -> 200 {"name": "main", "protected": true, "protection": {"enabled": true, "required_status_checks": {"enforcement_level": "non_admins", "contexts": [], "checks": []}}}
+21:33:00 api.github.com GET /repos/acme/widgets/rules/branches/main?per_page=100  -> 200 []
+21:33:00 api.github.com GET /repos/acme/widgets/rules/branches/main?per_page=100  -> 200 []
+21:33:00 api.github.com GET /user  -> 200 {"login": "Captain-Dev", "id": 1, "type": "User"}
+21:33:00 api.github.com POST /graphql graphql  query PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) { repository(owner: $owner, name: $repo) { pullRequest(number: $pr_number) {author -> 200 {"data": {"repository": {"pullRequest": {"id": "PR_node9", "number": 9, "title": "lab PR", "url": "https://github.co
+### emulator state after: {"github":{"repo":"acme/widgets","number":9,"state":"OPEN","head":"abcdef0123456789abcdef0123456789abcdef01","author":"captain-dev","merger":"fm-merger","tokens":{"lab-merger-token":"fm-merger","lab-reviewer-token":"Captain-Dev"},"requiredApprovals":1,"changesRequested":false,"reviews":[],"unknownReads":0}}
+### task meta after:
+window=fm-task-g15b
+worktree=/tmp/fm-lab.V0GmFX/wt-task-g15b
+project=/tmp/fm-lab.V0GmFX/project
+kind=ship
+mode=no-mistakes
+pr=https://github.com/acme/widgets/pull/9
+pr_head=abcdef0123456789abcdef0123456789abcdef01

@@ -1,0 +1,31 @@
+### scenario: 10-ado-reviewer-id-from-home-config-file
+### script: change under test 95ccaa89 bin/fm-pr-merge.sh
+### command: FM_ADO_REVIEWER_ID= fm-pr-merge.sh task-a10 https://dev.azure.com/acme/DS_mosaiq-poc/_git/Mosaiq/pullrequest/57712
+### away record present: yes
+### emulator state before: {"ado":{"token":"lab-ado-token","projectId":"5f1c2b9e-0d3a-4c1e-9b7a-1a2b3c4d5e6f","pr":{"id":57712,"status":"active","mergeStatus":"succeeded","isDraft":false,"head":"c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00"},"votes":{},"minReviewers":1,"evalLagReads":2,"build":"approved","reviewerName":"Minimum number of reviewers"}}
+### exit code: 0   (elapsed 3s)
+### stdout:
+armed: state/task-a10.check.sh
+verified: https://dev.azure.com/acme/DS_mosaiq-poc/_git/Mosaiq/pullrequest/57712 is completed at head c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00
+### stderr (watcher-supervision banners from the lab home filtered):
+### forge requests seen by the emulator:
+21:31:59 dev.azure.com GET /acme/DS_mosaiq-poc/_apis/git/repositories/Mosaiq/pullRequests/57712?api-version=7.1  -> 200 {"pullRequestId": 57712, "status": "active", "mergeStatus": "succeeded", "isDraft": false, "lastMergeSourceCommit": {"commitId": "c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00"}, "repository": {"project": {"id": "5f
+21:31:59 dev.azure.com GET /acme/DS_mosaiq-poc/_apis/git/repositories/Mosaiq/pullRequests/57712?api-version=7.1  -> 200 {"pullRequestId": 57712, "status": "active", "mergeStatus": "succeeded", "isDraft": false, "lastMergeSourceCommit": {"commitId": "c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00"}, "repository": {"project": {"id": "5f
+21:31:59 dev.azure.com GET /acme/5f1c2b9e-0d3a-4c1e-9b7a-1a2b3c4d5e6f/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/5f1c2b9e-0d3a-4c1e-9b7a-1a2b3c4d5e6f/57712&api-version=7.1-preview.1  -> 200 {"value": [{"status": "queued", "configuration": {"isBlocking": true, "type": {"id": "fa4e907d-c16b-4a4c-9dfa-4906
+21:31:59 dev.azure.com PUT /acme/DS_mosaiq-poc/_apis/git/repositories/Mosaiq/pullRequests/57712/reviewers/22222222-3333-4444-5555-666666666666?api-version=7.1 {"vote":10} -> 200 {"id": "22222222-3333-4444-5555-666666666666", "vote": 10}
+21:32:00 dev.azure.com GET /acme/5f1c2b9e-0d3a-4c1e-9b7a-1a2b3c4d5e6f/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/5f1c2b9e-0d3a-4c1e-9b7a-1a2b3c4d5e6f/57712&api-version=7.1-preview.1  -> 200 {"value": [{"status": "queued", "configuration": {"isBlocking": true, "type": {"id": "fa4e907d-c16b-4a4c-9dfa-4906
+21:32:01 dev.azure.com GET /acme/5f1c2b9e-0d3a-4c1e-9b7a-1a2b3c4d5e6f/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/5f1c2b9e-0d3a-4c1e-9b7a-1a2b3c4d5e6f/57712&api-version=7.1-preview.1  -> 200 {"value": [{"status": "queued", "configuration": {"isBlocking": true, "type": {"id": "fa4e907d-c16b-4a4c-9dfa-4906
+21:32:02 dev.azure.com GET /acme/5f1c2b9e-0d3a-4c1e-9b7a-1a2b3c4d5e6f/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/5f1c2b9e-0d3a-4c1e-9b7a-1a2b3c4d5e6f/57712&api-version=7.1-preview.1  -> 200 {"value": [{"status": "approved", "configuration": {"isBlocking": true, "type": {"id": "fa4e907d-c16b-4a4c-9dfa-49
+21:32:02 dev.azure.com GET /acme/DS_mosaiq-poc/_apis/git/repositories/Mosaiq/pullRequests/57712?api-version=7.1  -> 200 {"pullRequestId": 57712, "status": "active", "mergeStatus": "succeeded", "isDraft": false, "lastMergeSourceCommit": {"commitId": "c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00"}, "repository": {"project": {"id": "5f
+21:32:02 dev.azure.com GET /acme/5f1c2b9e-0d3a-4c1e-9b7a-1a2b3c4d5e6f/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/5f1c2b9e-0d3a-4c1e-9b7a-1a2b3c4d5e6f/57712&api-version=7.1-preview.1  -> 200 {"value": [{"status": "approved", "configuration": {"isBlocking": true, "type": {"id": "fa4e907d-c16b-4a4c-9dfa-49
+21:32:02 dev.azure.com PATCH /acme/DS_mosaiq-poc/_apis/git/repositories/Mosaiq/pullRequests/57712?api-version=7.1 {"status":"completed","lastMergeSourceCommit":{"commitId":"c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00"},"completionOptions":{"mergeStrategy":"squash","deleteSourceBranch":false,"transitionWorkItems":false}} -> 200 {"pu
+21:32:02 dev.azure.com GET /acme/DS_mosaiq-poc/_apis/git/repositories/Mosaiq/pullRequests/57712?api-version=7.1  -> 200 {"pullRequestId": 57712, "status": "completed", "mergeStatus": "succeeded", "isDraft": false, "lastMergeSourceCommit": {"commitId": "c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00"}, "repository": {"project": {"id": 
+### emulator state after: {"ado":{"token":"lab-ado-token","projectId":"5f1c2b9e-0d3a-4c1e-9b7a-1a2b3c4d5e6f","pr":{"id":57712,"status":"completed","mergeStatus":"succeeded","isDraft":false,"head":"c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00","completionOptions":{"mergeStrategy":"squash","deleteSourceBranch":false,"transitionWorkItems":false}},"votes":{"22222222-3333-4444-5555-666666666666":10},"minReviewers":1,"evalLagReads":0,"build":"approved","reviewerName":"Minimum number of reviewers"}}
+### task meta after:
+window=fm-task-a10
+worktree=/tmp/fm-lab.V0GmFX/wt-task-a10
+project=/tmp/fm-lab.V0GmFX/project
+kind=ship
+mode=no-mistakes
+pr=https://dev.azure.com/acme/DS_mosaiq-poc/_git/Mosaiq/pullrequest/57712
+pr_head=c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00

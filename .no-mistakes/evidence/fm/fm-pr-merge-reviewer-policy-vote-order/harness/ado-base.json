@@ -1,0 +1,3 @@
+{"ado":{"token":"lab-ado-token","projectId":"5f1c2b9e-0d3a-4c1e-9b7a-1a2b3c4d5e6f",
+ "pr":{"id":57712,"status":"active","mergeStatus":"succeeded","isDraft":false,"head":"c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00"},
+ "votes":{},"minReviewers":1,"evalLagReads":2,"build":"approved","reviewerName":"Minimum number of reviewers"}}

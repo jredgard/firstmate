@@ -1,0 +1,3 @@
+{"github":{"repo":"acme/widgets","number":9,"state":"OPEN","head":"abcdef0123456789abcdef0123456789abcdef01",
+ "author":"captain-dev","merger":"fm-merger","tokens":{"lab-merger-token":"fm-merger","lab-reviewer-token":"fm-reviewer"},
+ "requiredApprovals":1,"changesRequested":false,"reviews":[],"unknownReads":0}}
