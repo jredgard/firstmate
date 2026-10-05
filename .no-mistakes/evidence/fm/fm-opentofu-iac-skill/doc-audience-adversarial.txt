@@ -1,0 +1,6 @@
+## Adversarial 1: drop the two new inventory entries
+fm-doc-audience-check: unclassified: .agents/skills/opentofu-iac-management/SKILL.md, .agents/skills/opentofu-iac-management/references/findings.md
+exit=1
+## Adversarial 2: break the SKILL.md -> references/findings.md link
+fm-doc-audience-check: unresolved local link in .agents/skills/opentofu-iac-management/SKILL.md: references/findings.md
+exit=1

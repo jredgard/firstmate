@@ -1,0 +1,60 @@
+
+ ▐▛███▛█   Claude Code v2.1.289
+▝▜██████▀  Fable 5.1 with high effort · API Usage Billing
+ ▝▝   ▝▝   ~/.no-mistakes/worktrees/551ff26a6b1c/01M45QG5WQ4B8R4F58HTS4V7M9
+
+
+❯ Read-only question, do not run any scripts or mutate anything: I need to scope and brief a crewmate for a destroy-and-rollout of a QA OpenTofu release on Azure with a private Key Vault. Load the
+  firstmate skill whose trigger covers this, then answer in 4 short bullets: (1) the exact skill name you loaded, (2) the acceptance criterion after destroy, (3) whether the crewmate may run unmocked
+  tofu test against the real release root and why, (4) the finding ID from its ledger that explains why opening the vault firewall for seeding is forbidden.
+
+● Captain, I'll load the opentofu-iac-management skill and answer from its contents without running anything.
+
+● Skill(opentofu-iac-management)
+  ⎿  Successfully loaded skill
+
+● I need the ledger for bullet 4, so I'll read the referenced findings file.
+
+  Read 1 file
+
+● Captain, here are the four answers, read-only, nothing run or changed.
+
+  - Skill loaded: opentofu-iac-management, whose trigger explicitly covers scoping and briefing an OpenTofu destroy-and-rollout with a private Key Vault.
+  - Acceptance after destroy: zero human actions other than approvals. One real protected release must pass every phase, then prove a no-op rerun. Any hand-seeded secret, workstation grant, manual
+    image import, SQL/realm/job command, or shell deletion fails acceptance even if the final UI works. Destroy itself stays the explicitly authorized operator step, never the crewmate's.
+  - Unmocked tofu test on the real release root: no. Unmocked native tests create and automatically destroy resources outside the release's saved-plan and approval controls. The crewmate may run
+    mocked contract tests anywhere, and unmocked tests only against a separately authorized disposable fixture. Real-environment acceptance comes only through the protected release lifecycle. The
+    ledger's IAC-012 also names this as an anti-pattern.
+  - Ledger finding for the vault firewall: IAC-003, "Private bootstrap must not open the vault". Prior seeding temporarily changed public access even though ARM metadata already worked privately. The
+    rule is control-plane secret and key creation via Microsoft.KeyVault/vaults/secrets and /keys, with in-network jobs for any data-plane step. Opening a firewall or adding peering to accommodate a
+    hosted agent or workstation is the recorded anti-pattern.
+
+✻ Cooked for 21s · done 11:52
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ Draft the crewmate brief for the destroy-and-rollout
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents

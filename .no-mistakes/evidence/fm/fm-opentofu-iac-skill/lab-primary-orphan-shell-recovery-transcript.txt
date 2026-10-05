@@ -1,0 +1,60 @@
+
+ ▐▛███▛█   Claude Code v2.1.289
+▝▜██████▀  Fable 5.1 with high effort · API Usage Billing
+ ▝▝   ▝▝   ~/.no-mistakes/worktrees/551ff26a6b1c/01M45QG5WQ4B8R4F58HTS4V7M9
+
+
+❯ /clear
+
+❯ Read-only, do not run any commands or touch Azure: our QA OpenTofu apply just failed - Azure refused a Container App create and left a live failed shell that is not in tofu state, so the next plan
+  collides with it. Using the firstmate guidance that applies to diagnosing this, answer briefly: may I just az-delete that shell by hand to unblock the rerun? Under what exact conditions may it be
+  removed, what must be refused, and what happens to the previously approved plan afterwards? Name the skill you loaded and cite ledger finding IDs.
+
+● Captain, loading the OpenTofu release-management skill that governs this diagnosis before answering.
+
+● Skill(opentofu-iac-management)
+  ⎿  Successfully loaded skill
+
+  Read 1 file
+
+● Captain, short answer: no, not by hand and not yet. I loaded the opentofu-iac-management skill, and its "Failed-create recovery" section plus the findings ledger govern this exactly.
+
+  When the shell may be removed (all conditions together, per IAC-009):
+
+  - It is a release-owned, failed, revisionless, stateless Container App shell with no healthy revision.
+  - Pre-apply receipts prove it was absent before that exact release-owned create, so provenance is established, not inferred.
+  - Live type, name, scope, provisioning status and revisions have been reconciled against that run and the state file.
+  - Removal happens under the same exclusive release lock and an explicitly authorized recovery contract, with the deletion verified and a redacted recovery receipt retained.
+  - Before touching anything, the Azure refusal itself is classified from stage-level evidence as a provisioning failure rather than admission, authorization, image-pull or identity-resolution trouble
+    (IAC-014, IAC-004, IAC-008).
+
+  What must be refused:
+
+  - Any shell that is pre-existing, of unknown provenance, has a healthy revision, is stateful, or belongs to an unrelated successful resource.
+  - Recovery being stretched into generic import, adoption, taint or deletion authority. An ad hoc az delete is exactly the hand-delete of an inconvenient collision that IAC-009 names as the
+    anti-pattern.
+  - If ownership or recovery authority cannot be proved, the rule is stop and escalate. The skill grants no infrastructure mutation or recovery authority on its own.
+
+  The previously approved plan is dead afterwards. A failed apply is never success, and changed live inventory or state requires a fresh guarded saved plan with its own approval (IAC-011 and the
+  orchestration step 4 rule). You cannot edit or reuse the old approved plan, and mock-green or zero-drift evidence cannot stand in for the new gate (IAC-012).
+
+  Net consequence for the QA rerun: the only compliant path is receipted reconciliation and a locked, authorized cleanup of that one shell, then a new plan and approval. Nothing here was run or
+  touched.
+
+✻ Brewed for 34s · done 11:53
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents
