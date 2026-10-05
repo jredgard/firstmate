@@ -237,6 +237,14 @@
       "audience": "agent-runtime"
     },
     {
+      "path": ".agents/skills/opentofu-iac-management/SKILL.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": ".agents/skills/opentofu-iac-management/references/findings.md",
+      "audience": "agent-runtime"
+    },
+    {
       "path": ".agents/skills/process-event-sources/SKILL.md",
       "audience": "agent-runtime"
     },
