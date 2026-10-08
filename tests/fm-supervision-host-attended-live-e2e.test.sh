@@ -13,10 +13,9 @@
 #   2. a main-only status event passes through the host and leaves a live
 #      successor watcher, and the hook's rewake (ledger outcome=rewake, banner
 #      delivered) starts a primary turn that drains and acknowledges it;
-#   3. that turn's end takes over the successor (bin/fm-watch-arm.sh
-#      --take-over) and owns a fresh cycle, and a second main-only event is
-#      delivered the same way; it closes that owned cycle, so its close is read
-#      instead of left in an unread capture;
+#   3. that turn's end arms onto the successor, and a second main-only event is
+#      delivered the same way; it closes that successor, so the successor's own
+#      close is read instead of left in an unread capture;
 #   4. a remote-reply listener, reading a local append-only log that stands in
 #      for a remote home, stays owned throughout and delivers a third event;
 #   5. a routine close on another task that the host accepts for the
@@ -205,7 +204,6 @@ host_live() {
 }
 watcher_pid() { cat "$1/fm/state/.watch.lock/pid" 2>/dev/null; }
 watcher_live() { local pid; pid=$(watcher_pid "$1") && [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; }
-taken_over() { grep -F "watcher_pid=$2	" "$1/fm/state/.watch-cycle-exits.log" 2>/dev/null | grep -F '	reason=taken-over	' | tail -n 1 | grep .; }
 ledger() { head -n 1 "$1/fm/state/.claude-autoarm-epoch" 2>/dev/null; }
 marker() { cat "$1/fm/state/.watcher-down" 2>/dev/null; }
 captain_prompts() { jq -r 'select(.tag == "captain") | .seq' "$1/fm/state/.host-mirror.jsonl" 2>/dev/null | wc -l | tr -d ' '; }
@@ -335,7 +333,7 @@ decide_at_handoff() { # <lab> <status-file> <line>
 
 # Steps 2-5 on the host under test: every hand-off reaches the idle primary.
 run_positive() {
-  local lab e1 e2 e3 e4 successor owned listener_start pass line injector handoff
+  local lab e1 e2 e3 e4 successor listener_start pass line injector handoff
   lab=$(make_lab positive)
   start_primary "$lab"
   listener_start=$(listener_pid "$lab")
@@ -359,16 +357,9 @@ run_positive() {
   wait_until "$TURN_POLLS" host_log_since "$lab" "$e1" '	start	gen=' >/dev/null \
     || fail "positive: the event 1 turn end did not arm again"$'\n'"$(diagnose "$lab")"
   wait_until 300 host_live "$lab" || fail "positive: no host parked after the event 1 turn"$'\n'"$(diagnose "$lab")"
-  # The turn end's first cycle takes over the successor the pass-through left
-  # for main rather than attaching to it, and owns a fresh cycle in its place.
-  wait_until 300 taken_over "$lab" "$successor" >/dev/null \
-    || fail "positive: the next arm did not take over the pass-through's successor $successor"$'\n'"$(diagnose "$lab")"
-  line=$(taken_over "$lab" "$successor")
-  wait_until 300 watcher_live "$lab" || fail "positive: no watcher after the take-over of $successor"$'\n'"$(diagnose "$lab")"
-  owned=$(watcher_pid "$lab")
-  [ "$owned" != "$successor" ] && [ "$(ps -o ppid= -p "$owned" 2>/dev/null | tr -d ' ')" = "$(printf '%s' "$line" | cut -f1 | cut -d= -f2)" ] \
-    || fail "positive: the take-over arm does not own the fresh watcher (lock $owned): $line"$'\n'"$(diagnose "$lab")"
-  evidence "positive step 3: turn end re-armed: $(host_log_since "$lab" "$e1" '	start	gen=' | tail -n 1 | cut -f1-3); took over successor $successor: $(printf '%s' "$line" | cut -f1-8 | tr '\t' ' '); owns watcher $owned"
+  [ "$(watcher_pid "$lab")" = "$successor" ] \
+    || fail "positive: the next arm did not attach to the pass-through's successor (lock $(watcher_pid "$lab"), successor $successor)"$'\n'"$(diagnose "$lab")"
+  evidence "positive step 3: turn end re-armed: $(host_log_since "$lab" "$e1" '	start	gen=' | tail -n 1 | cut -f1-3); still following successor $successor"
 
   sleep 3
   e2=$(fire "$lab" "$lab/fm/state/demo.status" lab-e2 'pick region east or west')
@@ -376,11 +367,12 @@ run_positive() {
   wait_until "$TURN_POLLS" acked_since "$lab" "$e2" \
     || fail "positive: the idle primary was not woken for event 2"$'\n'"$(diagnose "$lab")"
   [ -n "$(rewakes_since "$lab" "$e2")" ] || fail "positive: no Stop-hook rewake reached the transcript for event 2"
-  line=$(grep -F "watcher_pid=$owned	" "$lab/fm/state/.watch-cycle-exits.log" | tail -n 1)
-  # The turn end's arm owns that cycle, so its close reads as an actionable
-  # wake of its own child.
-  case "$line" in *'	origin=started	'*'	reason=actionable-'*) ;; *) fail "positive: the arm owning watcher $owned did not deliver its close on event 2: $line" ;; esac
-  evidence "positive step 3/4: owned watcher $owned closed: $(printf '%s' "$line" | cut -f1-8 | tr '\t' ' ')"
+  line=$(grep -F "watcher_pid=$successor	" "$lab/fm/state/.watch-cycle-exits.log" | tail -n 1)
+  # The turn end's arm follows the successor rather than owning it, so its
+  # delivery of the successor's close reads attached-delivered-wake.
+  # Upstream 8690c41 (reclaim orphaned watcher arms) may record taken-over instead.
+  case "$line" in *'reason=attached-delivered-wake'*|*'reason=taken-over'*) ;; *) fail "positive: the arm following successor $successor did not deliver its close on event 2: $line" ;; esac
+  evidence "positive step 3/4: successor $successor closed: $(printf '%s' "$line" | cut -f1-8 | tr '\t' ' ')"
   evidence "positive step 3/4: its close was delivered: rewake at $(rewakes_since "$lab" "$e2" | head -n 1); host log: $(host_log_since "$lab" "$e2" '	pass-through	' | head -n 1 | cut -f1-4)"
   listener_live "$lab" || fail "positive: the stand-in remote listener lost its owner by event 2"$'\n'"$(diagnose "$lab")"
   wait_until "$TURN_POLLS" turn_idle "$lab" "$e2" || fail "positive: the event 2 turn never ended"$'\n'"$(diagnose "$lab")"
@@ -436,7 +428,7 @@ run_positive() {
   [ "$(captain_prompts "$lab")" = 1 ] || fail "positive: a captain prompt was submitted after setup"
   evidence "positive: captain prompts after setup: 0 (mirror holds only the setup prompt)"
   stop_lab "$lab"
-  pass "attended live ($CLAUDE_VERSION): an idle primary is woken for four hand-offs, a taken-over successor's owned close and a close that turned main-only at its turn included, with the listener owned throughout"
+  pass "attended live ($CLAUDE_VERSION): an idle primary is woken for four hand-offs, the successor's own close and a close that turned main-only at its turn included, with the listener owned throughout"
 }
 
 # The negative control: the same first event on the control ref's host must
