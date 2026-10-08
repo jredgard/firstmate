@@ -1,0 +1,42 @@
+== merge parents
+67e0d8f27bdb1292e127ec5e59cfae3cc984729a ee05232ada725555ac10a28e556253eb60e3f841 b062eb94c50a68dd4467fba25346a7d7b4083288
+== fork commits reachable from merge (ee05232..HEAD^1 count, first-parent history preserved)
+fork parent ee05232 is ancestor: yes
+upstream b062eb9 is ancestor: yes
+== fork-capability files diff vs fork parent (empty = byte-identical)
+bin/fm-pr-merge.sh: identical
+bin/fm-merge-authority-lib.sh: identical
+bin/fm-pr-report-compact: identical
+.agents/skills/opentofu-iac-management: identical
+.agents/skills/quiet/SKILL.md: identical
+.agents/skills/away-quiet-supervision/SKILL.md: identical
+.agents/skills/ship-landing/SKILL.md: identical
+docs/supervision-protocols/supervision-host.md: identical
+bin/fm-host-mirror.sh: identical
+== fork-capability files touched by merge (vs fork parent)
+ bin/fm-claude-stop-autoarm.sh | 16 ++++++++
+ bin/fm-contributions.sh       | 49 +++++++++++++++++++----
+ bin/fm-pr-check.sh            |  2 +
+ bin/fm-supervision-host.sh    | 86 ++++++++++++++++++++++++++++++++-------
+ bin/fm-teardown.sh            | 93 +++++++++++++++++++++----------------------
+ 5 files changed, 175 insertions(+), 71 deletions(-)
+== adopted-upstream files identical to upstream parent?
+bin/backends/herdr.sh: identical-to-upstream
+bin/fm-pending-reply-lib.sh: identical-to-upstream
+bin/fm-remote-delta-read.sh: identical-to-upstream
+bin/fm-remote-job-worker.sh: identical-to-upstream
+bin/fm-send.sh: identical-to-upstream
+bin/fm-task-inbox-lib.sh: identical-to-upstream
+bin/fm-timeout-lib.sh: identical-to-upstream
+bin/fm-wake-lib.sh: identical-to-upstream
+bin/fm-watch.sh: identical-to-upstream
+== conflict-resolution count in merge message
+78
+== OpenTofu skill tree at merge vs fork parent
+c2acb38fb605c7a77081d3e5b6205d7190cde3bc  -
+c2acb38fb605c7a77081d3e5b6205d7190cde3bc  -
+== trigger index entry
+35:- `opentofu-iac-management` - load when scoping, briefing, reviewing or diagnosing an OpenTofu or Terraform release, a destroy-and-rollout, a private Key Vault or RBAC prerequisite, or infrastructure smoke testing.
+== fork-only commits on first parent preserved
+48
+138

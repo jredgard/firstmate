@@ -1,0 +1,42 @@
+$ FM_HOME=$LAB bin/fm-brief.sh t-merge1b demo --mode no-mistakes --nm-skip lint --base-branch develop
+scaffolded: /tmp/fm-lab.D4ufqj/data/t-merge1b/brief.md (ship, mode=no-mistakes; replace {TASK} and {FIRSTMATE_SPEC})
+exit=0
+
+$ FM_HOME=$LAB bin/fm-brief.sh t2 demo --mode direct-PR --nm-skip lint --base-branch develop
+error: --nm-skip applies only to ship briefs with --mode no-mistakes
+exit=1
+
+$ FM_HOME=$LAB bin/fm-brief.sh t3 demo --mode no-mistakes --nm-skip review --base-branch develop
+error: fm-brief.sh --nm-skip: invalid no-mistakes skip 'review'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+exit=1
+
+$ FM_HOME=$LAB bin/fm-brief.sh t4 demo --mode no-mistakes --nm-skip lint --base-branch ../evil
+error: fm-brief.sh --base-branch: base branch '../evil' is not a valid git branch name
+exit=1
+
+$ FM_HOME=$LAB bin/fm-brief.sh t5 demo --scout --nm-skip lint
+error: --nm-skip applies only to ship briefs with --mode no-mistakes
+exit=1
+
+$ FM_HOME=$LAB bin/fm-brief.sh t6 demo --mode no-mistakes --nm-skip lint
+scaffolded: /tmp/fm-lab.D4ufqj/data/t6/brief.md (ship, mode=no-mistakes; replace {TASK} and {FIRSTMATE_SPEC})
+exit=0
+
+$ FM_HOME=$LAB bin/fm-brief.sh t7 demo --mode no-mistakes --base-branch release/1.2
+scaffolded: /tmp/fm-lab.D4ufqj/data/t7/brief.md (ship, mode=no-mistakes; replace {TASK} and {FIRSTMATE_SPEC})
+exit=0
+
+== t-merge1b rendered delivery lines
+17:Base branch: develop
+95:Delivery contract: mode=no-mistakes skip=lint
+101:This task's base branch is `develop`, not the repository default: pass `--base-branch develop` on every `no-mistakes axi run` that starts a run, so the pipeline rebases onto, opens its PR against, and watches CI for that branch.
+103:Pass `--skip lint` on every `no-mistakes axi run` for this task, and skip nothing else.
+125:Whenever a drive call returns without a gate or an outcome - its own wait elapsed, or it was killed or timed out - reattach at once by re-running `no-mistakes axi run` with `--skip lint`, backgrounded the same way; once checks are green it returns `checks-passed` immediately, and if it refuses because no run is active, read the finished outcome from `no-mistakes axi status`.
+== t6 rendered delivery lines
+94:Delivery contract: mode=no-mistakes skip=lint
+101:Pass `--skip lint` on every `no-mistakes axi run` for this task, and skip nothing else.
+123:Whenever a drive call returns without a gate or an outcome - its own wait elapsed, or it was killed or timed out - reattach at once by re-running `no-mistakes axi run` with `--skip lint`, backgrounded the same way; once checks are green it returns `checks-passed` immediately, and if it refuses because no run is active, read the finished outcome from `no-mistakes axi status`.
+== t7 rendered delivery lines
+17:Base branch: release/1.2
+95:Delivery contract: mode=no-mistakes
+101:This task's base branch is `release/1.2`, not the repository default: pass `--base-branch release/1.2` on every `no-mistakes axi run` that starts a run, so the pipeline rebases onto, opens its PR against, and watches CI for that branch.

@@ -1,0 +1,28 @@
+# 14:25:37 control step 1: primary idle (claude pid 2627198, 2.1.294 (Claude Code), model haiku); tracked Stop hook registered; config/supervision-host present; host pid 2642078 parked on watcher 2642372; listener runner 2642968; captain prompts so far: 1
+# 14:25:37 control transcript: /home/johannesr/.claude/projects/-tmp-fm-sh-attended-live-7pWo7g-control-fm/db648f6e-ee69-43f4-8985-7e5cd5ab6bce.jsonl
+# 14:25:37 control (022250d): event 1 appended at 1791462337
+# 14:25:37 control: host log: 1791462337	pass-through	attended	main-only
+# 14:27:07 control: after 90s no rewake and no primary command; ledger: epoch=1 owner_pid=2641713 outcome=arming updated_at=1791462336; marker: announced:handling:2642372.1791462337.1LM9zw; queued rows: 4
+ok - attended live control (2.1.294 (Claude Code)): on 022250d the idle primary is not woken, so the scenario catches the bug
+# 14:27:21 positive step 1: primary idle (claude pid 2811686, 2.1.294 (Claude Code), model haiku); tracked Stop hook registered; config/supervision-host present; host pid 2832133 parked on watcher 2832469; listener runner 2833154; captain prompts so far: 1
+# 14:27:21 positive transcript: /home/johannesr/.claude/projects/-tmp-fm-sh-attended-live-7pWo7g-positive-fm/3d5e3940-7923-469c-a359-1bec468cd1db.jsonl
+# 14:27:21 positive step 2: event 1 appended at 1791462441 (demo.status needs-decision)
+# 14:27:22 positive step 2: host log: 1791462442	pass-through	attended	main-only
+# 14:27:22 positive step 2: successor watcher pid 2837236 alive; ledger: epoch=1 owner_pid=2831749 outcome=arming updated_at=1791462441; marker: announced:downtime:2832469.1791462441.5TIMDE
+# 14:27:27 positive step 2: rewake delivered at 1791462442 (Stop hook exited 2 with the banner); ledger: epoch=1 owner_pid=2831749 outcome=rewake updated_at=1791462442 session_pid=2811686 recovery_generation=2832469.1791462441.5TIMDE
+# 14:27:27 positive step 2: primary turn ran: bin/fm-wake-drain.sh;bin/fm-wake-drain.sh --ack-through 4 --recovery-generation 2832469.1791462441.5TIMDE;
+# 14:27:29 positive step 3: turn end re-armed: 1791462449	start	gen=host-2853726-1791462449; took over successor 2837236: arm_pid=2853934 watcher_pid=2837236 origin=attached started_at=1791462449 ended_at=1791462449 exit_code=unknown signal=unknown reason=taken-over; owns watcher 2854589
+# 14:27:32 positive step 3: event 2 appended at 1791462452
+# 14:27:39 positive step 3/4: owned watcher 2854589 closed: arm_pid=2853934 watcher_pid=2854589 origin=started started_at=1791462449 ended_at=1791462453 exit_code=0 signal=none reason=actionable-signal
+# 14:27:39 positive step 3/4: its close was delivered: rewake at 1791462454; host log: 1791462454	pass-through	attended	main-only
+# 14:27:43 positive step 4: event 3 appended to the stand-in remote log at 1791462463
+# 14:27:51 positive step 4: listener mirrored it (1 ingested) and it was delivered at 1791462467; listener runner 2833154 -> 2833154, owned at every check
+# 14:27:55 positive step 5: event 4, a routine working line on task demo2, appended at 1791462475
+# 14:27:58 positive step 5: the host accepted it and confirmed its successor's handling handoff (marker announced:handling:2905502.1791462477.mgAJBy at 1791462478); a needs-decision on demo2 landed then, before the turn's start
+# 14:27:58 positive step 5: host log: 1791462478	pass-through	attended	main-only; no engine turn
+# 14:27:58 positive step 5: rewake delivered at 1791462478; ledger: epoch=4 owner_pid=2904301 outcome=rewake updated_at=1791462478 session_pid=2811686 recovery_generation=2905502.1791462477.mgAJBy
+# 14:28:03 positive step 5: primary turn ran: bin/fm-wake-drain.sh;bin/fm-wake-drain.sh --ack-through 12 --recovery-generation 2905502.1791462477.mgAJBy;
+# 14:28:04 positive step 5: turn end re-armed: 1791462484	start	gen=host-2931123-1791462484; watcher 2931418 live; listener runner 2833154 still owned
+# 14:28:04 positive: captain prompts after setup: 0 (mirror holds only the setup prompt)
+ok - attended live (2.1.294 (Claude Code)): an idle primary is woken for four hand-offs, a taken-over successor's owned close and a close that turned main-only at its turn included, with the listener owned throughout
+exit=0

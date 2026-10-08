@@ -1,0 +1,9 @@
+.agents/skills/opentofu-iac-management/SKILL.md
+.agents/skills/opentofu-iac-management/references/findings.md
+== diff fork parent ee05232 vs HEAD for OpenTofu paths
+(empty = identical)
+== parents
+67e0d8f27bdb1292e127ec5e59cfae3cc984729a ee05232ada725555ac10a28e556253eb60e3f841 b062eb94c50a68dd4467fba25346a7d7b4083288
+== product diff since round-1 merge
+ .../fm-supervision-host-attended-live-e2e.test.sh  | 35 ++++++++++++++--------
+ 1 file changed, 22 insertions(+), 13 deletions(-)
