@@ -1,0 +1,12 @@
+## Partition: union of 9 shards vs portable-serial lane
+serial lane: 214  shard rows: 214  unique: 214
+duplicates across shards: 0
+missing from shards: 0  extra in shards: 0
+
+## Lane name with wrong count is refused
+fm-test-run: lane 'portable-serial-2of8' asks for 8 portable serial shards but this runner is configured for 9 (see --list-lanes)
+exit=2
+
+## Strictly serial: --lane portable-serial-2of9 --dry list-scheduled
+tests/fm-supervision-host.test.sh
+exit=0

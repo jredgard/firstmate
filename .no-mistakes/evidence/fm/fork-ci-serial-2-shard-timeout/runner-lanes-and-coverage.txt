@@ -1,0 +1,35 @@
+$ bin/fm-test-run.sh --list-lanes
+portable-parallel-1
+portable-parallel-2
+portable-serial
+portable-serial-1of9
+portable-serial-2of9
+portable-serial-3of9
+portable-serial-4of9
+portable-serial-5of9
+portable-serial-6of9
+portable-serial-7of9
+portable-serial-8of9
+portable-serial-9of9
+real-herdr-gated
+
+$ bin/fm-test-run.sh --check-coverage
+comm: file 2 is not in sorted order
+comm: input is not in sorted order
+exit=1
+
+portable-serial-1of9: 1 scripts
+portable-serial-2of9: 1 scripts
+portable-serial-3of9: 30 scripts
+portable-serial-4of9: 30 scripts
+portable-serial-5of9: 29 scripts
+portable-serial-6of9: 30 scripts
+portable-serial-7of9: 30 scripts
+portable-serial-8of9: 32 scripts
+portable-serial-9of9: 31 scripts
+
+$ bin/fm-test-run.sh --list --lane portable-serial-2of9
+tests/fm-supervision-host.test.sh
+
+$ bin/fm-test-run.sh --list --lane portable-serial-1of9
+tests/fm-watch-triage.test.sh

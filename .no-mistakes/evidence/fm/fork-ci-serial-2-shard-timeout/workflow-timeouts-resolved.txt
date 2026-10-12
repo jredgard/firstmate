@@ -1,0 +1,17 @@
+lint -> timeout-minutes=30
+test-coverage -> timeout-minutes=5
+tests-portable-parallel-1 -> timeout-minutes=30
+tests-portable-parallel-2 -> timeout-minutes=30
+tests-portable-serial {'shard': 1} -> timeout-minutes=30
+tests-portable-serial {'shard': 2, 'timeout': 45} -> timeout-minutes=45
+tests-portable-serial {'shard': 3} -> timeout-minutes=30
+tests-portable-serial {'shard': 4} -> timeout-minutes=30
+tests-portable-serial {'shard': 5} -> timeout-minutes=30
+tests-portable-serial {'shard': 6} -> timeout-minutes=30
+tests-portable-serial {'shard': 7} -> timeout-minutes=30
+tests-portable-serial {'shard': 8} -> timeout-minutes=30
+tests-portable-serial {'shard': 9} -> timeout-minutes=30
+tests-herdr -> timeout-minutes=75
+tests-timing-aggregate -> timeout-minutes=5
+macos-stock-bash -> timeout-minutes=30
+invariants -> timeout-minutes=5

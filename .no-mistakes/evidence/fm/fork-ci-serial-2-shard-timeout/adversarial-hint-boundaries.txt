@@ -1,0 +1,32 @@
+## host hint = 1ms
+tests/fm-supervision-host.test.sh 1
+FM_TEST_COVERAGE ok total=254 parallel=24 parallel_max_ms=665545 parallel_imbalance_ms=2 parallel_unhinted=0 serial=214 serial_shards=9 serial_unhinted=12 serial_max_ms=1074843 serial_budget_ms=1200000 serial_host_ms=1 serial_host_budget_ms=2100000 herdr=16
+check-coverage exit=0
+shard 2 members: tests/fm-supervision-host.test.sh 
+shard counts: 1 1 30 30 29 30 30 32 31 
+
+## host hint = 2100000ms
+tests/fm-supervision-host.test.sh 2100000
+FM_TEST_COVERAGE ok total=254 parallel=24 parallel_max_ms=665545 parallel_imbalance_ms=2 parallel_unhinted=0 serial=214 serial_shards=9 serial_unhinted=12 serial_max_ms=1074843 serial_budget_ms=1200000 serial_host_ms=2100000 serial_host_budget_ms=2100000 herdr=16
+check-coverage exit=0
+shard 2 members: tests/fm-supervision-host.test.sh 
+shard counts: 1 1 30 30 29 30 30 32 31 
+
+## host hint = 2100001ms
+tests/fm-supervision-host.test.sh 2100001
+fm-test-run: coverage guard: dedicated supervision-host shard packs 2100001ms above the 2100000ms target
+check-coverage exit=1
+shard 2 members: tests/fm-supervision-host.test.sh 
+shard counts: 1 1 30 30 29 30 30 32 31 
+
+## host hint = 9999999ms
+tests/fm-supervision-host.test.sh 9999999
+fm-test-run: coverage guard: dedicated supervision-host shard packs 9999999ms above the 2100000ms target
+check-coverage exit=1
+shard 2 members: tests/fm-supervision-host.test.sh 
+shard counts: 1 1 30 30 29 30 30 32 31 
+
+## ordinary shard boundary: grow watch-triage hint to 1200001ms
+fm-test-run: coverage guard: largest portable serial shard packs 1200001ms above the 1200000ms target
+fm-test-run: refresh CI hints and rebalance or add shards; do not raise the job timeout: docs/fm-test-portable-shards.md
+check-coverage exit=1

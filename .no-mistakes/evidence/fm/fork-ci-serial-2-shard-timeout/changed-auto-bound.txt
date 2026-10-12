@@ -1,0 +1,68 @@
+$ bin/fm-test-run.sh --list --changed --base HEAD
+tests/fm-calm-pi-extension.test.sh
+$ FM_SPY_LOG=spy.log bin/fm-test-run.sh --changed --base HEAD
+not ok - Pi follow-up loaded-on case (loaded_on) did not reach the ready composer
+FM_TEST_END 2026-10-12T20:53:52Z tests/fm-calm-pi-extension.test.sh exit=1 duration_ms=10385 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=1 skipped_gate=0 duration_ms=10462
+FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=1 duration_ms=10385 failed=1
+exit=
+--- spy log ---
+SPY fm_run_timed bound=2310s script=/tmp/fm-test-run.lTJ7Qn/out.0
+
+$ ... --changed --per-script-timeout-secs 7 (explicit bound wins)
+exit=1
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.0
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.1
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.2
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.3
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.4
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.5
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.6
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.7
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.8
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.9
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.10
+SPY fm_run_timed bound=60s script=--_worker
+SPY fm_run_timed bound=10s script=codex-hook-layer-ship
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.11
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.12
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.13
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.14
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.15
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.16
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.17
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.18
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.19
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.20
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.21
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.22
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.23
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.24
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.25
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.26
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.27
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.28
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.29
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.30
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.31
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.32
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.33
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.34
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.35
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.36
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.37
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.38
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.39
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.40
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.41
+SPY fm_run_timed bound=30s script=status
+SPY fm_run_timed bound=30s script=status
+SPY fm_run_timed bound=30s script=--no-refresh
+SPY fm_run_timed bound=30s script=--no-refresh
+SPY fm_run_timed bound=30s script=--no-refresh
+SPY fm_run_timed bound=30s script=fm-live-ext
+SPY fm_run_timed bound=30s script=--no-refresh
+SPY fm_run_timed bound=30s script=fm-live-ext
+SPY fm_run_timed bound=7s script=/tmp/fm-test-run.CL3xan/out.42
+
+Note: the selected fixture script fm-calm-pi-extension failed its own Pi assertion on this host (unrelated to this change); the evidence of interest is the bound the runner passed to fm_run_timed: 2310s on the automatic --changed path, and the caller-supplied 7s when --per-script-timeout-secs is explicit (nested 60s/30s/10s lines are inner test helpers sourcing the same lib, not runner bounds).
