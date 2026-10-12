@@ -404,11 +404,11 @@ run_pr() {  # <id> <status> <threads-file> [policy-status] [pr-exists] [blocking
 }
 
 run_dod_pr() {
-  local nm_skip=$1 status=$2 threads=$3 flags
+  local nm_skip=$1 status=$2 threads=$3
   CONFIG="$TEST_DIR" bash -c \
     '. "$1"; fm_dod_block no-mistakes fix-1.2 fm/fix-1.2 none "$2"' \
     _ "$ROOT/bin/fm-dod-lib.sh" "$nm_skip" > "$TEST_DIR/dod.txt" || return 1
-  flags=$(python3 - "$TEST_DIR/dod.txt" "$nm_skip" <<'PY'
+  python3 - "$TEST_DIR/dod.txt" "$nm_skip" > "$TEST_DIR/dod-flags.txt" <<'PY' || return 1
 import re
 import shlex
 import sys
@@ -423,10 +423,10 @@ if sys.argv[2]:
 assert args == expected, "generated compaction command must carry the intake skip"
 print(" ".join(args[3:]))
 PY
-  ) || return 1
   local tool_flags=()
-  read -r -a tool_flags <<< "$flags"
-  (unset FM_HOME FM_TASK_ID; run_pr 111 "$status" "$threads" approved true true canonical "${tool_flags[@]}")
+  read -r -a tool_flags < "$TEST_DIR/dod-flags.txt"
+  (unset FM_HOME FM_TASK_ID; run_pr 111 "$status" "$threads" approved true true canonical \
+    "${tool_flags[@]+"${tool_flags[@]}"}")
 }
 
 # 7. A clean review posts a closed summary and normalizes a fitting body.
