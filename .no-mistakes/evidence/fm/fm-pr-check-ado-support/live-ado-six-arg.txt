@@ -1,0 +1,9 @@
+=== S12 legacy six-argument --validated invocation (docs form, no marker path) against the lab ADO endpoint
+  server=active    -> rc=0 stdout=<empty>
+  server=conflicts -> rc=0 stdout=conflicts
+  server=abandoned -> rc=0 stdout=abandoned
+  server=completed -> rc=0 stdout=merged
+  (repeat conflicts without marker -> emits again, no suppression without a marker path)
+  server=conflicts  -> stdout=conflicts
+  (8-argument form is rejected silently)
+  stdout=<empty>

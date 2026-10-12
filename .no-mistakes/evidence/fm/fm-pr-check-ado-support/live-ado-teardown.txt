@@ -1,0 +1,11 @@
+lab tmux (private socket under /tmp/fm-lab.OwC8U9/tmux): firstmate:fm-task-a
+=== S11 teardown of merged ADO task-a in the lab home
+before: task-a.meta task-a.pr-poll-last-reported task-a.pr-poll-merge-notified 
+teardown rc=0
+  out: /tmp/fm-lab.OwC8U9/wt: skipped: no origin remote
+  out: teardown task-a complete (window firstmate:fm-task-a, worktree /tmp/fm-lab.OwC8U9/missing-worktree)
+  out: Backlog: task-a just finished (this home keeps no markdown backlog at /tmp/fm-lab.OwC8U9/home/data/backlog.md). Update /tmp/fm-lab.OwC8U9/home/data/backlog.md - move task-a to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.
+  err: fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.OwC8U9/home
+(eval):11: no matches found: task-a.*
+after: 
+task-a.pr-poll-last-reported removed

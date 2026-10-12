@@ -1,0 +1,18 @@
+--- register task-b (ADO PR 43, active)
+armed: state/task-b.check.sh
+
+=== sweep: S7 same sweep: task-a PR 42 re-conflicts (sorts first) while task-b PR 43 merges   (server: 42=conflicts 43=completed)
+watcher rc=0  (124 = no wake within bound, i.e. silent)
+ADO GETs this sweep: 2
+--- watcher stdout:
+  check: /tmp/fm-lab.OwC8U9/home/state/task-a.check.sh: conflicts
+  check: /tmp/fm-lab.OwC8U9/home/state/task-b.check.sh: merged
+--- marker task-a.pr-poll-last-reported: mode=600
+https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42|conflicts|
+--- armed polls: contributions.check.sh task-a.check.sh 
+--- durable wake queue:
+  1791808200	4	check	/tmp/fm-lab.OwC8U9/home/state/task-a.check.sh	check: /tmp/fm-lab.OwC8U9/home/state/task-a.check.sh: conflicts
+  1791808201	5	check	merged-task-b-https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/43	check: merge landed: task-b https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/43 external
+(acked wakes through 5)
+
+task-b.meta still present: pr=https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/43

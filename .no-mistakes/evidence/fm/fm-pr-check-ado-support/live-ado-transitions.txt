@@ -1,0 +1,74 @@
+=== sweep: S3 PR 42 becomes conflicted   (server: 42=conflicts 43=)
+watcher rc=0  (124 = no wake within bound, i.e. silent)
+ADO GETs this sweep: 1
+--- watcher stdout:
+  check: /tmp/fm-lab.OwC8U9/home/state/task-a.check.sh: conflicts
+  
+--- marker task-a.pr-poll-last-reported: mode=600
+https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42|conflicts|
+--- armed polls: contributions.check.sh task-a.check.sh 
+--- durable wake queue:
+  1791808156	1	check	/tmp/fm-lab.OwC8U9/home/state/task-a.check.sh	check: /tmp/fm-lab.OwC8U9/home/state/task-a.check.sh: conflicts
+(acked wakes through 1)
+
+=== sweep: S4a conflict persists (watcher restart #1)   (server: 42=conflicts 43=)
+watcher rc=124  (124 = no wake within bound, i.e. silent)
+ADO GETs this sweep: 14
+--- watcher stdout:
+--- marker task-a.pr-poll-last-reported: mode=600
+https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42|conflicts|
+--- armed polls: contributions.check.sh task-a.check.sh 
+(acked wakes through 0)
+
+=== sweep: S4b conflict persists (watcher restart #2)   (server: 42=conflicts 43=)
+watcher rc=124  (124 = no wake within bound, i.e. silent)
+ADO GETs this sweep: 13
+--- watcher stdout:
+--- marker task-a.pr-poll-last-reported: mode=600
+https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42|conflicts|
+--- armed polls: contributions.check.sh task-a.check.sh 
+(acked wakes through 0)
+
+=== sweep: S5a conflict resolved -> active   (server: 42=active 43=)
+watcher rc=124  (124 = no wake within bound, i.e. silent)
+ADO GETs this sweep: 13
+--- watcher stdout:
+--- marker task-a.pr-poll-last-reported: absent
+--- armed polls: contributions.check.sh task-a.check.sh 
+(acked wakes through 0)
+
+=== sweep: S5b re-conflicted -> new transition   (server: 42=conflicts 43=)
+watcher rc=0  (124 = no wake within bound, i.e. silent)
+ADO GETs this sweep: 1
+--- watcher stdout:
+  check: /tmp/fm-lab.OwC8U9/home/state/task-a.check.sh: conflicts
+  
+--- marker task-a.pr-poll-last-reported: mode=600
+https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42|conflicts|
+--- armed polls: contributions.check.sh task-a.check.sh 
+--- durable wake queue:
+  1791808182	2	check	/tmp/fm-lab.OwC8U9/home/state/task-a.check.sh	check: /tmp/fm-lab.OwC8U9/home/state/task-a.check.sh: conflicts
+(acked wakes through 2)
+
+=== sweep: S6a PR abandoned   (server: 42=abandoned 43=)
+watcher rc=0  (124 = no wake within bound, i.e. silent)
+ADO GETs this sweep: 1
+--- watcher stdout:
+  check: /tmp/fm-lab.OwC8U9/home/state/task-a.check.sh: abandoned
+  
+--- marker task-a.pr-poll-last-reported: mode=600
+https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42|abandoned|
+--- armed polls: contributions.check.sh task-a.check.sh 
+--- durable wake queue:
+  1791808183	3	check	/tmp/fm-lab.OwC8U9/home/state/task-a.check.sh	check: /tmp/fm-lab.OwC8U9/home/state/task-a.check.sh: abandoned
+(acked wakes through 3)
+
+=== sweep: S6b abandoned persists (restart)   (server: 42=abandoned 43=)
+watcher rc=124  (124 = no wake within bound, i.e. silent)
+ADO GETs this sweep: 14
+--- watcher stdout:
+--- marker task-a.pr-poll-last-reported: mode=600
+https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42|abandoned|
+--- armed polls: contributions.check.sh task-a.check.sh 
+(acked wakes through 0)
+

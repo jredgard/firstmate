@@ -1,0 +1,7 @@
+ok - Azure DevOps registration records the head, polls completed status, and refuses drafts
+ok - Azure DevOps REST polling deduplicates conflict/abandoned transitions across watcher restarts
+ok - failed ADO wake publication retries before committing a locked transition marker
+ok - ADO conflicts and abandonment preserve later GitHub and ADO merge detection
+ok - legacy six-argument validated polling works for every provider
+ok - static poll is silent except for one merged line and remains watcher-bounded
+ok - teardown removes safe poll artifacts and refuses directory-shaped check files without traversal

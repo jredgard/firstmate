@@ -1,0 +1,26 @@
+=== sweep: S8 PR 42 completed -> one merged wake, poll retired   (server: 42=completed 43=completed)
+watcher rc=0  (124 = no wake within bound, i.e. silent)
+ADO GETs this sweep: 1
+--- watcher stdout:
+  check: /tmp/fm-lab.OwC8U9/home/state/task-a.check.sh: merged
+--- marker task-a.pr-poll-last-reported: mode=600
+https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42|conflicts|
+--- armed polls: contributions.check.sh 
+--- durable wake queue:
+  1791808301	8	check	merged-task-a-https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42	check: merge landed: task-a https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 external
+(acked wakes through 8)
+
+=== sweep: S8b next sweep after merge -> nothing re-fires   (server: 42=completed 43=completed)
+watcher rc=124  (124 = no wake within bound, i.e. silent)
+ADO GETs this sweep: 0
+--- watcher stdout:
+--- marker task-a.pr-poll-last-reported: mode=600
+https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42|conflicts|
+--- armed polls: contributions.check.sh 
+(acked wakes through 0)
+
+--- state files for task-a after merge:
+drwx------ 2 johannesr johannesr   60 12. Okt 14:29 .control-task-a.lock.owner.Kkfar4
+-rw------- 1 johannesr johannesr  250 12. Okt 14:28 task-a.meta
+-rw------- 1 johannesr johannesr   79 12. Okt 14:30 task-a.pr-poll-last-reported
+-rw------- 1 johannesr johannesr   82 12. Okt 14:31 task-a.pr-poll-merge-notified

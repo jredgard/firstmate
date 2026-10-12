@@ -1,0 +1,52 @@
+(earlier attempt with a .wake-queue.seq directory was not a valid fault in this layout - seq is a file - so it is redone here)
+=== sweep: S9 prep: conflict resolved -> active (clears marker)   (server: 42=active 43=completed)
+watcher rc=124  (124 = no wake within bound, i.e. silent)
+ADO GETs this sweep: 14
+--- watcher stdout:
+--- marker task-a.pr-poll-last-reported: absent
+--- armed polls: contributions.check.sh task-a.check.sh 
+(acked wakes through 0)
+
+(fault injected: .wake-queue.seq made read-only, so the durable wake append fails)
+=== sweep: S9a conflicted while durable wake publication fails   (server: 42=conflicts 43=completed)
+watcher rc=1  (124 = no wake within bound, i.e. silent)
+ADO GETs this sweep: 1
+--- watcher stdout:
+--- watcher stderr (tail):
+  /home/johannesr/.no-mistakes/worktrees/e0341a3b611a/01M4R06KX81W5DQJ44AFV5W8TB/bin/fm-wake-lib.sh: line 2168: /tmp/fm-lab.OwC8U9/home/state/.wake-queue.seq: Permission denied
+--- marker task-a.pr-poll-last-reported: absent
+--- armed polls: contributions.check.sh task-a.check.sh 
+
+(fault removed)
+=== sweep: S9b retry after failed delivery -> conflict must still be reported once   (server: 42=conflicts 43=completed)
+watcher rc=0  (124 = no wake within bound, i.e. silent)
+ADO GETs this sweep: 0
+--- watcher stdout:
+  check: rearm-resurface
+--- marker task-a.pr-poll-last-reported: absent
+--- armed polls: contributions.check.sh task-a.check.sh 
+(acked wakes through 0)
+
+=== sweep: S9c restart after successful delivery -> suppressed   (server: 42=conflicts 43=completed)
+watcher rc=0  (124 = no wake within bound, i.e. silent)
+ADO GETs this sweep: 1
+--- watcher stdout:
+  check: /tmp/fm-lab.OwC8U9/home/state/task-a.check.sh: conflicts
+  
+--- marker task-a.pr-poll-last-reported: mode=600
+https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42|conflicts|
+--- armed polls: contributions.check.sh task-a.check.sh 
+--- durable wake queue:
+  1791808242	7	check	/tmp/fm-lab.OwC8U9/home/state/task-a.check.sh	check: /tmp/fm-lab.OwC8U9/home/state/task-a.check.sh: conflicts
+(acked wakes through 7)
+
+NOTE: S9b's first post-failure watcher cycle woke with the watcher's own 'rearm-resurface' recovery wake (from the crashed S9a run) before reaching checks; the undelivered conflict was then re-emitted and durably queued on the following cycle (shown under the S9c heading), and only then was the marker committed.
+=== sweep: S9d restart after the conflict was delivered -> suppressed (no repeat)   (server: 42=conflicts 43=completed)
+watcher rc=124  (124 = no wake within bound, i.e. silent)
+ADO GETs this sweep: 12
+--- watcher stdout:
+--- marker task-a.pr-poll-last-reported: mode=600
+https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42|conflicts|
+--- armed polls: contributions.check.sh task-a.check.sh 
+(acked wakes through 0)
+

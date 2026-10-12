@@ -1,0 +1,29 @@
+(fault: fake ADO now returns HTTP 404 for PR 42)
+=== sweep: S10a ADO REST read fails -> silent, never 'merged', marker preserved   (server: 42= 43=completed)
+watcher rc=124  (124 = no wake within bound, i.e. silent)
+ADO GETs this sweep: 12
+--- watcher stdout:
+--- marker task-a.pr-poll-last-reported: mode=600
+https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42|conflicts|
+--- armed polls: contributions.check.sh task-a.check.sh 
+(acked wakes through 0)
+
+(fault: dev.azure.com unreachable - connection refused)
+=== sweep: S10b ADO unreachable -> silent, marker preserved   (server: 42=conflicts 43=completed)
+watcher rc=124  (124 = no wake within bound, i.e. silent)
+ADO GETs this sweep: 0
+--- watcher stdout:
+--- marker task-a.pr-poll-last-reported: mode=600
+https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42|conflicts|
+--- armed polls: contributions.check.sh task-a.check.sh 
+(acked wakes through 0)
+
+=== sweep: S10c ADO back, still conflicted -> failures did not reset suppression (no repeat)   (server: 42=conflicts 43=completed)
+watcher rc=124  (124 = no wake within bound, i.e. silent)
+ADO GETs this sweep: 11
+--- watcher stdout:
+--- marker task-a.pr-poll-last-reported: mode=600
+https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42|conflicts|
+--- armed polls: contributions.check.sh task-a.check.sh 
+(acked wakes through 0)
+
