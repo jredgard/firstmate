@@ -196,11 +196,13 @@ SH
       cmp -s "$home/legacy.json" "$home/actual.json" \
         || fail "small contribution input differs from legacy assembly bytes"
     fi
+    # Task order follows the locale's glob collation, so select by id.
     jq -e '
       .backlog.present == true and .backlog.records[0].id == "queued-1"
-      and .tasks[0].kind == "ship" and .tasks[0].merge_authority == "attended"
-      and .tasks[0].pr.url == "https://github.com/o/r/pull/1"
-      and (.tasks[0].pr.head | length) == 600
+      and (.tasks[] | select(.id == "ship-1")
+        | .kind == "ship" and .merge_authority == "attended"
+        and .pr.url == "https://github.com/o/r/pull/1"
+        and (.pr.head | length) == 600)
     ' "$home/actual.json" >/dev/null || fail "$scenario contribution ownership pair is wrong"
     [ -z "$(find "$home/tmp" -mindepth 1 -print)" ] \
       || fail "$scenario contribution input left temporary transport files"
