@@ -413,8 +413,9 @@ Never spend turns on `sleep` followed by a status check, and never background a 
 In Claude Code that `until` loop in a single Bash call is the sanctioned foreground wait: when the harness refuses a sleep-then-check command and points you at backgrounding instead, reissue the wait as the loop rather than accepting the background.
 Bound that command by what your harness lets one command run: in Pi pass the bash tool a `timeout` of at most 2700 seconds, because Pi sets none by default; in Claude Code pass the Bash tool its maximum `timeout` of 600000 ms, because its default is 2 minutes; in Codex keep waiting on a still-running command with empty `write_stdin` polls of up to 300000 ms; elsewhere pass your shell tool its largest timeout and assume at most 10 minutes.
 Give any `--wait` a duration a little under that bound.
-When the bound passes with nothing changed, run the same blocking command again, with no status check in between.
-The one exception is `respond`: it sent its answer before it began waiting, so reattach with `no-mistakes axi run --wait` instead, and never send the same `respond` again, because it would answer whichever gate parks next without you reading it.
+When the bound passes with nothing changed, repeat a non-pipeline blocking command; for a pipeline drive call, follow rule 7's run-versus-reattach guidance.
+The one exception is `respond`: it sent its answer before it began waiting, so follow rule 7 to reattach with `no-mistakes axi run --wait <duration>` instead.
+Never send the same `respond` again, because it would answer whichever gate parks next without you reading it.
 A wait your shell can watch this way needs no `paused:` line, except your own pipeline run, a long foreground command, or your own validation round, which you declare once just before its blocking hold: append `paused:` once just before its first blocking command, then stay in the command, and never append it again as you reissue that command.
 EOF
 WAIT_SECTION=${WAIT_SECTION%$'\n'}
@@ -577,15 +578,19 @@ IFS= read -r -d '' SHARED_INFRA_RULE <<'EOF' || true
 7. Never administer infrastructure that every lane shares. Two things are shared:
    - The `no-mistakes` daemon - one instance serving every lane/home, so stopping, restarting, or
      updating it kills other lanes' in-flight pipeline runs; only firstmate manages the daemon.
+     Start a new run with `no-mistakes axi run --intent` only when no active run owns your current branch.
+     Never start a second run while one owns the branch.
+     A drive call whose wait elapsed, or whose waiting process was killed or timed out, has not by itself failed the run: reattach with `no-mistakes axi run --wait <duration>` using this brief's wait style and any required per-run skip flags.
+     Reattachment waits on the existing run; it does not start another one.
+     A `respond` already sent its answer before waiting: never resend that same response to reattach, because it could answer the next gate without you reading it.
      Before you append `blocked:` about the pipeline, run `no-mistakes daemon status` and
      `no-mistakes axi status`. If the daemon socket refuses connections or is missing, append
      `blocked [at=<epoch>]: {the daemon error}` and stop even when the local run record still says running or
      fixing, because that record can be stale after the daemon exits. A run record failed with a
      daemon error is also a real block.
-     Only after ruling out socket refusal, if the run is still running or fixing, reattach and keep
-     going. A drive-call error, timeout, slow read, or generic unreachability is NOT a daemon error:
-     the daemon accepts `respond` immediately and runs the round in the background, so a killed or
-     timed-out call was only waiting for a read while the run kept working.
+     If a drive call reports an error or unreachability, check daemon health and current run state with those commands before reattaching.
+     After ruling out socket refusal, reattach if the run is running or fixing; if it is at a gate, read that gate before sending a new response; if it is finished, read its outcome.
+     A timeout, slow read, or generic unreachability alone is NOT a daemon error: the daemon accepts `respond` immediately and runs the round in the background, so a killed or timed-out waiting call can leave the run working.
    - The worktree pool your own worktree came from, and the repository every lane's worktree
      shares. Never create, remove, return, prune, move, or reassign a worktree or pool slot, and
      never write into a sibling slot's directory. Rule 2 does not cover this: removing a worktree
