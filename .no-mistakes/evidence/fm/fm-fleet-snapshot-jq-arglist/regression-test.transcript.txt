@@ -1,0 +1,14 @@
+### fixed commit (LANG=en_GB.UTF-8): bash tests/fm-fleet-snapshot-view.test.sh
+ok - contribution input preserves bytes with backlog and tasks above a small argv budget
+ok - empty fleet snapshot and view use explicit absence markers
+ok - fixture snapshot covers task rows, backlog rows, pointers, stable ordering, and emission-time event age
+... 19 ok, 0 not ok
+exit=0
+### fixed commit under LC_ALL=C
+ok - contribution input preserves bytes with backlog and tasks above a small argv budget
+... 0 not ok; exit=0
+
+### base commit d9da4de with the new test file (expected to fail)
+jq: Argument list too long (95282 bytes)
+not ok - bounded-argv contribution input changed values for backlog
+exit=1

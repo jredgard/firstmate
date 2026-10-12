@@ -1,0 +1,6 @@
+=== base: fm-contributions.sh arm --if-owned exit=0 (80 queued rows owning PR URLs)
+  output: /tmp/fm-arm-live.Mjs2BX/base/bin/fm-fleet-snapshot.sh: line 1997: /usr/bin/jq: Argument list too long
+  contributions watcher check NOT armed (state/contributions.check.sh absent)
+=== fix: fm-contributions.sh arm --if-owned exit=0 (80 queued rows owning PR URLs)
+  output: registered: state/contributions.check.sh
+  contributions watcher check ARMED: state/contributions.check.sh present, trust=yes

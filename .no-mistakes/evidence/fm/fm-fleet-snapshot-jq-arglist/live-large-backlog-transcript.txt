@@ -1,0 +1,25 @@
+jq: /usr/bin/jq (jq-1.8.2); getconf ARG_MAX=2097152
+backlog.md: 80 queued rows, 168794 bytes
+=== base: fm-fleet-snapshot.sh --contribution-input exit=0
+  stderr: /tmp/fm-argv-live.8zvkDj/base/bin/fm-fleet-snapshot.sh: line 1997: /usr/bin/jq: Argument list too long
+  leftover temp entries under TMPDIR: 0
+=== fix: fm-fleet-snapshot.sh --contribution-input exit=0
+  stdout: backlog.present=true backlog.records=80 backlog_json_bytes=243770 tasks=3 task_ids=ship-1,ship-2,ship-3
+  leftover temp entries under TMPDIR: 0
+=== fix: fm-fleet-snapshot.sh --json exit=0
+  stdout: backlog.records=80 tasks=3 contributions.known=83
+  leftover temp entries under TMPDIR: 0
+=== base: --contribution-input | fm-contributions.sh snapshot
+  /tmp/fm-argv-live.8zvkDj/base/bin/fm-fleet-snapshot.sh: line 1997: /usr/bin/jq: Argument list too long
+  {
+    "known": 0,
+    "checked": 0,
+    "counts": {
+      "captain": 0,
+=== fix: --contribution-input | fm-contributions.sh snapshot
+  {
+    "known": 83,
+    "checked": 0,
+    "counts": {
+      "captain": 0,
+      "fleet": 83,

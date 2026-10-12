@@ -1,0 +1,22 @@
+kernel ARG_MAX=2097152; MAX_ARG_STRLEN (single arg) = 131072
+queued rows in backlog.md: 60
+=== S1 base commit d9da4de (before fix)
+--- base: exit=0
+    stderr: /tmp/fm-lab.afzEpv/base/bin/fm-fleet-snapshot.sh: line 1997: /usr/bin/jq: Argument list too long
+    leftover transport entries in TMPDIR: 0
+=== S2 fixed commit (worktree HEAD)
+--- fixed: exit=0
+    output bytes=202836 backlog JSON bytes=202472 backlog.present=true records=60 first=mosaiq-item-1 last=mosaiq-item-60 tasks=3
+    leftover transport entries in TMPDIR: 0
+=== S3 consumer: fm-contributions.sh poll on the same home (fixed)
+--- poll exit=0
+contributions: observation unavailable for https://github.com/o/r/pull/2
+
+=== S3b consumer poll on base commit
+--- base poll exit=0
+
+    stderr: /tmp/fm-lab.afzEpv/base/bin/fm-fleet-snapshot.sh: line 1997: /usr/bin/jq: Argument list too long
+=== S4 full snapshot --json (fixed) with same large backlog
+--- full exit=0
+    top-level keys=backlog,contributions,fm_home,generated,main_inventory,roots,schema,scout_reports,secondmate_current,secondmate_guidance,secondmate_landed,tasks backlog records=60 contributions present=true
+    leftover transport entries in TMPDIR: 0
