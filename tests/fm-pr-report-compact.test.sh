@@ -7,7 +7,6 @@ TOOL="$ROOT/bin/fm-pr-report-compact"
 failures=0
 TEST_DIR=$(mktemp -d)
 trap 'rm -rf "$TEST_DIR"' EXIT
-export FM_HOME="$TEST_DIR/fm-home" FM_TASK_ID=compact-test
 
 fail() { echo "FAIL: $1" >&2; failures=$((failures + 1)); }
 
@@ -117,38 +116,9 @@ if printf '%s' "$failed_lint" | "$TOOL" --stdin --nm-skip lint \
   fail "lint registration must not grant a failed lint step"
 fi
 
-# Workers resolve intake posture from their own recorded task metadata.
-mkdir -p "$FM_HOME/state"
-printf 'nm_skip=lint\n' > "$FM_HOME/state/$FM_TASK_ID.meta"
-metadata_out=$(printf '%s' "$skipped_body" | "$TOOL" --stdin) || \
-  fail "recorded task skip must be accepted without caller flags"
-printf '%s' "$metadata_out" | grep -qFx -- '- ⏭️ lint - skipped (registered)' || \
-  fail "metadata skip must render as registered"
-explicit_out=$(printf '%s' "$skipped_body" | "$TOOL" --stdin \
-  --task-meta "$FM_HOME/state/$FM_TASK_ID.meta") || \
-  fail "explicit task metadata must grant the recorded skip"
-[ "$explicit_out" = "$metadata_out" ] || fail "explicit and worker metadata must agree"
-printf 'nm_skip=\n' > "$FM_HOME/state/$FM_TASK_ID.meta"
-if printf '%s' "$skipped_body" | "$TOOL" --stdin \
-    > "$TEST_DIR/empty-skip.stdout" 2> "$TEST_DIR/empty-skip.stderr"; then
-  fail "empty recorded posture must not grant a skipped step"
-fi
-printf 'nm_skip=lint\n' > "$FM_HOME/state/$FM_TASK_ID.meta"
 if printf '%s' "$skipped_body" | "$TOOL" --stdin --nm-skip '' \
-    > "$TEST_DIR/override.stdout" 2> "$TEST_DIR/override.stderr"; then
-  fail "explicit empty posture must override recorded skips"
-fi
-printf 'nm_skip=lint\nnm_skip=\n' > "$FM_HOME/state/$FM_TASK_ID.meta"
-if printf '%s' "$skipped_body" | "$TOOL" --stdin \
-    > "$TEST_DIR/duplicate.stdout" 2> "$TEST_DIR/duplicate.stderr"; then
-  fail "ambiguous duplicate skip fields must fail closed"
-fi
-grep -qF 'duplicate nm_skip' "$TEST_DIR/duplicate.stderr" || \
-  fail "duplicate field refusal must name the invalid metadata"
-rm "$FM_HOME/state/$FM_TASK_ID.meta"
-if printf '%s' "$skipped_body" | "$TOOL" --stdin --task-meta "$TEST_DIR/missing.meta" \
-    > "$TEST_DIR/missing-meta.stdout" 2> "$TEST_DIR/missing-meta.stderr"; then
-  fail "missing explicitly selected metadata must fail closed"
+    > "$TEST_DIR/empty-skip.stdout" 2> "$TEST_DIR/empty-skip.stderr"; then
+  fail "explicit empty posture must not grant a skipped step"
 fi
 if printf '%s' "$skipped_body" | "$TOOL" --stdin --nm-skip 'lint-extra' \
     > "$TEST_DIR/partial.stdout" 2> "$TEST_DIR/partial.stderr"; then
@@ -442,10 +412,10 @@ grep -qF "$ATTESTATION" "$AZ_UPDATE_BODY" || \
 
 # ADO-backed normalization accepts the recorded skip but refuses one without it.
 printf '%s' "$skipped_body" > "$AZ_DESCRIPTION_FILE"
-printf 'nm_skip=lint\n' > "$FM_HOME/state/$FM_TASK_ID.meta"
 : > "$AZ_TRACE"
 : > "$AZ_UPDATE_BODY"
-run_pr 111 active "$SAME_ROUND_THREADS" >/dev/null || \
+run_pr 111 active "$SAME_ROUND_THREADS" approved true true canonical --nm-skip lint \
+    >/dev/null || \
   fail "ADO normalization must accept the registered lint skip"
 grep -qFx -- '- ⏭️ lint - skipped (registered)' "$AZ_UPDATE_BODY" || \
   fail "ADO description update must render the registered skip"
@@ -453,7 +423,6 @@ grep -qF "$skipped_attestation" "$AZ_UPDATE_BODY" || \
   fail "ADO description update must preserve the skipped attestation"
 grep -qFx -- '- ✅ ci - passed' "$AZ_UPDATE_BODY" || \
   fail "registered lint skip must retain verified CI reporting"
-rm "$FM_HOME/state/$FM_TASK_ID.meta"
 : > "$AZ_TRACE"
 : > "$AZ_UPDATE_BODY"
 if run_pr 111 active "$SAME_ROUND_THREADS" \
@@ -465,10 +434,6 @@ grep -qF 'attested step lint is skipped' "$TEST_DIR/ado-unregistered.stderr" || 
 if grep -q '^repos pr update' "$AZ_TRACE" || [ -s "$AZ_UPDATE_BODY" ]; then
   fail "unregistered ADO skip must not write the description"
 fi
-run_pr 111 active "$SAME_ROUND_THREADS" approved true true canonical --nm-skip lint \
-    >/dev/null || fail "ADO caller's explicit skip value must be accepted"
-grep -qFx -- '- ⏭️ lint - skipped (registered)' "$AZ_UPDATE_BODY" || \
-  fail "explicit ADO skip must render as registered"
 : > "$AZ_TRACE"
 : > "$AZ_UPDATE_BODY"
 if run_pr 111 active "$SAME_ROUND_THREADS" queued true true canonical \

@@ -37,13 +37,10 @@ the current round.
 Usage:
   fm-pr-report-compact <org-url> <pr-id>            # normalize in place via az
   fm-pr-report-compact --stdin < body > normalized  # pure CI-green test filter
-  Either form accepts --nm-skip <steps> or --task-meta <state/task.meta>.
+  Either form accepts --nm-skip <steps>.
 
 --nm-skip supplies the caller's intake-resolved comma-separated skip value,
-including an empty value for no skips. Otherwise --task-meta reads nm_skip
-from that task record, or FM_HOME/state/FM_TASK_ID.meta is used when both
-environment variables are set. Missing implicit metadata grants no skips;
-an unreadable explicit record or duplicate nm_skip fields refuse the update.
+including an empty value for no skips. Omitting it grants no skips.
 Only an exact attested step name in that value grants a skipped status.
 PR and CI still require verification regardless of the registered skip value.
 
@@ -570,44 +567,12 @@ def verify_build_policy(org: str, pr_id: str) -> None:
         )
 
 
-def registered_skips(nm_skip: "str | None", task_meta: "str | None") -> set:
-    """Read the caller's intake posture, never infer it from the attestation."""
-    if nm_skip is not None:
-        return set(nm_skip.split(",")) - {""}
-    explicit = task_meta is not None
-    if not explicit:
-        home = os.environ.get("FM_HOME")
-        task = os.environ.get("FM_TASK_ID")
-        if not home or not task:
-            return set()
-        if not re.fullmatch(r"[A-Za-z0-9_-]+", task):
-            raise SystemExit("error: invalid FM_TASK_ID; description not updated")
-        task_meta = os.path.join(home, "state", f"{task}.meta")
-    try:
-        with open(task_meta, encoding="utf-8") as stream:
-            values = [
-                line.rstrip("\r\n").split("=", 1)[1]
-                for line in stream if line.startswith("nm_skip=")
-            ]
-    except FileNotFoundError as exc:
-        if not explicit:
-            return set()
-        raise SystemExit(f"error: task metadata could not be read: {exc}") from exc
-    except (OSError, UnicodeError) as exc:
-        raise SystemExit(f"error: task metadata could not be read: {exc}") from exc
-    if len(values) > 1:
-        raise SystemExit("error: duplicate nm_skip in task metadata; description not updated")
-    return set(values[0].split(",")) - {""} if values else set()
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--stdin", action="store_true")
-    posture = parser.add_mutually_exclusive_group()
-    posture.add_argument("--nm-skip")
-    posture.add_argument("--task-meta")
+    parser.add_argument("--nm-skip")
     parser.add_argument("org", nargs="?")
     parser.add_argument("pr_id", nargs="?")
     args = parser.parse_args()
@@ -616,7 +581,7 @@ def main() -> int:
     ):
         print(__doc__, file=sys.stderr)
         return 2
-    skips = registered_skips(args.nm_skip, args.task_meta)
+    skips = set((args.nm_skip or "").split(",")) - {""}
 
     if args.stdin:
         body = compact(sys.stdin.read(), registered_skips=skips)
