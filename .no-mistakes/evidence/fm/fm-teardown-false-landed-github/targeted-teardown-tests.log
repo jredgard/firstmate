@@ -1,0 +1,13 @@
+ok - a missing teardown startup source refuses before cleanup
+ok - an unreadable teardown startup source refuses before cleanup
+ok - a missing adapter sibling refuses before cleanup
+ok - a forced descendant with a missing adapter sibling refuses before cleanup
+ok - a forced secondmate with a missing own adapter sibling refuses before child cleanup
+ok - present required sources still reach the ordinary teardown refusal
+ok - recorded GitHub PR requires merged-at-head readback before cleanup, including missing-copy and legacy records
+ok - GitHub merge containment uses bounded local evidence and preserves tasks when evidence is unavailable
+ok - pushed Azure DevOps work is retained until its PR is completed at the recorded head
+warning: GitHub pull request https://github.com/example/repo/pull/7 has no recorded pr_head; accepting the merged flag without recorded-head verification.
+ok - teardown closes its own backlog item before reporting success
+warning: GitHub pull request https://github.com/example/repo/pull/7 has no recorded pr_head; accepting the merged flag without recorded-head verification.
+ok - teardown honors config/backlog-backend=manual and still finishes cleanly

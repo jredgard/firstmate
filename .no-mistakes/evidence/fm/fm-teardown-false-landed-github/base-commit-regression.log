@@ -1,0 +1,3 @@
+ok - a forced secondmate with a missing own adapter sibling refuses before child cleanup
+ok - present required sources still reach the ordinary teardown refusal
+not ok - open GitHub PR teardown: expected exit 1, got 0

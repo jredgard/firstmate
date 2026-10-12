@@ -1,0 +1,201 @@
+# Live lab transcript: bin/fm-teardown.sh recorded-GitHub-PR landed gate
+# Date: 2026-10-12. Lab FM_HOME=/tmp/fm-lab.dUZ6pY (fm-lab-home.sh marked), private tmux socket under $LAB/tmux.
+# Real: fm-teardown.sh, gh-axi -> live api.github.com, git, tasks-axi backlog, tmux windows.
+# Lab stubs only: no-mistakes (reports no run; keeps real daemon untouched), treehouse (git worktree remove).
+# 'base' = fm-teardown.sh at 05cf55d (pre-change); 'new' = 6c5b68f.
+# Live PR states at run time: kunchenguid/firstmate#7155 open; #7144 closed unmerged;
+#   jredgard/firstmate#32 and #14 merged (squash); sharkdp/fd#2150 merged with 2-parent merge commit b010841.
+
+## 1. Bug reproduction on base script
+================================================================
+CASE base-open  script=base  pr=https://github.com/kunchenguid/firstmate/pull/7155  pr_head=8c24451642953372d7524d71e7303c4e3d99814b  wt@05cf55d0 args=
+$ FM_HOME=/tmp/fm-lab.dUZ6pY base/bin/fm-teardown.sh base-open 
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.dUZ6pY
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | ●  WATCHER DOWN - SUPERVISION IS OFF
+  | ●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+  | ●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+  | ●  This is a supervision warning only; the guarded operation WILL still run.
+  | ●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | firstmate: already current
+  | teardown base-open complete (window firstmate:fm-base-open, worktree /tmp/fm-lab.dUZ6pY/wt-base-open)
+  | Backlog: base-open is closed in /tmp/fm-lab.dUZ6pY/data/backlog.md. Run bin/fm-tasks-axi.sh ready for dependency-cleared candidates, check date gates, and dispatch only work whose blockers are gone and date is due.
+  exit=0
+  task record:   removed
+  worktree:      removed
+  backlog state: done
+  tmux window:   killed
+  git fetch during teardown: 1
+
+## 2. Fixed script: open / closed / absent worktree / merged-at-head / legacy
+================================================================
+CASE open-pushed  script=new  pr=https://github.com/kunchenguid/firstmate/pull/7155  pr_head=8c24451642953372d7524d71e7303c4e3d99814b  wt@05cf55d0 args=
+$ FM_HOME=/tmp/fm-lab.dUZ6pY 01M4RCED3X20JRD3H1JRSBEWHA/bin/fm-teardown.sh open-pushed 
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.dUZ6pY
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | ●  WATCHER DOWN - SUPERVISION IS OFF
+  | ●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+  | ●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+  | ●  This is a supervision warning only; the guarded operation WILL still run.
+  | ●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | REFUSED: GitHub pull request https://github.com/kunchenguid/firstmate/pull/7155 is not verifiably merged at the recorded head (state=open); preserving task and worktree.
+  exit=1
+  task record:   PRESERVED
+  worktree:      PRESERVED
+  backlog state: in_flight
+  tmux window:   ALIVE
+  git fetch during teardown: 0
+
+================================================================
+CASE closed-unmerged  script=new  pr=https://github.com/kunchenguid/firstmate/pull/7144  pr_head=a2d0694e34923f9f3acd3911136afc7c5563f3c3  wt@05cf55d0 args=
+$ FM_HOME=/tmp/fm-lab.dUZ6pY 01M4RCED3X20JRD3H1JRSBEWHA/bin/fm-teardown.sh closed-unmerged 
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.dUZ6pY
+  | REFUSED: GitHub pull request https://github.com/kunchenguid/firstmate/pull/7144 is not verifiably merged at the recorded head (state=closed); preserving task and worktree.
+  exit=1
+  task record:   PRESERVED
+  worktree:      PRESERVED
+  backlog state: in_flight
+  tmux window:   ALIVE
+  git fetch during teardown: 0
+
+================================================================
+CASE open-absent-wt  script=new  pr=https://github.com/kunchenguid/firstmate/pull/7155  pr_head=8c24451642953372d7524d71e7303c4e3d99814b  wt@05cf55d0 (worktree pre-removed) args=
+$ FM_HOME=/tmp/fm-lab.dUZ6pY 01M4RCED3X20JRD3H1JRSBEWHA/bin/fm-teardown.sh open-absent-wt 
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.dUZ6pY
+  | REFUSED: GitHub pull request https://github.com/kunchenguid/firstmate/pull/7155 is not verifiably merged at the recorded head (state=open); preserving task and worktree.
+  exit=1
+  task record:   PRESERVED
+  worktree:      removed
+  backlog state: in_flight
+  tmux window:   ALIVE
+  git fetch during teardown: 0
+
+================================================================
+CASE merged-at-head  script=new  pr=https://github.com/jredgard/firstmate/pull/32  pr_head=d6d5a1fb7ae7bb63c020189a85ed2561a53c400a  wt@05cf55d0 args=
+$ FM_HOME=/tmp/fm-lab.dUZ6pY 01M4RCED3X20JRD3H1JRSBEWHA/bin/fm-teardown.sh merged-at-head 
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.dUZ6pY
+  | firstmate: already current
+  | teardown merged-at-head complete (window firstmate:fm-merged-at-head, worktree /tmp/fm-lab.dUZ6pY/wt-merged-at-head)
+  | Backlog: merged-at-head is closed in /tmp/fm-lab.dUZ6pY/data/backlog.md. Run bin/fm-tasks-axi.sh ready for dependency-cleared candidates, check date gates, and dispatch only work whose blockers are gone and date is due.
+  exit=0
+  task record:   removed
+  worktree:      removed
+  backlog state: done
+  tmux window:   killed
+  git fetch during teardown: 1
+================================================================
+CASE merged-legacy-nohead  script=new  pr=https://github.com/jredgard/firstmate/pull/14  pr_head=-  wt@05cf55d0 args=
+$ FM_HOME=/tmp/fm-lab.dUZ6pY 01M4RCED3X20JRD3H1JRSBEWHA/bin/fm-teardown.sh merged-legacy-nohead 
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.dUZ6pY
+  | warning: GitHub pull request https://github.com/jredgard/firstmate/pull/14 has no recorded pr_head; accepting the merged flag without recorded-head verification.
+  | firstmate: already current
+  | teardown merged-legacy-nohead complete (window firstmate:fm-merged-legacy-nohead, worktree /tmp/fm-lab.dUZ6pY/wt-merged-legacy-nohead)
+  | Backlog: merged-legacy-nohead is closed in /tmp/fm-lab.dUZ6pY/data/backlog.md. Run bin/fm-tasks-axi.sh ready for dependency-cleared candidates, check date gates, and dispatch only work whose blockers are gone and date is due.
+  exit=0
+  task record:   removed
+  worktree:      removed
+  backlog state: done
+  tmux window:   killed
+  git fetch during teardown: 1
+
+## 3. Fixed script: containment refusals, squash stale head, --force override
+## (case fd-merge-contains used a mistyped pr_head SHA absent from the object DB -> correctly fail-closed; rerun in section 4)
+================================================================
+CASE fd-merge-contains  script=new  pr=https://github.com/sharkdp/fd/pull/2150  pr_head=9fe5cb7d9ad8ae67fde7e0b55950ad3b6d77d63c  wt@14dcd92 args=
+$ FM_HOME=/tmp/fm-lab.dUZ6pY 01M4RCED3X20JRD3H1JRSBEWHA/bin/fm-teardown.sh fd-merge-contains 
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.dUZ6pY
+  | REFUSED: GitHub pull request https://github.com/sharkdp/fd/pull/2150 is not verifiably merged at the recorded head (state=merged); preserving task and worktree.
+  exit=1
+  task record:   PRESERVED
+  worktree:      PRESERVED
+  backlog state: in_flight
+  tmux window:   ALIVE
+  git fetch during teardown: 0
+
+  git-trace: git -C /tmp/fm-lab.dUZ6pY/wt-fd-merge-contains merge-base --is-ancestor 9fe5cb7d9ad8ae67fde7e0b55950ad3b6d77d63c b010841c6d2ecb37cb6cd9125de25b465a48eab4
+================================================================
+CASE fd-merge-not-contained  script=new  pr=https://github.com/sharkdp/fd/pull/2150  pr_head=c71afdf0c5eb19b3ee9462a5c25b07a0c71f3317  wt@14dcd92 args=
+$ FM_HOME=/tmp/fm-lab.dUZ6pY 01M4RCED3X20JRD3H1JRSBEWHA/bin/fm-teardown.sh fd-merge-not-contained 
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.dUZ6pY
+  | REFUSED: GitHub pull request https://github.com/sharkdp/fd/pull/2150 is not verifiably merged at the recorded head (state=merged); preserving task and worktree.
+  exit=1
+  task record:   PRESERVED
+  worktree:      PRESERVED
+  backlog state: in_flight
+  tmux window:   ALIVE
+  git fetch during teardown: 0
+
+  git-trace: git -C /tmp/fm-lab.dUZ6pY/wt-fd-merge-not-contained merge-base --is-ancestor c71afdf0c5eb19b3ee9462a5c25b07a0c71f3317 b010841c6d2ecb37cb6cd9125de25b465a48eab4
+================================================================
+CASE fd-merge-unknown-head  script=new  pr=https://github.com/sharkdp/fd/pull/2150  pr_head=0123456789abcdef0123456789abcdef01234567  wt@14dcd92 args=
+$ FM_HOME=/tmp/fm-lab.dUZ6pY 01M4RCED3X20JRD3H1JRSBEWHA/bin/fm-teardown.sh fd-merge-unknown-head 
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.dUZ6pY
+  | REFUSED: GitHub pull request https://github.com/sharkdp/fd/pull/2150 is not verifiably merged at the recorded head (state=merged); preserving task and worktree.
+  exit=1
+  task record:   PRESERVED
+  worktree:      PRESERVED
+  backlog state: in_flight
+  tmux window:   ALIVE
+  git fetch during teardown: 0
+
+  git-trace: git -C /tmp/fm-lab.dUZ6pY/wt-fd-merge-unknown-head merge-base --is-ancestor 0123456789abcdef0123456789abcdef01234567 b010841c6d2ecb37cb6cd9125de25b465a48eab4
+================================================================
+CASE squash-stale-head  script=new  pr=https://github.com/jredgard/firstmate/pull/32  pr_head=d6e5a92cda31df6b61428351365e5699a80ee8b6  wt@05cf55d0 args=
+$ FM_HOME=/tmp/fm-lab.dUZ6pY 01M4RCED3X20JRD3H1JRSBEWHA/bin/fm-teardown.sh squash-stale-head 
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.dUZ6pY
+  | REFUSED: GitHub pull request https://github.com/jredgard/firstmate/pull/32 is not verifiably merged at the recorded head (state=merged); preserving task and worktree.
+  exit=1
+  task record:   PRESERVED
+  worktree:      PRESERVED
+  backlog state: in_flight
+  tmux window:   ALIVE
+  git fetch during teardown: 0
+
+  git-trace: git -C /tmp/fm-lab.dUZ6pY/wt-squash-stale-head merge-base --is-ancestor d6e5a92cda31df6b61428351365e5699a80ee8b6 05cf55d00f175b7d65a29fde19ab73ecf1ffa067
+================================================================
+CASE open-force  script=new  pr=https://github.com/kunchenguid/firstmate/pull/7155  pr_head=8c24451642953372d7524d71e7303c4e3d99814b  wt@05cf55d0 args=--force
+$ FM_HOME=/tmp/fm-lab.dUZ6pY 01M4RCED3X20JRD3H1JRSBEWHA/bin/fm-teardown.sh open-force --force
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.dUZ6pY
+  | firstmate: already current
+  | teardown open-force complete (window firstmate:fm-open-force, worktree /tmp/fm-lab.dUZ6pY/wt-open-force)
+  | Backlog: open-force is closed in /tmp/fm-lab.dUZ6pY/data/backlog.md. Run bin/fm-tasks-axi.sh ready for dependency-cleared candidates, check date gates, and dispatch only work whose blockers are gone and date is due.
+  exit=0
+  task record:   removed
+  worktree:      removed
+  backlog state: done
+  tmux window:   killed
+  git fetch during teardown: 1
+
+## 4. Fixed script: merge commit contains stale recorded pr_head (owned worktree and absent worktree)
+================================================================
+CASE fd-merge-contains2  script=new  pr=https://github.com/sharkdp/fd/pull/2150  pr_head=9fe5cb7860163d6ed8889d014d8e00aab7e05bd5  wt@14dcd92 args=
+$ FM_HOME=/tmp/fm-lab.dUZ6pY 01M4RCED3X20JRD3H1JRSBEWHA/bin/fm-teardown.sh fd-merge-contains2 
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.dUZ6pY
+  | fd: already current
+  | teardown fd-merge-contains2 complete (window firstmate:fm-fd-merge-contains2, worktree /tmp/fm-lab.dUZ6pY/wt-fd-merge-contains2)
+  | Backlog: fd-merge-contains2 is closed in /tmp/fm-lab.dUZ6pY/data/backlog.md. Run bin/fm-tasks-axi.sh ready for dependency-cleared candidates, check date gates, and dispatch only work whose blockers are gone and date is due.
+  exit=0
+  task record:   removed
+  worktree:      removed
+  backlog state: done
+  tmux window:   killed
+  git fetch during teardown: 1
+  git-trace: git -C /tmp/fm-lab.dUZ6pY/wt-fd-merge-contains2 merge-base --is-ancestor 9fe5cb7860163d6ed8889d014d8e00aab7e05bd5 b010841c6d2ecb37cb6cd9125de25b465a48eab4
+  git-trace: git -C /tmp/fm-lab.dUZ6pY/projects/fd fetch origin --prune --quiet
+================================================================
+CASE fd-merge-contains-absent  script=new  pr=https://github.com/sharkdp/fd/pull/2150  pr_head=9fe5cb7860163d6ed8889d014d8e00aab7e05bd5  wt@14dcd92 (worktree pre-removed) args=
+$ FM_HOME=/tmp/fm-lab.dUZ6pY 01M4RCED3X20JRD3H1JRSBEWHA/bin/fm-teardown.sh fd-merge-contains-absent 
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.dUZ6pY
+  | fd: already current
+  | teardown fd-merge-contains-absent complete (window firstmate:fm-fd-merge-contains-absent, worktree /tmp/fm-lab.dUZ6pY/wt-fd-merge-contains-absent)
+  | Backlog: fd-merge-contains-absent is closed in /tmp/fm-lab.dUZ6pY/data/backlog.md. Run bin/fm-tasks-axi.sh ready for dependency-cleared candidates, check date gates, and dispatch only work whose blockers are gone and date is due.
+  exit=0
+  task record:   removed
+  worktree:      removed
+  backlog state: done
+  tmux window:   killed
+  git fetch during teardown: 1
+  git-trace: git -C /tmp/fm-lab.dUZ6pY/projects/fd merge-base --is-ancestor 9fe5cb7860163d6ed8889d014d8e00aab7e05bd5 b010841c6d2ecb37cb6cd9125de25b465a48eab4
+  git-trace: git -C /tmp/fm-lab.dUZ6pY/projects/fd fetch origin --prune --quiet

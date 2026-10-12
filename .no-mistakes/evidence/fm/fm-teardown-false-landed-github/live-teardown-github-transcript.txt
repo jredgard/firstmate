@@ -1,0 +1,150 @@
+=================== scenario: open-pr
+pr=https://github.com/kunchenguid/firstmate/pull/7155 pr_head=8c24451642953372d7524d71e7303c4e3d99814b worktree=present wt_head=05cf55d0
+$ FM_HOME=$LAB bin/fm-teardown.sh task-x1 
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fmtd-live/base.WiQt/lab-open-pr
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | ●  WATCHER DOWN - SUPERVISION IS OFF
+  | ●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+  | ●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+  | ●  This is a supervision warning only; the guarded operation WILL still run.
+  | ●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | REFUSED: GitHub pull request https://github.com/kunchenguid/firstmate/pull/7155 is not verifiably merged at the recorded head (state=open); preserving task and worktree.
+exit=1
+task meta: RETAINED
+backlog state: in_flight
+worktree dir: present
+=================== scenario: closed-unmerged-pr
+pr=https://github.com/kunchenguid/firstmate/pull/7144 pr_head=a2d0694e34923f9f3acd3911136afc7c5563f3c3 worktree=present wt_head=05cf55d0
+$ FM_HOME=$LAB bin/fm-teardown.sh task-x1 
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fmtd-live/base.WiQt/lab-closed-unmerged-pr
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | ●  WATCHER DOWN - SUPERVISION IS OFF
+  | ●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+  | ●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+  | ●  This is a supervision warning only; the guarded operation WILL still run.
+  | ●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | REFUSED: GitHub pull request https://github.com/kunchenguid/firstmate/pull/7144 is not verifiably merged at the recorded head (state=closed); preserving task and worktree.
+exit=1
+task meta: RETAINED
+backlog state: in_flight
+worktree dir: present
+=================== scenario: open-pr-absent-wt
+pr=https://github.com/kunchenguid/firstmate/pull/7155 pr_head=8c24451642953372d7524d71e7303c4e3d99814b worktree=absent wt_head=05cf55d0
+$ FM_HOME=$LAB bin/fm-teardown.sh task-x1 
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fmtd-live/base.WiQt/lab-open-pr-absent-wt
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | ●  WATCHER DOWN - SUPERVISION IS OFF
+  | ●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+  | ●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+  | ●  This is a supervision warning only; the guarded operation WILL still run.
+  | ●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | REFUSED: GitHub pull request https://github.com/kunchenguid/firstmate/pull/7155 is not verifiably merged at the recorded head (state=open); preserving task and worktree.
+exit=1
+task meta: RETAINED
+backlog state: in_flight
+=================== scenario: open-pr-legacy-no-head
+pr=https://github.com/kunchenguid/firstmate/pull/7155 pr_head=none worktree=present wt_head=05cf55d0
+$ FM_HOME=$LAB bin/fm-teardown.sh task-x1 
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fmtd-live/base.WiQt/lab-open-pr-legacy-no-head
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | ●  WATCHER DOWN - SUPERVISION IS OFF
+  | ●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+  | ●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+  | ●  This is a supervision warning only; the guarded operation WILL still run.
+  | ●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | REFUSED: GitHub pull request https://github.com/kunchenguid/firstmate/pull/7155 is not verifiably merged at the recorded head (state=open); preserving task and worktree.
+exit=1
+task meta: RETAINED
+backlog state: in_flight
+worktree dir: present
+=================== scenario: merged-pr32-exact-head
+pr=https://github.com/jredgard/firstmate/pull/32 pr_head=d6d5a1fb7ae7bb63c020189a85ed2561a53c400a worktree=present wt_head=05cf55d0
+$ FM_HOME=$LAB bin/fm-teardown.sh task-x1 
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fmtd-live/base.WiQt/lab-merged-pr32-exact-head
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | ●  WATCHER DOWN - SUPERVISION IS OFF
+  | ●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+  | ●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+  | ●  This is a supervision warning only; the guarded operation WILL still run.
+  | ●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | firstmate: already current
+  | teardown task-x1 complete (window firstmate:fm-task-x1, worktree /tmp/fmtd-live/base.WiQt/lab-merged-pr32-exact-head/wt)
+  | Backlog: task-x1 is closed in /tmp/fmtd-live/base.WiQt/lab-merged-pr32-exact-head/data/backlog.md. Run bin/fm-tasks-axi.sh ready for dependency-cleared candidates, check date gates, and dispatch only work whose blockers are gone and date is due.
+exit=0
+task meta: REMOVED
+backlog state: done
+worktree dir: present
+=================== scenario: merged-pr32-stale-head-contained
+pr=https://github.com/jredgard/firstmate/pull/32 pr_head=d6e5a92cda31df6b61428351365e5699a80ee8b6 worktree=present wt_head=05cf55d0
+$ FM_HOME=$LAB bin/fm-teardown.sh task-x1 
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fmtd-live/base.WiQt/lab-merged-pr32-stale-head-contained
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | ●  WATCHER DOWN - SUPERVISION IS OFF
+  | ●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+  | ●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+  | ●  This is a supervision warning only; the guarded operation WILL still run.
+  | ●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | REFUSED: GitHub pull request https://github.com/jredgard/firstmate/pull/32 is not verifiably merged at the recorded head (state=merged); preserving task and worktree.
+exit=1
+task meta: RETAINED
+backlog state: in_flight
+worktree dir: present
+=================== scenario: merged-pr32-head-not-contained
+pr=https://github.com/jredgard/firstmate/pull/32 pr_head=2b22d0a942f8d3c23b8e805a7f52f708d608c869 worktree=present wt_head=05cf55d0
+$ FM_HOME=$LAB bin/fm-teardown.sh task-x1 
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fmtd-live/base.WiQt/lab-merged-pr32-head-not-contained
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | ●  WATCHER DOWN - SUPERVISION IS OFF
+  | ●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+  | ●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+  | ●  This is a supervision warning only; the guarded operation WILL still run.
+  | ●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | REFUSED: GitHub pull request https://github.com/jredgard/firstmate/pull/32 is not verifiably merged at the recorded head (state=merged); preserving task and worktree.
+exit=1
+task meta: RETAINED
+backlog state: in_flight
+worktree dir: present
+=================== scenario: merged-pr32-legacy-no-head
+pr=https://github.com/jredgard/firstmate/pull/32 pr_head=none worktree=present wt_head=05cf55d0
+$ FM_HOME=$LAB bin/fm-teardown.sh task-x1 
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fmtd-live/base.WiQt/lab-merged-pr32-legacy-no-head
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | ●  WATCHER DOWN - SUPERVISION IS OFF
+  | ●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+  | ●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+  | ●  This is a supervision warning only; the guarded operation WILL still run.
+  | ●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | warning: GitHub pull request https://github.com/jredgard/firstmate/pull/32 has no recorded pr_head; accepting the merged flag without recorded-head verification.
+  | firstmate: already current
+  | teardown task-x1 complete (window firstmate:fm-task-x1, worktree /tmp/fmtd-live/base.WiQt/lab-merged-pr32-legacy-no-head/wt)
+  | Backlog: task-x1 is closed in /tmp/fmtd-live/base.WiQt/lab-merged-pr32-legacy-no-head/data/backlog.md. Run bin/fm-tasks-axi.sh ready for dependency-cleared candidates, check date gates, and dispatch only work whose blockers are gone and date is due.
+exit=0
+task meta: REMOVED
+backlog state: done
+worktree dir: present
+=================== scenario: open-pr-force
+pr=https://github.com/kunchenguid/firstmate/pull/7155 pr_head=8c24451642953372d7524d71e7303c4e3d99814b worktree=present wt_head=05cf55d0
+$ FM_HOME=$LAB bin/fm-teardown.sh task-x1 --force
+  | fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fmtd-live/base.WiQt/lab-open-pr-force
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | ●  WATCHER DOWN - SUPERVISION IS OFF
+  | ●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+  | ●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+  | ●  This is a supervision warning only; the guarded operation WILL still run.
+  | ●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+  | ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  | firstmate: already current
+  | teardown task-x1 complete (window firstmate:fm-task-x1, worktree /tmp/fmtd-live/base.WiQt/lab-open-pr-force/wt)
+  | Backlog: task-x1 is closed in /tmp/fmtd-live/base.WiQt/lab-open-pr-force/data/backlog.md. Run bin/fm-tasks-axi.sh ready for dependency-cleared candidates, check date gates, and dispatch only work whose blockers are gone and date is due.
+exit=0
+task meta: REMOVED
+backlog state: done
+worktree dir: present
