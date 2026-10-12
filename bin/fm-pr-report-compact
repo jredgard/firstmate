@@ -572,7 +572,7 @@ def main() -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--stdin", action="store_true")
-    parser.add_argument("--nm-skip", choices=("", "lint"), default="")
+    parser.add_argument("--nm-skip", default="")
     parser.add_argument("org", nargs="?")
     parser.add_argument("pr_id", nargs="?")
     args = parser.parse_args()
@@ -580,6 +580,12 @@ def main() -> int:
         not args.stdin and (not args.org or not args.pr_id)
     ):
         print(__doc__, file=sys.stderr)
+        return 2
+    if subprocess.run(
+        ["bash", "-c", '. "$1"; fm_nm_skip_valid "$2" fm-pr-report-compact',
+         "_", os.path.join(os.path.dirname(os.path.abspath(__file__)), "fm-dod-lib.sh"),
+         args.nm_skip],
+    ).returncode != 0:
         return 2
     skips = {args.nm_skip} if args.nm_skip else set()
 

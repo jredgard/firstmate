@@ -135,8 +135,8 @@ for invalid_skip in "${invalid_skips[@]}"; do
     [ "$?" -eq 2 ] || fail "invalid skip '$invalid_skip' must exit 2"
   fi
   [ ! -s "$TEST_DIR/invalid-skip.stdout" ] || fail "invalid skip must emit no body"
-  grep -qF -- '--nm-skip: invalid choice:' "$TEST_DIR/invalid-skip.stderr" || \
-    fail "invalid skip refusal must identify the argument"
+  grep -qF "invalid no-mistakes skip '$invalid_skip'" "$TEST_DIR/invalid-skip.stderr" || \
+    fail "invalid skip refusal must identify the rejected value"
 done
 
 # 4. A near-cap head is trimmed without losing work-item tokens or Risk.
@@ -403,10 +403,37 @@ run_pr() {  # <id> <status> <threads-file> [policy-status] [pr-exists] [blocking
     AZ_THREADS_FILE="$3" "$TOOL" https://dev.azure.com/org "$1" "${@:8}"
 }
 
+run_dod_pr() {
+  local nm_skip=$1 status=$2 threads=$3 flags
+  CONFIG="$TEST_DIR" bash -c \
+    '. "$1"; fm_dod_block no-mistakes fix-1.2 fm/fix-1.2 none "$2"' \
+    _ "$ROOT/bin/fm-dod-lib.sh" "$nm_skip" > "$TEST_DIR/dod.txt" || return 1
+  flags=$(python3 - "$TEST_DIR/dod.txt" "$nm_skip" <<'PY'
+import re
+import shlex
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as stream:
+    commands = re.findall(r"`(fm-pr-report-compact [^`]+)`", stream.read())
+assert len(commands) == 1, "generated DoD must supply one ADO compaction command"
+args = shlex.split(commands[0])
+expected = ["fm-pr-report-compact", "<org-url>", "<pr-id>"]
+if sys.argv[2]:
+    expected += ["--nm-skip", sys.argv[2]]
+assert args == expected, "generated compaction command must carry the intake skip"
+print(" ".join(args[3:]))
+PY
+  ) || return 1
+  local tool_flags=()
+  read -r -a tool_flags <<< "$flags"
+  (unset FM_HOME FM_TASK_ID; run_pr 111 "$status" "$threads" approved true true canonical "${tool_flags[@]}")
+}
+
 # 7. A clean review posts a closed summary and normalizes a fitting body.
 : > "$AZ_TRACE"
 : > "$AZ_UPDATE_BODY"
-clean_output=$(run_pr 111 active "$EMPTY_THREADS") || fail "clean PR run failed"
+clean_output=$(FM_HOME="$TEST_DIR/fm-home" FM_TASK_ID=fix-1.2 \
+  run_pr 111 active "$EMPTY_THREADS") || fail "clean PR run failed"
 tick='`'
 grep -qF "Run ID: ${tick}run-clean${tick}" "$AZ_POST_BODY" || fail "clean comment must name the run"
 grep -qF "$ROUND_MARKER" "$AZ_POST_BODY" || fail "review comment must identify its attestation round"
@@ -428,8 +455,7 @@ grep -qF "$ATTESTATION" "$AZ_UPDATE_BODY" || \
 printf '%s' "$skipped_body" > "$AZ_DESCRIPTION_FILE"
 : > "$AZ_TRACE"
 : > "$AZ_UPDATE_BODY"
-run_pr 111 active "$SAME_ROUND_THREADS" approved true true canonical --nm-skip lint \
-    >/dev/null || \
+run_dod_pr lint active "$SAME_ROUND_THREADS" >/dev/null || \
   fail "ADO normalization must accept the registered lint skip"
 grep -qFx -- '- ⏭️ lint - skipped (registered)' "$AZ_UPDATE_BODY" || \
   fail "ADO description update must render the registered skip"
@@ -439,7 +465,7 @@ grep -qFx -- '- ✅ ci - passed' "$AZ_UPDATE_BODY" || \
   fail "registered lint skip must retain verified CI reporting"
 : > "$AZ_TRACE"
 : > "$AZ_UPDATE_BODY"
-if run_pr 111 active "$SAME_ROUND_THREADS" \
+if run_dod_pr '' active "$SAME_ROUND_THREADS" \
     > "$TEST_DIR/ado-unregistered.stdout" 2> "$TEST_DIR/ado-unregistered.stderr"; then
   fail "ADO normalization must refuse an unregistered skip"
 fi
@@ -474,12 +500,17 @@ if grep -q '^repos pr update' "$AZ_TRACE" || [ -s "$AZ_UPDATE_BODY" ]; then
   fail "registered skip with non-green CI must not write the description"
 fi
 printf '%s' "$small" > "$AZ_DESCRIPTION_FILE"
+run_dod_pr '' active "$SAME_ROUND_THREADS" >/dev/null || \
+  fail "generated command with empty skips must accept passed steps"
+grep -qFx -- '- ✅ test - passed' "$AZ_UPDATE_BODY" || \
+  fail "generated command with empty skips must write the passed board"
 
 # 8. A completed PR gets a newer-round comment but no description update.
 : > "$AZ_TRACE"
 : > "$AZ_UPDATE_BODY"
 printf '%s' "$big" > "$AZ_DESCRIPTION_FILE"
-completed_output=$(run_pr 222 completed "$OLDER_ROUND_THREADS") || fail "completed PR run failed"
+completed_output=$(FM_HOME="$TEST_DIR/fm-home" FM_TASK_ID=fix-1.2 \
+  run_pr 222 completed "$OLDER_ROUND_THREADS") || fail "completed PR run failed"
 grep -q -- '--http-method POST' "$AZ_TRACE" || fail "completed PR must still receive a newer-round review comment"
 grep -qF "$ROUND_MARKER" "$AZ_POST_BODY" || fail "completed PR comment must identify the current attestation round"
 grep -qF 'description left as-merged' <<< "$completed_output" || fail "completed PR must report its description was left as-merged"
