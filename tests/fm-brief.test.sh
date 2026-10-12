@@ -448,7 +448,7 @@ test_no_mistakes_dod_green_detection() {
     "no-mistakes DOD must say axi status cannot show a green PR in merge monitoring"
   assert_grep "never wait on a status poll for the next gate or outcome" "$brief" \
     "no-mistakes DOD must forbid waiting on a status poll"
-  assert_grep "reattach at once by re-running \`no-mistakes axi run\` without flags" "$brief" \
+  assert_grep "when reattaching, use \`no-mistakes axi run\` with only a bounded \`--wait\`" "$brief" \
     "no-mistakes DOD must reattach the drive call after a bounded return"
   assert_grep "once checks are green it returns \`checks-passed\` immediately" "$brief" \
     "no-mistakes DOD must say a reattach reports an already-green PR"
@@ -1081,8 +1081,10 @@ test_workers_wait_without_spending_turns() {
     assert_grep "empty \`write_stdin\` polls of up to 300000 ms" "$brief" "$id: the Codex ceiling is missing"
     assert_grep "is the sanctioned foreground wait" "$brief" \
       "$id: the wait a Claude Code worker may use is not named"
-    assert_grep "reattach with \`no-mistakes axi run --wait\` instead, and never send the same \`respond\` again" "$brief" \
+    assert_grep "follow rule 7 to reattach with \`no-mistakes axi run --wait <duration>\` instead" "$brief" \
       "$id: a timed-out respond must reattach with axi run, never resend its answer"
+    assert_grep "Never send the same \`respond\` again" "$brief" \
+      "$id: waiting must not resend an already-submitted answer"
     assert_grep "Do not poll or list the inbox while waiting; a waiting instruction rings." "$brief" \
       "$id: polling the inbox while waiting is not forbidden"
     assert_grep "natural checkpoint" "$brief" "$id: the flag dropped the natural-checkpoint inbox check"
@@ -1522,7 +1524,7 @@ test_nm_skip_contract() {
   brief="$home/data/nm-skip-empty/brief.md"
   grep -qx 'Delivery contract: mode=no-mistakes' "$brief" || fail "empty skip changed the delivery line"
   assert_no_grep "Pass \`--skip " "$brief" "empty skip rendered a skip instruction"
-  assert_grep 'without flags' "$brief" "empty skip changed the legacy reattach instruction"
+  assert_grep "with only a bounded \`--wait\`" "$brief" "empty skip must reattach with only its wait flag"
   pass "fm-brief.sh: explicit skips reach each driving contract, merge Gerrit skips, and never read the registry"
 }
 
@@ -1554,6 +1556,54 @@ test_nm_skip_refusals() {
   pass "fm-brief.sh: skip scope, closed set, invalid values, and missing values refuse before scaffolding"
 }
 
+# The emitted brief is the worker-facing instruction contract, not a proxy for
+# pipeline behavior: all scaffold variants must give the same ownership and
+# error-recovery rule while preserving their selected wait and skip settings.
+test_run_versus_reattach_guidance() {
+  local home wait_setting kind id brief
+  home="$TMP_ROOT/run-reattach/home"
+  mkdir -p "$home/config"
+  for wait_setting in background foreground; do
+    if [ "$wait_setting" = foreground ]; then
+      touch "$home/config/wait-no-turns"
+    else
+      rm -f "$home/config/wait-no-turns"
+    fi
+    for kind in no-mistakes direct-PR local-only scout gerrit skip; do
+      id="run-reattach-$wait_setting-$kind"
+      case "$kind" in
+        scout) set -- --scout ;;
+        gerrit) set -- --mode no-mistakes --forge gerrit ;;
+        skip) set -- --mode no-mistakes --nm-skip lint ;;
+        *) set -- --mode "$kind" ;;
+      esac
+      FM_HOME="$home" bash "$ROOT/bin/fm-brief.sh" "$id" some-proj "$@" >/dev/null 2>&1 \
+        || fail "$id: scaffold exited non-zero"
+      brief="$home/data/$id/brief.md"
+      assert_grep "Start a new run with \`no-mistakes axi run --intent\` only when no active run owns your current branch." "$brief" \
+        "$id: starting validation must respect branch ownership"
+      assert_grep 'Never start a second run while one owns the branch.' "$brief" \
+        "$id: branch ownership must prohibit a second run"
+      assert_grep "A drive call whose wait elapsed, or whose waiting process was killed or timed out, has not by itself failed the run: reattach with \`no-mistakes axi run --wait <duration>\` using this brief" "$brief" \
+        "$id: a bounded wait must reattach to its existing run"
+      assert_grep 'If a drive call reports an error or unreachability, check daemon health and current run state with those commands before reattaching.' "$brief" \
+        "$id: errors must retain the daemon-health precondition"
+      assert_grep 'After ruling out socket refusal, reattach if the run is running or fixing; if it is at a gate, read that gate before sending a new response; if it is finished, read its outcome.' "$brief" \
+        "$id: recovery must distinguish in-flight, gated, and finished runs"
+      assert_grep "A \`respond\` already sent its answer before waiting: never resend that same response to reattach, because it could answer the next gate without you reading it." "$brief" \
+        "$id: an interrupted response must never answer an unread next gate"
+      assert_no_grep 'reattach at once' "$brief" \
+        "$id: unconditional reattachment would bypass error recovery"
+      assert_no_grep 'without flags' "$brief" \
+        "$id: reattachment must allow its bounded wait and any required skips"
+      assert_no_grep 'run the same blocking command again, with no status check in between' "$brief" \
+        "$id: generic waiting must not override pipeline error recovery"
+    done
+  done
+  pass "fm-brief.sh: emitted run/reattach guidance agrees across delivery, wait, forge, and skip variants"
+}
+
+test_run_versus_reattach_guidance
 test_nm_skip_contract
 test_nm_skip_refusals
 test_script_parses
