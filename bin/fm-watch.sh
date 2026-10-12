@@ -2792,6 +2792,7 @@ while :; do
   if [ "$(age_of "$STATE/.last-check")" -ge "$CHECK_INTERVAL" ]; then
     rejected_checks=
     contribution_check_output=
+    pr_poll_check_output=
     for c in "$STATE"/*.check.sh; do
       [ -e "$c" ] || continue
       is_pr_poll=0
@@ -2897,12 +2898,21 @@ EOF
             triage_log "absorbed duplicate merged PR poll result for $id"
             continue
           fi
-          wake "$reason"
+          wake "${pr_poll_check_output}$reason"
+        fi
+        if [ "$is_pr_poll" -eq 1 ]; then
+          fm_wake_append check "$c" "$reason" || exit 1
+          if [ "$provider" = ado ]; then
+            fm_pr_poll_mark_reported "$STATE" "$id" "$url" "$out" || exit 1
+          fi
+          pr_poll_control_release || exit 1
+          pr_poll_check_output="${pr_poll_check_output}${reason}"$'\n'
+          continue
         fi
         pr_poll_control_release || exit 1
         fm_wake_append check "$c" "$reason" || exit 1
         touch "$STATE/.last-check"
-        wake "$reason"
+        wake "${pr_poll_check_output}$reason"
       fi
       pr_poll_control_release || exit 1
     done
@@ -2910,11 +2920,11 @@ EOF
       reason="check: rejected unauthenticated state checks:$rejected_checks"
       fm_wake_append check unauthenticated-state-checks "$reason" || exit 1
       touch "$STATE/.last-check"
-      wake "$reason"
+      wake "${pr_poll_check_output}$reason"
     fi
     touch "$STATE/.last-check"
-    if [ -n "$contribution_check_output" ]; then
-      wake "$contribution_check_output"
+    if [ -n "$pr_poll_check_output$contribution_check_output" ]; then
+      wake "${pr_poll_check_output}${contribution_check_output}"
     fi
   fi
 

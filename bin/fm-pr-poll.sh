@@ -4,10 +4,15 @@
 # It emits exactly one merged line for a merged change. Azure DevOps also
 # emits conflicts for an active conflicted PR and abandoned for an abandoned
 # PR; both use the watcher's ordinary check wake and retain the merge poll.
-# <task>.pr-poll-last-reported stores the canonical URL and last observed state
-# as two lines, atomically replaced with mode 600. Conflicts and abandonment
-# emit once per transition across watcher restarts; a successful active read
-# resets suppression, while failed or unknown reads leave the marker intact.
+# <task>.pr-poll-last-reported stores the canonical URL and last delivered state
+# as two lines, atomically replaced with mode 600 by the watcher only after a
+# durable wake append succeeds under the task control lock. Conflicts and
+# abandonment notify once per transition across watcher restarts; a successful
+# active read removes suppression, while failed or unknown reads preserve it.
+# The poll compares and emits notifications; an undelivered result may repeat.
+# --validated accepts provider, URL, host, path, number, and an optional marker
+# path. Without that path it emits without suppression for every provider.
+# Non-merged PR wakes are collected so later checks run in the same sweep.
 # A replacement URL starts a new notification identity; teardown removes the
 # marker. Only merged output retires the poll.
 # Other states and every error stay silent, so a failed lookup can never be
@@ -22,13 +27,13 @@ set -u
 LC_ALL=C
 export LC_ALL
 
-if [ "$#" -eq 7 ] && [ "$1" = --validated ]; then
+if { [ "$#" -eq 6 ] || [ "$#" -eq 7 ]; } && [ "$1" = --validated ]; then
   provider=$2
   url=$3
   host=$4
   path=$5
   number=$6
-  marker=$7
+  marker=${7:-}
 elif [ "$#" -eq 0 ]; then
   case "$0" in
     *.check.sh) data=${0%.check.sh}.pr-poll; marker=${0%.check.sh}.pr-poll-last-reported ;;
@@ -105,6 +110,10 @@ case "$provider" in
       printf '%s\n' merged
       exit 0
     fi
+    if [ -z "$marker" ]; then
+      [ "$state" = active ] || printf '%s\n' "$state"
+      exit 0
+    fi
     record=$(printf '%s\n%s' "$url" "$state")
     if [ -e "$marker" ] || [ -L "$marker" ]; then
       [ -f "$marker" ] && [ ! -L "$marker" ] || exit 0
@@ -113,13 +122,11 @@ case "$provider" in
       && [ "$(cat "$marker" 2>/dev/null)" = "$record" ]; then
       exit 0
     fi
-    marker_tmp=$(mktemp "${marker%/*}/.fm-pr-poll-last-reported.XXXXXX" 2>/dev/null) || exit 0
-    trap 'rm -f -- "$marker_tmp"' EXIT
-    trap 'exit 0' HUP INT TERM
-    printf '%s\n' "$record" > "$marker_tmp" \
-      && chmod 600 "$marker_tmp" \
-      && mv -f -- "$marker_tmp" "$marker" || exit 0
-    [ "$state" = active ] || printf '%s\n' "$state"
+    if [ "$state" = active ]; then
+      rm -f -- "$marker"
+    else
+      printf '%s\n' "$state"
+    fi
     ;;
   github)
     [ "$host" = github.com ] || exit 0
