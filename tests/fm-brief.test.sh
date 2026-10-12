@@ -1598,6 +1598,18 @@ test_run_versus_reattach_guidance() {
         "$id: reattachment must allow its bounded wait and any required skips"
       assert_no_grep 'run the same blocking command again, with no status check in between' "$brief" \
         "$id: generic waiting must not override pipeline error recovery"
+      case "$kind" in
+        gerrit)
+          assert_grep "when reattaching, use \`no-mistakes axi run\` with \`--skip push,pr,ci\` and a bounded \`--wait\`" "$brief" \
+            "$id: reattachment must carry the run's required gerrit skips"
+          assert_no_grep 'with only a bounded' "$brief" \
+            "$id: reattachment must not drop the run's required gerrit skips"
+          ;;
+        skip)
+          assert_grep "when reattaching, use \`no-mistakes axi run\` with \`--skip lint\` and a bounded \`--wait\`" "$brief" \
+            "$id: reattachment must carry the run's required skips"
+          ;;
+      esac
     done
   done
   pass "fm-brief.sh: emitted run/reattach guidance agrees across delivery, wait, forge, and skip variants"
