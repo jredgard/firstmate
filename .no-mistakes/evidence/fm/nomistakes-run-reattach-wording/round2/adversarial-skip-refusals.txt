@@ -1,0 +1,9 @@
+$ fm-brief.sh adv some-proj --mode no-mistakes --forge gerrit --nm-skip bogus
+error: fm-brief.sh --nm-skip: invalid no-mistakes skip 'bogus'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+rc=1 brief_exists=no
+$ fm-brief.sh adv some-proj --mode no-mistakes --forge gerrit --nm-skip push
+error: fm-brief.sh --nm-skip: invalid no-mistakes skip 'push'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+rc=1 brief_exists=no
+$ fm-brief.sh adv some-proj --mode no-mistakes --nm-skip review
+error: fm-brief.sh --nm-skip: invalid no-mistakes skip 'review'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+rc=1 brief_exists=no

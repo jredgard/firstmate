@@ -1,0 +1,14 @@
+r2-background-no-mistakes rc=0
+r2-background-gerrit rc=0
+r2-background-gerrit-skip rc=0
+r2-background-skip rc=0
+r2-background-direct-PR rc=0
+r2-background-local-only rc=0
+r2-background-scout rc=0
+r2-foreground-no-mistakes rc=0
+r2-foreground-gerrit rc=0
+r2-foreground-gerrit-skip rc=0
+r2-foreground-skip rc=0
+r2-foreground-direct-PR rc=0
+r2-foreground-local-only rc=0
+r2-foreground-scout rc=0

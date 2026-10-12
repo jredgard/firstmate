@@ -1,0 +1,6 @@
+=== background-gerrit
+when reattaching, use `no-mistakes axi run` with `--skip push,pr,ci` and a bounded `--wait`, backgrounded the same way
+=== foreground-gerrit
+when reattaching, use `no-mistakes axi run` with `--skip push,pr,ci` and a bounded `--wait` and issue the same foreground call again, one at a time, until a gate or outcome comes back
+=== foreground-gerrit-skip
+when reattaching, use `no-mistakes axi run` with `--skip push,pr,ci,lint` and a bounded `--wait` and issue the same foreground call again, one at a time, until a gate or outcome comes back

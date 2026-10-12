@@ -1,0 +1,15 @@
+background-direct-PR         rule7=1 rule7-refs=0 legacy-hits=0 respond-never=0 reattach=[] skip=[] -> ok
+background-gerrit            rule7=1 rule7-refs=2 legacy-hits=0 respond-never=0 reattach=[when reattaching, use `no-mistakes axi run` with only a bounded `--wait`|] skip=[Pass `--skip push,pr,ci` on every] -> ok
+background-gerrit-skip       rule7=1 rule7-refs=2 legacy-hits=0 respond-never=0 reattach=[] skip=[Pass `--skip push,pr,ci,lint` on every] -> ok
+background-local-only        rule7=1 rule7-refs=0 legacy-hits=0 respond-never=0 reattach=[] skip=[] -> ok
+background-no-mistakes       rule7=1 rule7-refs=2 legacy-hits=0 respond-never=0 reattach=[when reattaching, use `no-mistakes axi run` with only a bounded `--wait`|] skip=[] -> ok
+background-scout             rule7=1 rule7-refs=0 legacy-hits=0 respond-never=0 reattach=[] skip=[] -> ok
+background-skip              rule7=1 rule7-refs=2 legacy-hits=0 respond-never=0 reattach=[when reattaching, use `no-mistakes axi run` with `--skip lint` and a bounded `--wait`|] skip=[Pass `--skip lint` on every] -> ok
+foreground-direct-PR         rule7=1 rule7-refs=2 legacy-hits=0 respond-never=1 reattach=[] skip=[] -> ok
+foreground-gerrit            rule7=1 rule7-refs=4 legacy-hits=0 respond-never=1 reattach=[when reattaching, use `no-mistakes axi run` with only a bounded `--wait`|] skip=[Pass `--skip push,pr,ci` on every] -> ok
+foreground-gerrit-skip       rule7=1 rule7-refs=4 legacy-hits=0 respond-never=1 reattach=[] skip=[Pass `--skip push,pr,ci,lint` on every] -> ok
+foreground-local-only        rule7=1 rule7-refs=2 legacy-hits=0 respond-never=1 reattach=[] skip=[] -> ok
+foreground-no-mistakes       rule7=1 rule7-refs=4 legacy-hits=0 respond-never=1 reattach=[when reattaching, use `no-mistakes axi run` with only a bounded `--wait`|] skip=[] -> ok
+foreground-scout             rule7=1 rule7-refs=2 legacy-hits=0 respond-never=1 reattach=[] skip=[] -> ok
+foreground-skip              rule7=1 rule7-refs=4 legacy-hits=0 respond-never=1 reattach=[when reattaching, use `no-mistakes axi run` with `--skip lint` and a bounded `--wait`|] skip=[Pass `--skip lint` on every] -> ok
+failures=0

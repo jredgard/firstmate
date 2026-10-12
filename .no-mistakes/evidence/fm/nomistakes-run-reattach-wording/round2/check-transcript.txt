@@ -1,0 +1,84 @@
+=== brief-background-direct-PR.md
+62:Never start a second run while one owns the branch
+63:any required per-run skip flags
+72:After ruling out socket refusal, reattach if the run is running or fixing; if it is at a gate, read that gate before sending a new response; if it is finished, read its outcome
+=== brief-background-gerrit.md
+65:Never start a second run while one owns the branch
+66:any required per-run skip flags
+75:After ruling out socket refusal, reattach if the run is running or fixing; if it is at a gate, read that gate before sending a new response; if it is finished, read its outcome
+101:Pass `--skip push,pr,ci` on every `no-mistakes axi run` for this task, and skip nothing else: `review`, `test`, `document`, and `lint` are the whole point of the run
+128:when reattaching, use `no-mistakes axi run` with `--skip push
+=== brief-background-gerrit-skip.md
+65:Never start a second run while one owns the branch
+66:any required per-run skip flags
+75:After ruling out socket refusal, reattach if the run is running or fixing; if it is at a gate, read that gate before sending a new response; if it is finished, read its outcome
+107:Pass `--skip push,pr,ci,lint` on every `no-mistakes axi run` for this task, and skip nothing else
+128:when reattaching, use `no-mistakes axi run` with `--skip push
+=== brief-background-local-only.md
+62:Never start a second run while one owns the branch
+63:any required per-run skip flags
+72:After ruling out socket refusal, reattach if the run is running or fixing; if it is at a gate, read that gate before sending a new response; if it is finished, read its outcome
+=== brief-background-no-mistakes.md
+65:Never start a second run while one owns the branch
+66:any required per-run skip flags
+75:After ruling out socket refusal, reattach if the run is running or fixing; if it is at a gate, read that gate before sending a new response; if it is finished, read its outcome
+126:when reattaching, use `no-mistakes axi run` with only a bounded `--wait`
+=== brief-background-scout.md
+53:Never start a second run while one owns the branch
+54:any required per-run skip flags
+63:After ruling out socket refusal, reattach if the run is running or fixing; if it is at a gate, read that gate before sending a new response; if it is finished, read its outcome
+=== brief-background-skip.md
+65:Never start a second run while one owns the branch
+66:any required per-run skip flags
+75:After ruling out socket refusal, reattach if the run is running or fixing; if it is at a gate, read that gate before sending a new response; if it is finished, read its outcome
+105:Pass `--skip lint` on every `no-mistakes axi run` for this task, and skip nothing else
+127:when reattaching, use `no-mistakes axi run` with `--skip lint` and a bounded `--wait`
+=== brief-foreground-direct-PR.md
+62:Never start a second run while one owns the branch
+63:any required per-run skip flags
+72:After ruling out socket refusal, reattach if the run is running or fixing; if it is at a gate, read that gate before sending a new response; if it is finished, read its outcome
+94:follow rule 7 to reattach with `no-mistakes axi run --wait <duration>` instead
+95:Never send the same `respond` again
+=== brief-foreground-gerrit.md
+65:Never start a second run while one owns the branch
+66:any required per-run skip flags
+75:After ruling out socket refusal, reattach if the run is running or fixing; if it is at a gate, read that gate before sending a new response; if it is finished, read its outcome
+97:follow rule 7 to reattach with `no-mistakes axi run --wait <duration>` instead
+98:Never send the same `respond` again
+115:Pass `--skip push,pr,ci` on every `no-mistakes axi run` for this task, and skip nothing else: `review`, `test`, `document`, and `lint` are the whole point of the run
+142:when reattaching, use `no-mistakes axi run` with `--skip push
+=== brief-foreground-gerrit-skip.md
+65:Never start a second run while one owns the branch
+66:any required per-run skip flags
+75:After ruling out socket refusal, reattach if the run is running or fixing; if it is at a gate, read that gate before sending a new response; if it is finished, read its outcome
+97:follow rule 7 to reattach with `no-mistakes axi run --wait <duration>` instead
+98:Never send the same `respond` again
+121:Pass `--skip push,pr,ci,lint` on every `no-mistakes axi run` for this task, and skip nothing else
+142:when reattaching, use `no-mistakes axi run` with `--skip push
+=== brief-foreground-local-only.md
+62:Never start a second run while one owns the branch
+63:any required per-run skip flags
+72:After ruling out socket refusal, reattach if the run is running or fixing; if it is at a gate, read that gate before sending a new response; if it is finished, read its outcome
+94:follow rule 7 to reattach with `no-mistakes axi run --wait <duration>` instead
+95:Never send the same `respond` again
+=== brief-foreground-no-mistakes.md
+65:Never start a second run while one owns the branch
+66:any required per-run skip flags
+75:After ruling out socket refusal, reattach if the run is running or fixing; if it is at a gate, read that gate before sending a new response; if it is finished, read its outcome
+97:follow rule 7 to reattach with `no-mistakes axi run --wait <duration>` instead
+98:Never send the same `respond` again
+140:when reattaching, use `no-mistakes axi run` with only a bounded `--wait` and issue the same foreground call again
+=== brief-foreground-scout.md
+53:Never start a second run while one owns the branch
+54:any required per-run skip flags
+63:After ruling out socket refusal, reattach if the run is running or fixing; if it is at a gate, read that gate before sending a new response; if it is finished, read its outcome
+85:follow rule 7 to reattach with `no-mistakes axi run --wait <duration>` instead
+86:Never send the same `respond` again
+=== brief-foreground-skip.md
+65:Never start a second run while one owns the branch
+66:any required per-run skip flags
+75:After ruling out socket refusal, reattach if the run is running or fixing; if it is at a gate, read that gate before sending a new response; if it is finished, read its outcome
+97:follow rule 7 to reattach with `no-mistakes axi run --wait <duration>` instead
+98:Never send the same `respond` again
+119:Pass `--skip lint` on every `no-mistakes axi run` for this task, and skip nothing else
+141:when reattaching, use `no-mistakes axi run` with `--skip lint` and a bounded `--wait` and issue the same foreground call again
