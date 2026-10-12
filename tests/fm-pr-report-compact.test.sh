@@ -119,11 +119,25 @@ fi
 if printf '%s' "$skipped_body" | "$TOOL" --stdin --nm-skip '' \
     > "$TEST_DIR/empty-skip.stdout" 2> "$TEST_DIR/empty-skip.stderr"; then
   fail "explicit empty posture must not grant a skipped step"
+else
+  [ "$?" -eq 1 ] || fail "empty posture must reach the attested skip refusal"
 fi
-if printf '%s' "$skipped_body" | "$TOOL" --stdin --nm-skip 'lint-extra' \
-    > "$TEST_DIR/partial.stdout" 2> "$TEST_DIR/partial.stderr"; then
-  fail "a partial step-name match must not grant the lint skip"
-fi
+empty_out=$(printf '%s' "$small" | "$TOOL" --stdin --nm-skip '') || \
+  fail "explicit empty posture must accept passed steps"
+[ "$empty_out" = "$new_out" ] || fail "empty and omitted posture must normalize identically"
+invalid_skips=(intent review test pr ci lint-extra lint,ci lint,lint lint, ,lint Lint ' lint' 'lint ')
+for invalid_skip in "${invalid_skips[@]}"; do
+  invalid_body=${skipped_body/"$lint_step"/"{\"step\":\"$invalid_skip\",\"status\":\"skipped\"}"}
+  if printf '%s' "$invalid_body" | "$TOOL" --stdin --nm-skip "$invalid_skip" \
+      > "$TEST_DIR/invalid-skip.stdout" 2> "$TEST_DIR/invalid-skip.stderr"; then
+    fail "stdin must reject ungrantable skip '$invalid_skip'"
+  else
+    [ "$?" -eq 2 ] || fail "invalid skip '$invalid_skip' must exit 2"
+  fi
+  [ ! -s "$TEST_DIR/invalid-skip.stdout" ] || fail "invalid skip must emit no body"
+  grep -qF -- '--nm-skip: invalid choice:' "$TEST_DIR/invalid-skip.stderr" || \
+    fail "invalid skip refusal must identify the argument"
+done
 
 # 4. A near-cap head is trimmed without losing work-item tokens or Risk.
 padding=$(printf 'verbose prose %.0s' $(seq 1 300))
@@ -434,12 +448,28 @@ grep -qF 'attested step lint is skipped' "$TEST_DIR/ado-unregistered.stderr" || 
 if grep -q '^repos pr update' "$AZ_TRACE" || [ -s "$AZ_UPDATE_BODY" ]; then
   fail "unregistered ADO skip must not write the description"
 fi
+for invalid_skip in "${invalid_skips[@]}"; do
+  : > "$AZ_TRACE"
+  : > "$AZ_UPDATE_BODY"
+  if run_pr 111 active "$SAME_ROUND_THREADS" approved true true canonical \
+      --nm-skip "$invalid_skip" \
+      > "$TEST_DIR/ado-invalid.stdout" 2> "$TEST_DIR/ado-invalid.stderr"; then
+    fail "ADO must reject ungrantable skip '$invalid_skip'"
+  else
+    [ "$?" -eq 2 ] || fail "invalid ADO skip '$invalid_skip' must exit 2"
+  fi
+  [ ! -s "$TEST_DIR/ado-invalid.stdout" ] || fail "invalid ADO skip must emit no output"
+  [ ! -s "$AZ_TRACE" ] || fail "invalid ADO skip must make no az calls"
+  [ ! -s "$AZ_UPDATE_BODY" ] || fail "invalid ADO skip must not write the description"
+done
 : > "$AZ_TRACE"
 : > "$AZ_UPDATE_BODY"
 if run_pr 111 active "$SAME_ROUND_THREADS" queued true true canonical \
-    --nm-skip lint,ci > "$TEST_DIR/skip-ci.stdout" 2> "$TEST_DIR/skip-ci.stderr"; then
+    --nm-skip lint > "$TEST_DIR/skip-ci.stdout" 2> "$TEST_DIR/skip-ci.stderr"; then
   fail "registered skips must never bypass a non-green Build policy"
 fi
+grep -qF 'blocking Build policy status: queued' "$TEST_DIR/skip-ci.stderr" || \
+  fail "registered skip must reach the non-green Build policy refusal"
 if grep -q '^repos pr update' "$AZ_TRACE" || [ -s "$AZ_UPDATE_BODY" ]; then
   fail "registered skip with non-green CI must not write the description"
 fi

@@ -37,11 +37,11 @@ the current round.
 Usage:
   fm-pr-report-compact <org-url> <pr-id>            # normalize in place via az
   fm-pr-report-compact --stdin < body > normalized  # pure CI-green test filter
-  Either form accepts --nm-skip <steps>.
+  Either form accepts --nm-skip <value>.
 
---nm-skip supplies the caller's intake-resolved comma-separated skip value,
-including an empty value for no skips. Omitting it grants no skips.
-Only an exact attested step name in that value grants a skipped status.
+--nm-skip supplies the caller's intake-resolved skip value: lint or an empty
+value for no skips. Omitting it grants no skips. Other values exit 2.
+Only the exact attested step name lint grants a skipped status.
 PR and CI still require verification regardless of the registered skip value.
 
 Always posts the review comment (skipping only when the description carries no
@@ -572,7 +572,7 @@ def main() -> int:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--stdin", action="store_true")
-    parser.add_argument("--nm-skip")
+    parser.add_argument("--nm-skip", choices=("", "lint"), default="")
     parser.add_argument("org", nargs="?")
     parser.add_argument("pr_id", nargs="?")
     args = parser.parse_args()
@@ -581,7 +581,7 @@ def main() -> int:
     ):
         print(__doc__, file=sys.stderr)
         return 2
-    skips = set((args.nm_skip or "").split(",")) - {""}
+    skips = {args.nm_skip} if args.nm_skip else set()
 
     if args.stdin:
         body = compact(sys.stdin.read(), registered_skips=skips)
