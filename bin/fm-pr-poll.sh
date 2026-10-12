@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
 # Static watcher program for a validated pull request, merge request, or Gerrit
 # change poll sidecar.
-# It emits exactly one merged line for a merged change and stays silent
-# otherwise, including on every error, so a failed lookup can never be read as
-# a merge. The provider-tagged identity is data in the sidecar and is never
+# It emits exactly one merged line for a merged change. Azure DevOps also
+# emits conflicts for an active conflicted PR and abandoned for an abandoned
+# PR; both use the watcher's ordinary check wake and retain the merge poll.
+# Other states and every error stay silent, so a failed lookup can never be
+# read as a merge. The provider-tagged identity is data in the sidecar and is never
 # interpolated into this source: these bytes are identical for every task.
 # Each provider is read through its own standard CLI, gh for GitHub, glab for
-# GitLab, gerrit-axi for Gerrit, and Azure REST for dev.azure.com. The ADO
-# branch requires az, curl, jq, and timeout or gtimeout;
-# bin/fm-pr-check.sh checks them before arming. Its token travels through a
-# private file descriptor rather than argv, and both the token acquisition and
-# the REST read are hard-bounded so a wedged connection cannot stall the
-# watcher cycle.
+# GitLab, gerrit-axi for Gerrit, and az repos pr show for dev.azure.com.
+# The ADO branch requires az, jq, and timeout or gtimeout; registration's
+# authenticated REST head read also requires curl (bin/fm-pr-check.sh).
+# The ADO CLI read is hard-bounded so a wedged connection cannot stall the
+# watcher cycle, and disables implicit organization detection.
 set -u
 LC_ALL=C
 export LC_ALL
@@ -68,8 +69,7 @@ case "$provider" in
     case "$project:$repo" in
       .:*|..:*|*:.|*:..) exit 0 ;;
     esac
-    command -v az >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 \
-      && command -v jq >/dev/null 2>&1 || exit 0
+    command -v az >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 || exit 0
     if command -v timeout >/dev/null 2>&1; then
       bound=timeout
     elif command -v gtimeout >/dev/null 2>&1; then
@@ -79,16 +79,23 @@ case "$provider" in
     fi
     ado_timeout=${FM_PR_ADO_TIMEOUT:-20}
     [[ "$ado_timeout" =~ ^[1-9][0-9]*$ ]] || ado_timeout=20
-    token=$("$bound" -k 1 "$ado_timeout" az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv 2>/dev/null) || exit 0
-    [ -n "$token" ] || exit 0
-    case "$token" in *$'\n'*|*$'\r'*) exit 0 ;; esac
-    json=$(curl -fsS --max-time "$ado_timeout" --request GET --header @/dev/fd/3 \
-      "https://dev.azure.com/$org/$project/_apis/git/repositories/$repo/pullRequests/$number?api-version=7.1" \
-      2>/dev/null 3< <(printf 'Authorization: Bearer %s\n' "$token")) || exit 0
+    # PR IDs are organization-wide and show has no --project argument. Read
+    # from the URL's organization and bind the returned project/repository
+    # names to its decoded path rather than using az's configured defaults.
+    json=$("$bound" -k 1 "$ado_timeout" az repos pr show --id "$number" \
+      --organization "https://dev.azure.com/$org" --detect false \
+      --output json --only-show-errors 2>/dev/null) || exit 0
     [ -n "$json" ] || exit 0
-    printf '%s' "$json" | jq -e --argjson id "$number" \
-      'type == "object" and .pullRequestId == $id and .status == "completed"' >/dev/null 2>&1 \
-      && printf '%s\n' merged
+    state=$(printf '%s' "$json" | jq -er --argjson id "$number" \
+      --arg project "${project//%20/ }" --arg repo "${repo//%20/ }" '
+      if type == "object" and .pullRequestId == $id
+         and .repository.project.name == $project and .repository.name == $repo then
+        if .status == "completed" then "merged"
+        elif .status == "abandoned" then "abandoned"
+        elif .status == "active" and .mergeStatus == "conflicts" then "conflicts"
+        else empty end
+      else empty end' 2>/dev/null) || exit 0
+    printf '%s\n' "$state"
     ;;
   github)
     [ "$host" = github.com ] || exit 0
