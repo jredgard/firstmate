@@ -78,6 +78,67 @@ out=$(printf '%s' "$new_out" | "$TOOL" --stdin) || \
   fail "tool errored on an already-normalized body"
 [ -z "$out" ] || fail "an already-normalized body must not be rewritten"
 
+# Registered skips preserve their attestation and are never labeled passed.
+test_step='{"step":"test","status":"completed"}'
+lint_step='{"step":"lint","status":"skipped"}'
+skipped_attestation=${ATTESTATION/"$test_step"/"$lint_step"}
+skipped_body=${small/"$ATTESTATION"/"$skipped_attestation"}
+if skipped_out=$(printf '%s' "$skipped_body" | "$TOOL" --stdin --nm-skip lint); then
+  printf '%s' "$skipped_out" | grep -qFx -- '- ⏭️ lint - skipped (registered)' || \
+    fail "registered lint skip must be rendered explicitly"
+  printf '%s' "$skipped_out" | grep -qF "$skipped_attestation" || \
+    fail "registered skip must preserve the exact attestation"
+  if printf '%s' "$skipped_out" | grep -qFx -- '- ✅ lint - passed'; then
+    fail "registered skip must never be relabeled passed"
+  fi
+  again=$(printf '%s' "$skipped_out" | "$TOOL" --stdin --nm-skip lint) || \
+    fail "registered skip rerun must succeed"
+  [ -z "$again" ] || fail "registered skip normalization must be idempotent"
+else
+  fail "registered lint skip must be accepted"
+fi
+if printf '%s' "$skipped_body" | "$TOOL" --stdin \
+    > "$TEST_DIR/unregistered.stdout" 2> "$TEST_DIR/unregistered.stderr"; then
+  fail "unregistered lint skip must be refused"
+fi
+[ ! -s "$TEST_DIR/unregistered.stdout" ] || fail "unregistered skip must emit no body"
+grep -qF 'attested step lint is skipped' "$TEST_DIR/unregistered.stderr" || \
+  fail "unregistered skip refusal must name the step"
+wrong_skip=${skipped_body/"$lint_step"/'{"step":"test","status":"skipped"}'}
+if printf '%s' "$wrong_skip" | "$TOOL" --stdin --nm-skip lint \
+    > "$TEST_DIR/wrong-skip.stdout" 2> "$TEST_DIR/wrong-skip.stderr"; then
+  fail "lint registration must not grant a test skip"
+fi
+[ ! -s "$TEST_DIR/wrong-skip.stdout" ] || fail "wrong skip must emit no body"
+failed_lint=${skipped_body/"$lint_step"/'{"step":"lint","status":"failed"}'}
+if printf '%s' "$failed_lint" | "$TOOL" --stdin --nm-skip lint \
+    > "$TEST_DIR/failed-lint.stdout" 2> "$TEST_DIR/failed-lint.stderr"; then
+  fail "lint registration must not grant a failed lint step"
+fi
+
+if printf '%s' "$skipped_body" | "$TOOL" --stdin --nm-skip '' \
+    > "$TEST_DIR/empty-skip.stdout" 2> "$TEST_DIR/empty-skip.stderr"; then
+  fail "explicit empty posture must not grant a skipped step"
+else
+  [ "$?" -eq 1 ] || fail "empty posture must reach the attested skip refusal"
+fi
+empty_out=$(printf '%s' "$small" | "$TOOL" --stdin --nm-skip '') || \
+  fail "explicit empty posture must accept passed steps"
+[ "$empty_out" = "$new_out" ] || fail "empty and omitted posture must normalize identically"
+invalid_skips=(intent review test pr ci lint-extra 'lint,ci' 'lint,lint' 'lint,' ',lint' Lint ' lint' 'lint ')
+for invalid_skip in "${invalid_skips[@]}"; do
+  invalid_body=${skipped_body/"$lint_step"/"{\"step\":\"$invalid_skip\",\"status\":\"skipped\"}"}
+  if printf '%s' "$invalid_body" | "$TOOL" --stdin --nm-skip "$invalid_skip" \
+      > "$TEST_DIR/invalid-skip.stdout" 2> "$TEST_DIR/invalid-skip.stderr"; then
+    fail "stdin must reject ungrantable skip '$invalid_skip'"
+  else
+    [ "$?" -eq 2 ] || fail "invalid skip '$invalid_skip' must exit 2"
+  fi
+  [ ! -s "$TEST_DIR/invalid-skip.stdout" ] || fail "invalid skip must emit no body"
+  grep -qF "invalid no-mistakes skip '$invalid_skip'" "$TEST_DIR/invalid-skip.stderr" || \
+    fail "invalid skip refusal must identify the rejected value"
+done
+
 # 4. A near-cap head is trimmed without losing work-item tokens or Risk.
 padding=$(printf 'verbose prose %.0s' $(seq 1 300))
 near_cap=$(printf '## Intent\n\nKeep this first sentence. %s AB#55008\n\n## What Changed\n\n- A detailed implementation bullet.\n\n## Risk Assessment\n\nVerdict: Low.\n\n## Pipeline\n\n%s' "$padding" "$ATTESTATION")
@@ -335,17 +396,44 @@ PY
 
 export TEST_HOME FAKE_BIN AZ_TRACE AZ_POST_BODY AZ_UPDATE_BODY AZ_DESCRIPTION_FILE
 
-run_pr() {  # <id> <status> <threads-file> [policy-status] [pr-exists] [blocking] [policy-shape]
+run_pr() {  # <id> <status> <threads-file> [policy-status] [pr-exists] [blocking] [policy-shape] [tool-flags...]
   HOME="$TEST_HOME" PATH="$FAKE_BIN:$PATH" AZ_PR_STATUS="$2" \
     AZ_POLICY_STATUS="${4:-approved}" AZ_PR_EXISTS="${5:-true}" \
     AZ_POLICY_BLOCKING="${6:-true}" AZ_POLICY_SHAPE="${7:-canonical}" \
-    AZ_THREADS_FILE="$3" "$TOOL" https://dev.azure.com/org "$1"
+    AZ_THREADS_FILE="$3" "$TOOL" https://dev.azure.com/org "$1" "${@:8}"
+}
+
+run_dod_pr() {
+  local nm_skip=$1 status=$2 threads=$3
+  CONFIG="$TEST_DIR" bash -c \
+    '. "$1"; fm_dod_block no-mistakes fix-1.2 fm/fix-1.2 none "$2"' \
+    _ "$ROOT/bin/fm-dod-lib.sh" "$nm_skip" > "$TEST_DIR/dod.txt" || return 1
+  python3 - "$TEST_DIR/dod.txt" "$nm_skip" > "$TEST_DIR/dod-flags.txt" <<'PY' || return 1
+import re
+import shlex
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as stream:
+    commands = re.findall(r"`(fm-pr-report-compact [^`]+)`", stream.read())
+assert len(commands) == 1, "generated DoD must supply one ADO compaction command"
+args = shlex.split(commands[0])
+expected = ["fm-pr-report-compact", "<org-url>", "<pr-id>"]
+if sys.argv[2]:
+    expected += ["--nm-skip", sys.argv[2]]
+assert args == expected, "generated compaction command must carry the intake skip"
+print(" ".join(args[3:]))
+PY
+  local tool_flags=()
+  read -r -a tool_flags < "$TEST_DIR/dod-flags.txt"
+  (unset FM_HOME FM_TASK_ID; run_pr 111 "$status" "$threads" approved true true canonical \
+    "${tool_flags[@]+"${tool_flags[@]}"}")
 }
 
 # 7. A clean review posts a closed summary and normalizes a fitting body.
 : > "$AZ_TRACE"
 : > "$AZ_UPDATE_BODY"
-clean_output=$(run_pr 111 active "$EMPTY_THREADS") || fail "clean PR run failed"
+clean_output=$(FM_HOME="$TEST_DIR/fm-home" FM_TASK_ID=fix-1.2 \
+  run_pr 111 active "$EMPTY_THREADS") || fail "clean PR run failed"
 tick='`'
 grep -qF "Run ID: ${tick}run-clean${tick}" "$AZ_POST_BODY" || fail "clean comment must name the run"
 grep -qF "$ROUND_MARKER" "$AZ_POST_BODY" || fail "review comment must identify its attestation round"
@@ -363,11 +451,66 @@ grep -qF -- '- ✅ ci - passed' "$AZ_UPDATE_BODY" || \
 grep -qF "$ATTESTATION" "$AZ_UPDATE_BODY" || \
   fail "ADO update must retain the exact attestation"
 
+# ADO-backed normalization accepts the recorded skip but refuses one without it.
+printf '%s' "$skipped_body" > "$AZ_DESCRIPTION_FILE"
+: > "$AZ_TRACE"
+: > "$AZ_UPDATE_BODY"
+run_dod_pr lint active "$SAME_ROUND_THREADS" >/dev/null || \
+  fail "ADO normalization must accept the registered lint skip"
+grep -qFx -- '- ⏭️ lint - skipped (registered)' "$AZ_UPDATE_BODY" || \
+  fail "ADO description update must render the registered skip"
+grep -qF "$skipped_attestation" "$AZ_UPDATE_BODY" || \
+  fail "ADO description update must preserve the skipped attestation"
+grep -qFx -- '- ✅ ci - passed' "$AZ_UPDATE_BODY" || \
+  fail "registered lint skip must retain verified CI reporting"
+: > "$AZ_TRACE"
+: > "$AZ_UPDATE_BODY"
+if run_dod_pr '' active "$SAME_ROUND_THREADS" \
+    > "$TEST_DIR/ado-unregistered.stdout" 2> "$TEST_DIR/ado-unregistered.stderr"; then
+  fail "ADO normalization must refuse an unregistered skip"
+fi
+grep -qF 'attested step lint is skipped' "$TEST_DIR/ado-unregistered.stderr" || \
+  fail "ADO unregistered skip refusal must name the step"
+if grep -q '^repos pr update' "$AZ_TRACE" || [ -s "$AZ_UPDATE_BODY" ]; then
+  fail "unregistered ADO skip must not write the description"
+fi
+for invalid_skip in "${invalid_skips[@]}"; do
+  : > "$AZ_TRACE"
+  : > "$AZ_UPDATE_BODY"
+  if run_pr 111 active "$SAME_ROUND_THREADS" approved true true canonical \
+      --nm-skip "$invalid_skip" \
+      > "$TEST_DIR/ado-invalid.stdout" 2> "$TEST_DIR/ado-invalid.stderr"; then
+    fail "ADO must reject ungrantable skip '$invalid_skip'"
+  else
+    [ "$?" -eq 2 ] || fail "invalid ADO skip '$invalid_skip' must exit 2"
+  fi
+  [ ! -s "$TEST_DIR/ado-invalid.stdout" ] || fail "invalid ADO skip must emit no output"
+  [ ! -s "$AZ_TRACE" ] || fail "invalid ADO skip must make no az calls"
+  [ ! -s "$AZ_UPDATE_BODY" ] || fail "invalid ADO skip must not write the description"
+done
+: > "$AZ_TRACE"
+: > "$AZ_UPDATE_BODY"
+if run_pr 111 active "$SAME_ROUND_THREADS" queued true true canonical \
+    --nm-skip lint > "$TEST_DIR/skip-ci.stdout" 2> "$TEST_DIR/skip-ci.stderr"; then
+  fail "registered skips must never bypass a non-green Build policy"
+fi
+grep -qF 'blocking Build policy status: queued' "$TEST_DIR/skip-ci.stderr" || \
+  fail "registered skip must reach the non-green Build policy refusal"
+if grep -q '^repos pr update' "$AZ_TRACE" || [ -s "$AZ_UPDATE_BODY" ]; then
+  fail "registered skip with non-green CI must not write the description"
+fi
+printf '%s' "$small" > "$AZ_DESCRIPTION_FILE"
+run_dod_pr '' active "$SAME_ROUND_THREADS" >/dev/null || \
+  fail "generated command with empty skips must accept passed steps"
+grep -qFx -- '- ✅ test - passed' "$AZ_UPDATE_BODY" || \
+  fail "generated command with empty skips must write the passed board"
+
 # 8. A completed PR gets a newer-round comment but no description update.
 : > "$AZ_TRACE"
 : > "$AZ_UPDATE_BODY"
 printf '%s' "$big" > "$AZ_DESCRIPTION_FILE"
-completed_output=$(run_pr 222 completed "$OLDER_ROUND_THREADS") || fail "completed PR run failed"
+completed_output=$(FM_HOME="$TEST_DIR/fm-home" FM_TASK_ID=fix-1.2 \
+  run_pr 222 completed "$OLDER_ROUND_THREADS") || fail "completed PR run failed"
 grep -q -- '--http-method POST' "$AZ_TRACE" || fail "completed PR must still receive a newer-round review comment"
 grep -qF "$ROUND_MARKER" "$AZ_POST_BODY" || fail "completed PR comment must identify the current attestation round"
 grep -qF 'description left as-merged' <<< "$completed_output" || fail "completed PR must report its description was left as-merged"

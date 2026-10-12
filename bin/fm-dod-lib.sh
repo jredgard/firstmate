@@ -553,8 +553,8 @@ EOF
       cat <<EOF
 
 After /no-mistakes reports CI green (the CI-ready return point - do not wait for it to keep monitoring in the background until merge): on a GitHub PR, read the PR back from the forge and confirm it is not a draft (\`gh-axi pr view <number>\` must print \`draft: no\`, where <number> is the PR number from your PR URL); if it is a draft, mark it ready with \`gh-axi pr ready <number>\` - a draft cannot be merged, so a done report on one leaves the merge unasked.
-On an Azure DevOps PR, run \`fm-pr-report-compact <org-url> <pr-id>\` once: Azure DevOps hard-truncates PR descriptions at 4000 characters and refuses edits after merge, so this is the only window to keep the full verification report readable.
-The tool posts a closed review-summary comment, with any residual findings in full, on every gated PR, verifies the Build policy, normalizes the visible step board to final passed values, trims prose when needed, and never alters the attestation.
+On an Azure DevOps PR, run \`fm-pr-report-compact <org-url> <pr-id>${nm_skip:+ --nm-skip $nm_skip}\` once: Azure DevOps hard-truncates PR descriptions at 4000 characters and refuses edits after merge, so this is the only window to keep the full verification report readable.
+The tool posts a closed review-summary comment, with any residual findings in full, on every gated PR, verifies the Build policy, normalizes the visible step board to verified final statuses, trims prose when needed, and never alters the attestation.
 Then append \`done [at=<epoch>]: PR {url} checks green\` and stop. You are finished.
 That CI-ready \`done:\` is accepted only when this copy's HEAD - your latest commit - is one the /no-mistakes run pushed, so commit nothing after the run; the check tests that commit, not merely that a branch moved.
 If you deliberately keep the PR a draft, append \`paused [at=<epoch>]: {why the draft is held}\` instead of done.
