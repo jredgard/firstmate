@@ -7,6 +7,7 @@ TOOL="$ROOT/bin/fm-pr-report-compact"
 failures=0
 TEST_DIR=$(mktemp -d)
 trap 'rm -rf "$TEST_DIR"' EXIT
+export FM_HOME="$TEST_DIR/fm-home" FM_TASK_ID=compact-test
 
 fail() { echo "FAIL: $1" >&2; failures=$((failures + 1)); }
 
@@ -77,6 +78,82 @@ printf '%s' "$new_out" | grep -q -- '- ✅ ci - passed' || \
 out=$(printf '%s' "$new_out" | "$TOOL" --stdin) || \
   fail "tool errored on an already-normalized body"
 [ -z "$out" ] || fail "an already-normalized body must not be rewritten"
+
+# Registered skips preserve their attestation and are never labeled passed.
+test_step='{"step":"test","status":"completed"}'
+lint_step='{"step":"lint","status":"skipped"}'
+skipped_attestation=${ATTESTATION/"$test_step"/"$lint_step"}
+skipped_body=${small/"$ATTESTATION"/"$skipped_attestation"}
+if skipped_out=$(printf '%s' "$skipped_body" | "$TOOL" --stdin --nm-skip lint); then
+  printf '%s' "$skipped_out" | grep -qFx -- '- ⏭️ lint - skipped (registered)' || \
+    fail "registered lint skip must be rendered explicitly"
+  printf '%s' "$skipped_out" | grep -qF "$skipped_attestation" || \
+    fail "registered skip must preserve the exact attestation"
+  if printf '%s' "$skipped_out" | grep -qFx -- '- ✅ lint - passed'; then
+    fail "registered skip must never be relabeled passed"
+  fi
+  again=$(printf '%s' "$skipped_out" | "$TOOL" --stdin --nm-skip lint) || \
+    fail "registered skip rerun must succeed"
+  [ -z "$again" ] || fail "registered skip normalization must be idempotent"
+else
+  fail "registered lint skip must be accepted"
+fi
+if printf '%s' "$skipped_body" | "$TOOL" --stdin \
+    > "$TEST_DIR/unregistered.stdout" 2> "$TEST_DIR/unregistered.stderr"; then
+  fail "unregistered lint skip must be refused"
+fi
+[ ! -s "$TEST_DIR/unregistered.stdout" ] || fail "unregistered skip must emit no body"
+grep -qF 'attested step lint is skipped' "$TEST_DIR/unregistered.stderr" || \
+  fail "unregistered skip refusal must name the step"
+wrong_skip=${skipped_body/"$lint_step"/'{"step":"test","status":"skipped"}'}
+if printf '%s' "$wrong_skip" | "$TOOL" --stdin --nm-skip lint \
+    > "$TEST_DIR/wrong-skip.stdout" 2> "$TEST_DIR/wrong-skip.stderr"; then
+  fail "lint registration must not grant a test skip"
+fi
+[ ! -s "$TEST_DIR/wrong-skip.stdout" ] || fail "wrong skip must emit no body"
+failed_lint=${skipped_body/"$lint_step"/'{"step":"lint","status":"failed"}'}
+if printf '%s' "$failed_lint" | "$TOOL" --stdin --nm-skip lint \
+    > "$TEST_DIR/failed-lint.stdout" 2> "$TEST_DIR/failed-lint.stderr"; then
+  fail "lint registration must not grant a failed lint step"
+fi
+
+# Workers resolve intake posture from their own recorded task metadata.
+mkdir -p "$FM_HOME/state"
+printf 'nm_skip=lint\n' > "$FM_HOME/state/$FM_TASK_ID.meta"
+metadata_out=$(printf '%s' "$skipped_body" | "$TOOL" --stdin) || \
+  fail "recorded task skip must be accepted without caller flags"
+printf '%s' "$metadata_out" | grep -qFx -- '- ⏭️ lint - skipped (registered)' || \
+  fail "metadata skip must render as registered"
+explicit_out=$(printf '%s' "$skipped_body" | "$TOOL" --stdin \
+  --task-meta "$FM_HOME/state/$FM_TASK_ID.meta") || \
+  fail "explicit task metadata must grant the recorded skip"
+[ "$explicit_out" = "$metadata_out" ] || fail "explicit and worker metadata must agree"
+printf 'nm_skip=\n' > "$FM_HOME/state/$FM_TASK_ID.meta"
+if printf '%s' "$skipped_body" | "$TOOL" --stdin \
+    > "$TEST_DIR/empty-skip.stdout" 2> "$TEST_DIR/empty-skip.stderr"; then
+  fail "empty recorded posture must not grant a skipped step"
+fi
+printf 'nm_skip=lint\n' > "$FM_HOME/state/$FM_TASK_ID.meta"
+if printf '%s' "$skipped_body" | "$TOOL" --stdin --nm-skip '' \
+    > "$TEST_DIR/override.stdout" 2> "$TEST_DIR/override.stderr"; then
+  fail "explicit empty posture must override recorded skips"
+fi
+printf 'nm_skip=lint\nnm_skip=\n' > "$FM_HOME/state/$FM_TASK_ID.meta"
+if printf '%s' "$skipped_body" | "$TOOL" --stdin \
+    > "$TEST_DIR/duplicate.stdout" 2> "$TEST_DIR/duplicate.stderr"; then
+  fail "ambiguous duplicate skip fields must fail closed"
+fi
+grep -qF 'duplicate nm_skip' "$TEST_DIR/duplicate.stderr" || \
+  fail "duplicate field refusal must name the invalid metadata"
+rm "$FM_HOME/state/$FM_TASK_ID.meta"
+if printf '%s' "$skipped_body" | "$TOOL" --stdin --task-meta "$TEST_DIR/missing.meta" \
+    > "$TEST_DIR/missing-meta.stdout" 2> "$TEST_DIR/missing-meta.stderr"; then
+  fail "missing explicitly selected metadata must fail closed"
+fi
+if printf '%s' "$skipped_body" | "$TOOL" --stdin --nm-skip 'lint-extra' \
+    > "$TEST_DIR/partial.stdout" 2> "$TEST_DIR/partial.stderr"; then
+  fail "a partial step-name match must not grant the lint skip"
+fi
 
 # 4. A near-cap head is trimmed without losing work-item tokens or Risk.
 padding=$(printf 'verbose prose %.0s' $(seq 1 300))
@@ -335,11 +412,11 @@ PY
 
 export TEST_HOME FAKE_BIN AZ_TRACE AZ_POST_BODY AZ_UPDATE_BODY AZ_DESCRIPTION_FILE
 
-run_pr() {  # <id> <status> <threads-file> [policy-status] [pr-exists] [blocking] [policy-shape]
+run_pr() {  # <id> <status> <threads-file> [policy-status] [pr-exists] [blocking] [policy-shape] [tool-flags...]
   HOME="$TEST_HOME" PATH="$FAKE_BIN:$PATH" AZ_PR_STATUS="$2" \
     AZ_POLICY_STATUS="${4:-approved}" AZ_PR_EXISTS="${5:-true}" \
     AZ_POLICY_BLOCKING="${6:-true}" AZ_POLICY_SHAPE="${7:-canonical}" \
-    AZ_THREADS_FILE="$3" "$TOOL" https://dev.azure.com/org "$1"
+    AZ_THREADS_FILE="$3" "$TOOL" https://dev.azure.com/org "$1" "${@:8}"
 }
 
 # 7. A clean review posts a closed summary and normalizes a fitting body.
@@ -362,6 +439,46 @@ grep -qF -- '- ✅ ci - passed' "$AZ_UPDATE_BODY" || \
   fail "ADO update must receive the final board"
 grep -qF "$ATTESTATION" "$AZ_UPDATE_BODY" || \
   fail "ADO update must retain the exact attestation"
+
+# ADO-backed normalization accepts the recorded skip but refuses one without it.
+printf '%s' "$skipped_body" > "$AZ_DESCRIPTION_FILE"
+printf 'nm_skip=lint\n' > "$FM_HOME/state/$FM_TASK_ID.meta"
+: > "$AZ_TRACE"
+: > "$AZ_UPDATE_BODY"
+run_pr 111 active "$SAME_ROUND_THREADS" >/dev/null || \
+  fail "ADO normalization must accept the registered lint skip"
+grep -qFx -- '- ⏭️ lint - skipped (registered)' "$AZ_UPDATE_BODY" || \
+  fail "ADO description update must render the registered skip"
+grep -qF "$skipped_attestation" "$AZ_UPDATE_BODY" || \
+  fail "ADO description update must preserve the skipped attestation"
+grep -qFx -- '- ✅ ci - passed' "$AZ_UPDATE_BODY" || \
+  fail "registered lint skip must retain verified CI reporting"
+rm "$FM_HOME/state/$FM_TASK_ID.meta"
+: > "$AZ_TRACE"
+: > "$AZ_UPDATE_BODY"
+if run_pr 111 active "$SAME_ROUND_THREADS" \
+    > "$TEST_DIR/ado-unregistered.stdout" 2> "$TEST_DIR/ado-unregistered.stderr"; then
+  fail "ADO normalization must refuse an unregistered skip"
+fi
+grep -qF 'attested step lint is skipped' "$TEST_DIR/ado-unregistered.stderr" || \
+  fail "ADO unregistered skip refusal must name the step"
+if grep -q '^repos pr update' "$AZ_TRACE" || [ -s "$AZ_UPDATE_BODY" ]; then
+  fail "unregistered ADO skip must not write the description"
+fi
+run_pr 111 active "$SAME_ROUND_THREADS" approved true true canonical --nm-skip lint \
+    >/dev/null || fail "ADO caller's explicit skip value must be accepted"
+grep -qFx -- '- ⏭️ lint - skipped (registered)' "$AZ_UPDATE_BODY" || \
+  fail "explicit ADO skip must render as registered"
+: > "$AZ_TRACE"
+: > "$AZ_UPDATE_BODY"
+if run_pr 111 active "$SAME_ROUND_THREADS" queued true true canonical \
+    --nm-skip lint,ci > "$TEST_DIR/skip-ci.stdout" 2> "$TEST_DIR/skip-ci.stderr"; then
+  fail "registered skips must never bypass a non-green Build policy"
+fi
+if grep -q '^repos pr update' "$AZ_TRACE" || [ -s "$AZ_UPDATE_BODY" ]; then
+  fail "registered skip with non-green CI must not write the description"
+fi
+printf '%s' "$small" > "$AZ_DESCRIPTION_FILE"
 
 # 8. A completed PR gets a newer-round comment but no description update.
 : > "$AZ_TRACE"

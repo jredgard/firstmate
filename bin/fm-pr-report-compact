@@ -11,8 +11,10 @@ the only window to fix the archive is between checks-passed and merge.
 This tool keeps the attestation comment byte-for-byte because the
 RequireNoMistakes gate binds on it. It rebuilds the surrounding description in
 the canonical Intent / What Changed / Risk Assessment / Pipeline order,
-removes stale status boards and details reports, and emits one verified passed
-line per attested step. It verifies that the PR exists and that every blocking
+removes stale status boards and details reports, and emits one verified status
+line per attested step. Registered skips render as "skipped (registered)";
+unregistered skips and failed steps refuse the description update.
+It verifies that the PR exists and that every blocking
 ADO Build policy is approved before any active-PR write. If the normalized body
 is too long, it trims Intent and then What Changed prose while preserving work
 item tokens, the complete Risk section, and the attestation. An unclosed fenced
@@ -35,6 +37,15 @@ the current round.
 Usage:
   fm-pr-report-compact <org-url> <pr-id>            # normalize in place via az
   fm-pr-report-compact --stdin < body > normalized  # pure CI-green test filter
+  Either form accepts --nm-skip <steps> or --task-meta <state/task.meta>.
+
+--nm-skip supplies the caller's intake-resolved comma-separated skip value,
+including an empty value for no skips. Otherwise --task-meta reads nm_skip
+from that task record, or FM_HOME/state/FM_TASK_ID.meta is used when both
+environment variables are set. Missing implicit metadata grants no skips;
+an unreadable explicit record or duplicate nm_skip fields refuse the update.
+Only an exact attested step name in that value grants a skipped status.
+PR and CI still require verification regardless of the registered skip value.
 
 Always posts the review comment (skipping only when the description carries no
 readable attestation, no local run data is found, or a comment for the current
@@ -44,6 +55,7 @@ Run it only after the pipeline reports checks-passed (custody has returned);
 never during a run. The --stdin interface performs no network calls and treats
 PR and CI as verified so description shapes can be tested in isolation.
 """
+import argparse
 import json
 import os
 import re
@@ -172,16 +184,26 @@ def code_fences_balanced(src: str) -> bool:
 
 
 def normalized_body(sections: dict, attestation: str, steps: list) -> str:
-    """Assemble canonical sections, the exact attestation, and passed board."""
+    """Assemble canonical sections, the exact attestation, and verified board."""
     rendered = []
     for heading in CANONICAL_SECTIONS:
         content = sections.get(heading, "").strip()
         rendered.append(f"## {heading}" + (f"\n\n{content}" if content else ""))
-    lines = [f"- ✅ {step['step']} - passed" for step in steps]
+    lines = [
+        f"- ⏭️ {step['step']} - skipped (registered)"
+        if str(step.get("status") or "").casefold() == "skipped"
+        and str(step["step"]).casefold() not in ("pr", "ci")
+        else f"- ✅ {step['step']} - passed"
+        for step in steps
+    ]
     return "\n\n".join(rendered) + "\n\n" + attestation + "\n\n" + "\n".join(lines)
 
 
-def compact(src: str, verified_steps: "set[str] | None" = None) -> "str | None":
+def compact(
+    src: str,
+    verified_steps: "set[str] | None" = None,
+    registered_skips: "set[str] | None" = None,
+) -> "str | None":
     """Return the normalized body, or None when src is already normalized."""
     match = ATTESTATION_RE.search(src)
     if not match:
@@ -204,6 +226,8 @@ def compact(src: str, verified_steps: "set[str] | None" = None) -> "str | None":
                 raise SystemExit(
                     f"error: {name} was not verified green; description not updated"
                 )
+        elif status == "skipped" and name in (registered_skips or set()):
+            continue
         elif status not in ("completed", "passed"):
             raise SystemExit(
                 f"error: attested step {name} is {status or 'unknown'}, not passed; "
@@ -546,22 +570,61 @@ def verify_build_policy(org: str, pr_id: str) -> None:
         )
 
 
-def main() -> int:
-    if len(sys.argv) == 2 and sys.argv[1] in ("--help", "-h"):
-        print(__doc__)
-        return 0
+def registered_skips(nm_skip: "str | None", task_meta: "str | None") -> set:
+    """Read the caller's intake posture, never infer it from the attestation."""
+    if nm_skip is not None:
+        return set(nm_skip.split(",")) - {""}
+    explicit = task_meta is not None
+    if not explicit:
+        home = os.environ.get("FM_HOME")
+        task = os.environ.get("FM_TASK_ID")
+        if not home or not task:
+            return set()
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", task):
+            raise SystemExit("error: invalid FM_TASK_ID; description not updated")
+        task_meta = os.path.join(home, "state", f"{task}.meta")
+    try:
+        with open(task_meta, encoding="utf-8") as stream:
+            values = [
+                line.rstrip("\r\n").split("=", 1)[1]
+                for line in stream if line.startswith("nm_skip=")
+            ]
+    except FileNotFoundError as exc:
+        if not explicit:
+            return set()
+        raise SystemExit(f"error: task metadata could not be read: {exc}") from exc
+    except (OSError, UnicodeError) as exc:
+        raise SystemExit(f"error: task metadata could not be read: {exc}") from exc
+    if len(values) > 1:
+        raise SystemExit("error: duplicate nm_skip in task metadata; description not updated")
+    return set(values[0].split(",")) - {""} if values else set()
 
-    if len(sys.argv) == 2 and sys.argv[1] == "--stdin":
-        body = compact(sys.stdin.read())
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("--stdin", action="store_true")
+    posture = parser.add_mutually_exclusive_group()
+    posture.add_argument("--nm-skip")
+    posture.add_argument("--task-meta")
+    parser.add_argument("org", nargs="?")
+    parser.add_argument("pr_id", nargs="?")
+    args = parser.parse_args()
+    if (args.stdin and (args.org or args.pr_id)) or (
+        not args.stdin and (not args.org or not args.pr_id)
+    ):
+        print(__doc__, file=sys.stderr)
+        return 2
+    skips = registered_skips(args.nm_skip, args.task_meta)
+
+    if args.stdin:
+        body = compact(sys.stdin.read(), registered_skips=skips)
         if body is not None:
             sys.stdout.write(body)
         return 0
 
-    if len(sys.argv) != 3:
-        print(__doc__, file=sys.stderr)
-        return 2
-
-    org, pr_id = sys.argv[1], sys.argv[2]
+    org, pr_id = args.org, args.pr_id
     try:
         show = subprocess.run(
             ["az", "repos", "pr", "show", "--id", pr_id, "--organization", org,
@@ -630,7 +693,7 @@ def main() -> int:
             )
         return 0
 
-    body = compact(pr.get("description") or "", {"pr", "ci"})
+    body = compact(pr.get("description") or "", {"pr", "ci"}, skips)
     if body is None:
         print(f"PR {pr_id}: description already normalized, not rewritten")
         return 0
