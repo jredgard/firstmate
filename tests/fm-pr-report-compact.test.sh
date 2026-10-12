@@ -125,7 +125,7 @@ fi
 empty_out=$(printf '%s' "$small" | "$TOOL" --stdin --nm-skip '') || \
   fail "explicit empty posture must accept passed steps"
 [ "$empty_out" = "$new_out" ] || fail "empty and omitted posture must normalize identically"
-invalid_skips=(intent review test pr ci lint-extra lint,ci lint,lint lint, ,lint Lint ' lint' 'lint ')
+invalid_skips=(intent review test pr ci lint-extra 'lint,ci' 'lint,lint' 'lint,' ',lint' Lint ' lint' 'lint ')
 for invalid_skip in "${invalid_skips[@]}"; do
   invalid_body=${skipped_body/"$lint_step"/"{\"step\":\"$invalid_skip\",\"status\":\"skipped\"}"}
   if printf '%s' "$invalid_body" | "$TOOL" --stdin --nm-skip "$invalid_skip" \
