@@ -1,0 +1,35 @@
+### BASE 05cf55d
+## fm-fleet-sync.sh (FM_ROOT=/tmp/fm-sync-live.M7iH3b/base)
+detached: recovered: re-attached main, synced d810039..51a4704
+dev-default: synced d810039..51a4704
+dirty-main: STUCK: on branch main with uncommitted changes, 0 commits behind origin/master - needs attention
+feature-tracking: STUCK: on branch some-pr, 1 commits behind origin/main - needs attention
+master-stray-main: synced d810039..51a4704
+Mosaiq.UIUX.Internal: STUCK: on branch main, 0 commits behind origin/master - needs attention
+registry-prose: synced d810039..51a4704
+## post-state
+detached               head=51a4704 (was d810039) branch=main dirty=0 main=51a4704 origin/main=51a4704
+dev-default            head=51a4704 (was d810039) branch=dev dirty=0 main=d810039 origin/main=51a4704
+dirty-main             head=d810039 (was d810039) branch=main dirty=1 main=d810039 origin/main=51a4704
+feature-tracking       head=d810039 (was d810039) branch=some-pr dirty=0 main=d810039 origin/main=51a4704
+master-stray-main      head=51a4704 (was d810039) branch=master dirty=0 main=d810039 origin/main=51a4704
+Mosaiq.UIUX.Internal   head=d810039 (was d810039) branch=main dirty=0 main=d810039 origin/main=51a4704
+registry-prose         head=51a4704 (was d810039) branch=main dirty=0 main=51a4704 origin/main=51a4704
+
+### TARGET 1b48680
+## fm-fleet-sync.sh (FM_ROOT=/home/johannesr/.no-mistakes/worktrees/e0341a3b611a/01M4RWYJR6R0DSXGW3JF17AF2G)
+detached: recovered: re-attached main, synced acdc781..a77e049
+dev-default: synced d810039..51a4704
+dirty-main: STUCK: on branch main with uncommitted changes, 1 commits behind origin/main - needs attention
+feature-tracking: STUCK: on branch some-pr, 1 commits behind origin/main - needs attention
+master-stray-main: synced d810039..51a4704
+Mosaiq.UIUX.Internal: synced d810039..51a4704
+registry-prose: synced d810039..51a4704
+## post-state
+detached               head=a77e049 (was acdc781) branch=main dirty=0 main=a77e049 origin/main=a77e049
+dev-default            head=51a4704 (was d810039) branch=dev dirty=0 main=d810039 origin/main=51a4704
+dirty-main             head=d810039 (was d810039) branch=main dirty=1 main=d810039 origin/main=51a4704
+feature-tracking       head=d810039 (was d810039) branch=some-pr dirty=0 main=d810039 origin/main=51a4704
+master-stray-main      head=51a4704 (was d810039) branch=master dirty=0 main=d810039 origin/main=51a4704
+Mosaiq.UIUX.Internal   head=51a4704 (was d810039) branch=main dirty=0 main=51a4704 origin/main=51a4704
+registry-prose         head=51a4704 (was d810039) branch=main dirty=0 main=51a4704 origin/main=51a4704

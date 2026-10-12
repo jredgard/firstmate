@@ -1,0 +1,4 @@
+### BASE
+nohead: recovered: re-attached main, synced 662a34f..7fd5d35
+### TARGET
+nohead: skipped: cannot determine default branch
