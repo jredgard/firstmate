@@ -1042,7 +1042,10 @@ exec "$REAL_GIT_FOR_TEST" "\${args[@]}"
 SH
     chmod +x "$case_dir/fakebin/git"
     rc=0
-    FM_FAKE_AXI_STATUS="$(parked_axi_status_toon fm/task-x1 "$head")" \
+    # Pin the home so the pool slot's shared project lock resolves under this
+    # case's state dir rather than the repository checkout's.
+    FM_HOME="$case_dir" \
+      FM_FAKE_AXI_STATUS="$(parked_axi_status_toon fm/task-x1 "$head")" \
       FM_FAKE_NM_ABORT_LOG="$case_dir/abort-log" \
       run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
     case "$scenario" in
