@@ -2983,6 +2983,17 @@ test_dispatch_and_completion_are_structural() {
 
   meta="$home/state/$id.meta"
   printf 'pr=%s\n' "$pr" >> "$meta"
+  # Teardown reads the recorded GitHub PR's merged flag before it closes work.
+  cat > "$case_dir/fakebin/gh-axi" <<SH
+#!/usr/bin/env bash
+case "\$*" in
+  'api GET /repos/example/firstmate/pulls/15 '*)
+    printf 'api_response:\n  body: %s\n  truncated: false\n' \
+      '$(printf '{"number":15,"state":"closed","merged":true,"head":null,"merge_commit_sha":null}' | base64 | tr -d '\n')'
+    ;;
+esac
+exit 0
+SH
   out=$(run_teardown "$case_dir" "$id") \
     || fail "structural teardown failed: $out"
   [ "$(row_state "$case_dir" "$id")" = "done" ] \
