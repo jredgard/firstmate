@@ -74,7 +74,11 @@
 # even for pushed work or an already-absent worktree. Missing or mismatched heads
 # refuse; a pushed-but-open PR is not landed. A verified completed ADO head can
 # prove containment of local work without a GitHub lookup.
-# A gh lookup error falls back to the content check; if that is also inconclusive,
+# A recorded GitHub PR also requires a merged REST readback at pr_head, or a
+# merge commit containing pr_head, before cleanup, even for pushed work or an
+# absent worktree. Open, closed-unmerged, unreadable, and unverified heads refuse.
+# A legacy record without pr_head requires the merged flag and prints a warning.
+# An unrecorded-PR lookup error falls back to the content check; if inconclusive,
 # teardown refuses rather than risk discarding unlanded work.
 # Uncommitted changes are never landed; dirty refusals distinguish untracked-only
 # leftovers from tracked edits and list at most ten non-exempt untracked paths.
@@ -1513,6 +1517,43 @@ ensure_commit_object() {
   git -C "$WT" remote get-url origin >/dev/null 2>&1 || return 1
   git -C "$WT" fetch --quiet origin "refs/pull/$n/head" >/dev/null 2>&1 || return 1
   git -C "$WT" cat-file -e "$commit^{commit}" 2>/dev/null
+}
+
+# Recorded GitHub PRs are an independent landed-work gate: remote reachability
+# and content already in main cannot complete a still-open PR. Read the explicit
+# REST merged flag, since state=closed alone also describes an abandoned PR.
+# The gh-axi base64 envelope preserves the typed JSON without TOON truncation.
+recorded_github_pr_is_landed() {
+  local response encoded json expected head merge proof_repo
+  TEARDOWN_GITHUB_PR_STATE=unreadable
+  fm_pr_url_parse "$PR_URL" && [ "$FM_PR_PROVIDER" = github ] || return 1
+  response=$(fm_run_timed 10 gh-axi api GET "/repos/$FM_PR_OWNER/$FM_PR_REPO/pulls/$FM_PR_NUMBER" \
+    --jq '{number, state, merged, head: .head.sha, merge_commit_sha} | @base64' --full 2>/dev/null) || return 1
+  printf '%s\n' "$response" | awk '/^  truncated: / {if ($2=="false") found=1} END {exit !found}' || return 1
+  encoded=$(printf '%s\n' "$response" | awk '/^  body: / {sub(/^  body: /, ""); print; exit}')
+  [ -n "$encoded" ] || return 1
+  json=$(printf '%s\n' "$encoded" | jq -R 'fromjson? // .' | jq -e '@base64d | fromjson') || return 1
+  printf '%s' "$json" | jq -e --argjson number "$FM_PR_NUMBER" \
+    '.number == $number and (.state == "open" or .state == "closed") and (.merged | type) == "boolean"' >/dev/null 2>&1 || return 1
+  TEARDOWN_GITHUB_PR_STATE=$(printf '%s' "$json" | jq -r 'if .merged then "merged" else .state end')
+  printf '%s' "$json" | jq -e '.state == "closed" and .merged == true' >/dev/null || return 1
+  expected=$(fm_meta_get "$META" pr_head)
+  if [ -z "$expected" ]; then
+    echo "warning: GitHub pull request $PR_URL has no recorded pr_head; accepting the merged flag without recorded-head verification." >&2
+    return 0
+  fi
+  fm_pr_head_valid "$expected" || return 1
+  head=$(printf '%s' "$json" | jq -r '.head // ""')
+  [ "$head" != "$expected" ] || return 0
+  merge=$(printf '%s' "$json" | jq -r '.merge_commit_sha // ""')
+  fm_pr_head_valid "$merge" || return 1
+  proof_repo=$WT
+  if ! teardown_owns_worktree || [ ! -d "$proof_repo" ]; then
+    proof_repo=$PROJ
+  fi
+  [ -d "$proof_repo" ] || return 1
+  fm_run_timed 10 env GIT_NO_LAZY_FETCH=1 git -C "$proof_repo" \
+    merge-base --is-ancestor "$expected" "$merge" 2>/dev/null
 }
 
 patch_id_for_commit() {
@@ -3452,6 +3493,14 @@ fi
 X_REQUEST=$(grep '^x_request=' "$META" 2>/dev/null | tail -1 | cut -d= -f2- || true)
 if [ -n "$X_REQUEST" ]; then
   echo "warning: task $ID still carries an unreconciled Relay request link ($X_REQUEST) on its task record." >&2
+fi
+
+if [ "$FORCE" != "--force" ] && [ "$KIND" != scout ] && [ "$KIND" != secondmate ] \
+    && [[ "$PR_URL" == https://github.com/* ]]; then
+  if ! recorded_github_pr_is_landed; then
+    echo "REFUSED: GitHub pull request $PR_URL is not verifiably merged at the recorded head (state=$TEARDOWN_GITHUB_PR_STATE); preserving task and worktree." >&2
+    exit 1
+  fi
 fi
 
 if [ "$BACKEND" = orca ] && [ "$KIND" != scout ] && [ "$KIND" != secondmate ] && [ "$FORCE" != "--force" ]; then

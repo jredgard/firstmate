@@ -254,9 +254,17 @@ land_on_origin_main() {
 # Override GitHub lookups to report PR 7 as merged with the supplied head.
 add_gh_pr_merged_for_head() {
   local case_dir=$1 head=$2
-  cat > "$case_dir/fakebin/gh-axi" <<'SH'
+  cat > "$case_dir/fakebin/gh-axi" <<SH
 #!/usr/bin/env bash
-case "${1:-} ${2:-}" in
+if [ "\${1:-}" = api ]; then
+  cat <<'RECORD'
+api_response:
+  body: $(printf '{"number":7,"state":"closed","merged":true,"head":"%s","merge_commit_sha":null}' "$head" | base64 | tr -d '\n')
+  truncated: false
+RECORD
+  exit 0
+fi
+case "\${1:-} \${2:-}" in
   "pr list")
     printf '%s\n' "count: 1 (showing first 1)" "pull_requests[1]{number,state}:" "  7,merged" ; exit 0 ;;
   "pr view")
@@ -713,6 +721,7 @@ test_teardown_closes_the_backlog_item_itself() {
   local case_dir out
   case_dir=$(make_case tasks-axi-close)
   write_meta "$case_dir" no-mistakes ship
+  add_gh_pr_merged_for_head "$case_dir" "$(git -C "$case_dir/wt" rev-parse HEAD)"
   printf '%s\n' 'pr=https://github.com/example/repo/pull/7' >> "$case_dir/state/task-x1.meta"
   seed_backlog_in_flight "$case_dir"
 
@@ -767,6 +776,7 @@ SH
 
   case_dir=$(make_case tasks-axi-close-github-under-refusal)
   write_meta "$case_dir" no-mistakes ship
+  add_gh_pr_merged_for_head "$case_dir" "$(git -C "$case_dir/wt" rev-parse HEAD)"
   printf '%s\n' 'pr=https://github.com/example/repo/pull/7' >> "$case_dir/state/task-x1.meta"
   seed_backlog_in_flight "$case_dir"
   cp "$TMP_ROOT/tasks-axi-close-gerrit/fakebin/tasks-axi" "$case_dir/fakebin/tasks-axi"
@@ -781,6 +791,7 @@ test_teardown_manual_backend_leaves_the_backlog_to_the_operator() {
   local case_dir out backlog_path
   case_dir=$(make_case tasks-axi-manual-optout)
   write_meta "$case_dir" no-mistakes ship
+  add_gh_pr_merged_for_head "$case_dir" "$(git -C "$case_dir/wt" rev-parse HEAD)"
   printf '%s\n' 'pr=https://github.com/example/repo/pull/7' >> "$case_dir/state/task-x1.meta"
   printf '%s\n' manual > "$case_dir/config/backlog-backend"
   seed_backlog_in_flight "$case_dir"
@@ -870,6 +881,203 @@ test_no_mistakes_truly_unpushed_refuses() {
   expect_code 1 "$rc" "nm-unpushed: teardown should refuse"
   grep -q REFUSED "$case_dir/stderr" || fail "nm-unpushed: no REFUSED line in stderr"
   pass "no-mistakes worktree with genuinely unlanded work is refused (safety preserved)"
+}
+
+# Captured gh-axi REST output, with only PR identity and object IDs rebound
+# to the local Git fixture. State and merged flag are the recorded wire values.
+add_gh_recorded_fixture() {
+  local case_dir=$1 fixture=$2 head=$3 merge=${4:-} number=${5:-7} encoded
+  encoded=$(sed -n 's/^  body: //p' "$ROOT/tests/fixtures/fm-teardown-github/$fixture.toon")
+  printf '%s' "$encoded" | jq -R '@base64d | fromjson' \
+    | jq --arg head "$head" --arg merge "$merge" --argjson number "$number" \
+      '.number=$number | .head=$head | .merge_commit_sha=(if $merge == "" then null else $merge end)' \
+    | jq -r '@base64' > "$case_dir/gh-record-base64"
+  cat > "$case_dir/fakebin/gh-axi" <<SH
+#!/usr/bin/env bash
+[ "\$*" = 'api GET /repos/example/repo/pulls/7 --jq {number, state, merged, head: .head.sha, merge_commit_sha} | @base64 --full' ] || exit 2
+printf 'api_response:\n  body: %s\n  truncated: false\n' "\$(cat '$case_dir/gh-record-base64')"
+SH
+  chmod +x "$case_dir/fakebin/gh-axi"
+}
+
+test_github_recorded_pr_landed_gate() {
+  local fixture case_dir head rc recorded merge
+  for fixture in open closed merged; do
+    case_dir=$(make_case "github-pushed-$fixture")
+    write_meta "$case_dir" no-mistakes ship
+    wt_commit_file "$case_dir" feature.txt hello
+    head=$(git -C "$case_dir/wt" rev-parse HEAD)
+    append_pr_meta_for_current_head "$case_dir"
+    seed_backlog_in_flight "$case_dir"
+    git -C "$case_dir/wt" push -q origin fm/task-x1
+    add_gh_recorded_fixture "$case_dir" "$fixture" "$head"
+    rc=0
+    FM_FAKE_AXI_STATUS="$(parked_axi_status_toon fm/task-x1 "$head")" \
+      FM_FAKE_NM_ABORT_LOG="$case_dir/abort-log" \
+      run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+    if [ "$fixture" = merged ]; then
+      expect_code 0 "$rc" 'merged GitHub PR at recorded head'
+      assert_absent "$case_dir/state/task-x1.meta" 'merged GitHub task remained active'
+      [ "$(backlog_row_state "$case_dir")" = 'done' ] || fail 'merged GitHub task stayed open'
+    else
+      expect_code 1 "$rc" "$fixture GitHub PR teardown"
+      assert_grep "REFUSED: GitHub pull request https://github.com/example/repo/pull/7 is not verifiably merged at the recorded head (state=$fixture)" "$case_dir/stderr" \
+        'GitHub refusal did not name the PR and state'
+      assert_refusal_retained_task_state "$case_dir" "$fixture" "$head"
+      [ "$(backlog_row_state "$case_dir")" = in_flight ] || fail 'unmerged GitHub task was closed'
+      [ ! -s "$case_dir/abort-log" ] || fail 'unmerged GitHub teardown aborted the parked run'
+      # An already-missing copy must not bypass the PR guard either.
+      sed "s|^worktree=.*|worktree=$case_dir/absent|" "$case_dir/state/task-x1.meta" > "$case_dir/new-meta"
+      mv "$case_dir/new-meta" "$case_dir/state/task-x1.meta"
+      rc=0
+      run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+      expect_code 1 "$rc" "$fixture GitHub PR with absent worktree"
+      assert_grep "state=$fixture" "$case_dir/stderr" 'missing worktree bypassed PR state readback'
+      assert_present "$case_dir/state/task-x1.meta" 'missing-copy refusal erased task record'
+    fi
+  done
+  # Legacy records without pr_head still require the merged flag and warn.
+  for fixture in open closed merged; do
+    case_dir=$(make_case "github-missing-head-$fixture")
+    write_meta "$case_dir" no-mistakes ship
+    append_pr_meta_url "$case_dir"
+    head=$(git -C "$case_dir/wt" rev-parse HEAD)
+    add_gh_recorded_fixture "$case_dir" "$fixture" "$head"
+    rc=0
+    run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+    if [ "$fixture" = merged ]; then
+      expect_code 0 "$rc" 'merged GitHub PR without recorded head'
+      assert_grep 'warning: GitHub pull request https://github.com/example/repo/pull/7 has no recorded pr_head' "$case_dir/stderr" \
+        'missing-head fallback did not warn'
+    else
+      expect_code 1 "$rc" "$fixture GitHub PR without recorded head"
+      assert_refusal_retained_task_state "$case_dir" "$fixture missing head" "$head"
+    fi
+  done
+  # A merged flag at a different head is insufficient. A merge commit must
+  # actually contain the recorded commit, not merely have a matching tree.
+  case_dir=$(make_case github-merged-wrong-head)
+  write_meta "$case_dir" no-mistakes ship
+  wt_commit_file "$case_dir" feature.txt hello
+  head=$(git -C "$case_dir/wt" rev-parse HEAD)
+  append_pr_meta_for_current_head "$case_dir"
+  git -C "$case_dir/wt" push -q origin fm/task-x1
+  recorded=$(git -C "$case_dir/wt" rev-parse HEAD^)
+  add_gh_recorded_fixture "$case_dir" merged "$recorded" "$recorded"
+  rc=0
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  expect_code 1 "$rc" 'merged GitHub PR at unrelated head'
+  assert_refusal_retained_task_state "$case_dir" 'wrong merged head' "$head"
+  merge=$(commit_tree_from_wt_head "$case_dir" "$head" 'merged continuation')
+  add_gh_recorded_fixture "$case_dir" merged "$recorded" "$merge"
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" \
+    || fail "merge commit containing recorded GitHub head refused: $(cat "$case_dir/stderr")"
+  pass 'recorded GitHub PR requires merged-at-head readback before cleanup, including missing-copy and legacy records'
+}
+
+test_github_merge_commit_evidence() {
+  local scenario case_dir head live_head expected continuation merge tree object rc
+  for scenario in available absent reassigned missing-merge missing-head missing-parent ancestry-timeout api-timeout; do
+    case_dir=$(make_case "github-evidence-$scenario")
+    write_meta "$case_dir" no-mistakes ship
+    wt_commit_file "$case_dir" feature.txt hello
+    head=$(git -C "$case_dir/wt" rev-parse HEAD)
+    live_head=$(git -C "$case_dir/wt" rev-parse HEAD^)
+    git -C "$case_dir/wt" push -q origin fm/task-x1
+    git clone -q "$case_dir/origin.git" "$case_dir/merged"
+    tree=$(git -C "$case_dir/merged" rev-parse "$head^{tree}")
+    continuation=$(printf '%s\n' continuation | git -C "$case_dir/merged" commit-tree "$tree" -p "$head")
+    merge=$(printf '%s\n' merge | git -C "$case_dir/merged" commit-tree "$tree" -p "$live_head" -p "$continuation")
+    git -C "$case_dir/merged" update-ref refs/heads/merged-evidence "$merge"
+    git -C "$case_dir/merged" push -q origin merged-evidence
+    expected=$head
+    if [ "$scenario" != missing-merge ]; then
+      git -C "$case_dir/wt" fetch -q origin merged-evidence
+    fi
+    [ "$scenario" != missing-head ] || expected=$continuation
+    append_pr_meta_url "$case_dir"
+    printf 'pr_head=%s\n' "$expected" >> "$case_dir/state/task-x1.meta"
+    seed_backlog_in_flight "$case_dir"
+    add_gh_recorded_fixture "$case_dir" merged "$live_head" "$merge"
+    case "$scenario" in
+      absent)
+        git -C "$case_dir/project" worktree remove "$case_dir/wt"
+        ;;
+      reassigned)
+        mkdir -p "$case_dir/pool/1"
+        git -C "$case_dir/project" worktree move "$case_dir/wt" "$case_dir/pool/1/project"
+        ln -s pool/1/project "$case_dir/wt"
+        printf '{"worktrees":[{"name":"1","path":"%s"}]}\n' \
+          "$case_dir/pool/1/project" > "$case_dir/pool/treehouse-state.json"
+        printf 'task=other-task\nhome=%s\n' "$case_dir" > "$case_dir/pool/1/.fm-slot-owner"
+        ;;
+      missing-head|missing-parent)
+        object=$(git -C "$case_dir/project" rev-parse --path-format=absolute --git-path "objects/${continuation:0:2}/${continuation:2}")
+        rm "$object"
+        ;;
+      api-timeout)
+        printf 'touch "%s/api-started"\nsleep 30\n' "$case_dir" >> "$case_dir/fakebin/gh-axi"
+        ;;
+    esac
+    if [[ "$scenario" == missing-* ]]; then
+      if GIT_NO_LAZY_FETCH=1 git -C "$case_dir/project" merge-base --is-ancestor "$expected" "$merge" 2>/dev/null; then
+        fail "$scenario fixture unexpectedly has local ancestry evidence"
+      fi
+    fi
+    cat > "$case_dir/fakebin/git" <<SH
+#!/usr/bin/env bash
+args=("\$@")
+[ "\${1:-}" != -C ] || shift 2
+if [ "\${1:-}" = fetch ] && [ -e '$case_dir/state/task-x1.meta' ]; then
+  printf '%s\n' "\$*" >> '$case_dir/fetch-log'
+fi
+if [ "\${1:-} \${2:-}" = 'merge-base --is-ancestor' ]; then
+  printf '%s\n' "\${args[1]}" >> '$case_dir/proof-repos'
+  if [ '$scenario' = ancestry-timeout ]; then
+    touch '$case_dir/ancestry-started'
+    sleep 30
+  fi
+fi
+exec "$REAL_GIT_FOR_TEST" "\${args[@]}"
+SH
+    chmod +x "$case_dir/fakebin/git"
+    rc=0
+    # Pin the home so the pool slot's shared project lock resolves under this
+    # case's state dir rather than the repository checkout's.
+    FM_HOME="$case_dir" \
+      FM_FAKE_AXI_STATUS="$(parked_axi_status_toon fm/task-x1 "$head")" \
+      FM_FAKE_NM_ABORT_LOG="$case_dir/abort-log" \
+      run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+    case "$scenario" in
+      available|absent|reassigned)
+        expect_code 0 "$rc" "$scenario ancestry evidence"
+        assert_absent "$case_dir/state/task-x1.meta" "$scenario task remained active"
+        [ "$(backlog_row_state "$case_dir")" = "done" ] || fail "$scenario task stayed open"
+        if [ "$scenario" = reassigned ]; then
+          assert_present "$case_dir/pool/1/.fm-slot-owner" 'cleanup erased another task claim'
+          [ "$(git -C "$case_dir/wt" rev-parse HEAD)" = "$head" ] || fail 'cleanup moved another task branch'
+          assert_grep "$case_dir/project" "$case_dir/proof-repos" 'reassigned slot was used for proof'
+        elif [ "$scenario" = absent ]; then
+          assert_grep "$case_dir/project" "$case_dir/proof-repos" 'missing copy did not use project evidence'
+        else
+          assert_grep "$case_dir/wt" "$case_dir/proof-repos" 'owned copy was not used for proof'
+        fi
+        ;;
+      *)
+        expect_code 1 "$rc" "$scenario ancestry evidence"
+        assert_grep 'not verifiably merged at the recorded head' "$case_dir/stderr" 'missing evidence lacked normal refusal'
+        assert_refusal_retained_task_state "$case_dir" "$scenario" "$head"
+        [ "$(backlog_row_state "$case_dir")" = in_flight ] || fail "$scenario refusal closed task"
+        [ ! -s "$case_dir/abort-log" ] || fail "$scenario refusal aborted parked run"
+        case "$scenario" in
+          ancestry-timeout) assert_present "$case_dir/ancestry-started" 'ancestry timeout was not exercised' ;;
+          api-timeout) assert_present "$case_dir/api-started" 'API timeout was not exercised' ;;
+        esac
+        ;;
+    esac
+    [ ! -s "$case_dir/fetch-log" ] || fail "$scenario cleanup fetched ancestry evidence"
+  done
+  pass 'GitHub merge containment uses bounded local evidence and preserves tasks when evidence is unavailable'
 }
 
 test_ado_pushed_but_active_pr_refuses_teardown() {
@@ -4749,6 +4957,8 @@ test_local_only_truly_unpushed_refuses
 test_local_only_merged_to_local_main_allows
 test_no_mistakes_origin_remote_allows
 test_no_mistakes_truly_unpushed_refuses
+test_github_recorded_pr_landed_gate
+test_github_merge_commit_evidence
 test_ado_pushed_but_active_pr_refuses_teardown
 test_local_only_force_overrides_unpushed
 test_secondmate_pr_registration_publishes_ready_line

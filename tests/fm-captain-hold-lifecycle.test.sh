@@ -145,6 +145,21 @@ SH
   : > "$home/gh-axi.log"
 }
 
+# Teardown reads a recorded GitHub PR's REST merged flag before it closes work.
+configure_merged_github_readback() {  # <home> <pr-number>
+  local home=$1 number=$2 body
+  body=$(printf '{"number":%s,"state":"closed","merged":true,"head":null,"merge_commit_sha":null}' \
+    "$number" | base64 | tr -d '\n')
+  cat > "$home/fakebin/gh-axi" <<SH
+#!/usr/bin/env bash
+case "\$*" in
+  'api GET /repos/sample/sample/pulls/$number '*)
+    printf 'api_response:\n  body: %s\n  truncated: false\n' '$body' ;;
+esac
+exit 0
+SH
+}
+
 run_pr_merge() {  # <home> <id> <url>
   local home=$1
   shift
@@ -2777,6 +2792,7 @@ test_retained_row_artifacts_survive_captain_answers() {
     || fail "could not release the approved merge"
   show=$(tasks_in "$home" show "$approved_id" --full) || fail "the approved merge disappeared"
   assert_not_contains "$show" "hold_kind: captain" "merge approval retained its captain hold kind"
+  configure_merged_github_readback "$home" 23
   run_teardown "$home" "$approved_id" > "$home/approved-teardown.out" \
     2> "$home/approved-teardown.err" \
     || fail "approved merge cleanup failed: $(cat "$home/approved-teardown.err")"
@@ -3351,6 +3367,7 @@ test_merge_approval_releases_before_zero_done_retention() {
     "merge approval completed the zero-retention row before landing"
   assert_contains "$show" "Resolution mode: released" \
     "merge approval did not record the existing release mode"
+  configure_merged_github_readback "$home" 19
   run_teardown "$home" "$id" > "$home/teardown.out" 2> "$home/teardown.err" \
     || fail "zero-retention cleanup failed: $(cat "$home/teardown.err")"
   assert_no_grep "$id" "$home/data/backlog.md" \
