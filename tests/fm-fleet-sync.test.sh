@@ -89,6 +89,19 @@ advance_origin() {
 
 head_sha() { git -C "$1" rev-parse HEAD; }
 
+# Keep a real master branch and both remote HEAD records on master while main
+# advances, reproducing a clone whose remote default differs from its registry.
+origin_head_on_master() {
+  local home=$1 name=$2 clone="$1/projects/$2"
+  git -C "$home/work-$name" push -q origin main:refs/heads/master
+  git -C "$home/remotes/$name.git" symbolic-ref HEAD refs/heads/master
+  git -C "$clone" fetch -q origin
+  git -C "$clone" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
+  advance_origin "$home" "$name" C1
+  [ "$(git -C "$clone" symbolic-ref --short refs/remotes/origin/HEAD)" = origin/master ] \
+    || fail "fixture remote HEAD must name master"
+}
+
 # run_sync <home> [args...]: run fleet-sync against an isolated home, stdout only.
 run_sync() {
   local home=$1
@@ -378,6 +391,72 @@ test_already_current_unchanged() {
   assert_not_contains "$out" "recovered" "already-current is not labelled recovered"
   [ "$(head_sha "$clone")" = "$before" ] || fail "already-current clone was moved"
   pass "already-current clone is reported unchanged"
+}
+
+test_registered_branch_overrides_tracking_and_origin_head() {
+  local home clone out master_before
+  home=$(new_home)
+  clone=$(build_pair "$home" registered-main)
+  origin_head_on_master "$home" registered-main
+  git -C "$clone" branch --set-upstream-to=origin/master main >/dev/null
+  master_before=$(git -C "$clone" rev-parse origin/master)
+  mkdir -p "$home/data"
+  printf -- '- registered-main-extra [no-mistakes] - branch master\n- registered-main [no-mistakes branch=ship/] - frontend (React, branch main): test project\n' \
+    > "$home/data/projects.md"
+
+  out=$(run_sync "$home" registered-main)
+
+  assert_contains "$out" "registered-main: synced" "registry main overrides tracking and remote HEAD master"
+  assert_not_contains "$out" "STUCK" "registered main must not be reported STUCK"
+  [ "$(head_sha "$clone")" = "$(git -C "$clone" rev-parse origin/main)" ] || fail "registered main was not refreshed"
+  [ "$(git -C "$clone" rev-parse origin/master)" = "$master_before" ] || fail "master was changed"
+  pass "the exact registry project branch overrides tracking, remote HEAD, and ship prefix"
+}
+
+test_tracking_branch_overrides_origin_head() {
+  local home clone out
+  home=$(new_home)
+  clone=$(build_pair "$home" tracking-main)
+  origin_head_on_master "$home" tracking-main
+
+  out=$(run_sync "$home" "$clone")
+
+  assert_contains "$out" "tracking-main: synced" "tracking main overrides remote HEAD master without a registry branch"
+  [ "$(head_sha "$clone")" = "$(git -C "$clone" rev-parse origin/main)" ] || fail "tracking main was not refreshed"
+  pass "the clone tracking branch overrides origin/HEAD when no branch is registered"
+}
+
+test_origin_head_fallback_without_tracking() {
+  local home clone out
+  home=$(new_home)
+  clone=$(build_pair "$home" fallback-master)
+  origin_head_on_master "$home" fallback-master
+  git -C "$clone" checkout -q -b master --no-track origin/master
+
+  out=$(run_sync "$home" "$clone")
+
+  assert_contains "$out" "fallback-master: already current" "origin/HEAD is used without registry or tracking branch"
+  [ "$(git -C "$clone" symbolic-ref --short HEAD)" = master ] || fail "fallback switched branches"
+  pass "origin/HEAD remains the fallback without registry or tracking branch"
+}
+
+test_registered_branch_dirty_checkout_is_untouched() {
+  local home clone out before
+  home=$(new_home)
+  clone=$(build_pair "$home" dirty-main)
+  origin_head_on_master "$home" dirty-main
+  mkdir -p "$home/data"
+  printf -- '- dirty-main [no-mistakes] - frontend (React, branch main): test project\n' > "$home/data/projects.md"
+  before=$(head_sha "$clone")
+  printf 'uncommitted edit\n' >> "$clone/file.txt"
+
+  out=$(run_sync "$home" dirty-main)
+
+  assert_contains "$out" "dirty-main: STUCK:" "registered branch does not bypass dirty-checkout refusal"
+  assert_contains "$out" "1 commits behind origin/main" "dirty-checkout report compares against registered main"
+  [ "$(head_sha "$clone")" = "$before" ] || fail "dirty checkout was advanced"
+  assert_contains "$(cat "$clone/file.txt")" "uncommitted edit" "dirty edit must remain intact"
+  pass "registered branch selection still leaves uncommitted work untouched"
 }
 
 test_no_origin_skipped() {
@@ -755,6 +834,10 @@ test_non_default_branch_is_stuck_untouched
 test_diverged_is_stuck_untouched
 test_on_default_clean_behind_fast_forwards
 test_already_current_unchanged
+test_registered_branch_overrides_tracking_and_origin_head
+test_tracking_branch_overrides_origin_head
+test_origin_head_fallback_without_tracking
+test_registered_branch_dirty_checkout_is_untouched
 test_no_origin_skipped
 test_local_only_skipped
 test_unresolvable_registry_posture_skipped
