@@ -2823,7 +2823,8 @@ while :; do
             continue
           fi
           run_check_capture "$SCRIPT_DIR/fm-pr-poll.sh" --validated \
-            "$provider" "$url" "$host" "$path" "$number" || exit 1
+            "$provider" "$url" "$host" "$path" "$number" \
+            "$STATE/$id.pr-poll-last-reported" || exit 1
           out=$FM_CHECK_RESULT
         elif fm_custom_check_snapshot_prepare "$STATE" "$id"; then
           custom_snapshot=$FM_CUSTOM_CHECK_SNAPSHOT

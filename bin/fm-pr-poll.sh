@@ -4,28 +4,34 @@
 # It emits exactly one merged line for a merged change. Azure DevOps also
 # emits conflicts for an active conflicted PR and abandoned for an abandoned
 # PR; both use the watcher's ordinary check wake and retain the merge poll.
+# <task>.pr-poll-last-reported stores the canonical URL and last observed state
+# as two lines, atomically replaced with mode 600. Conflicts and abandonment
+# emit once per transition across watcher restarts; a successful active read
+# resets suppression, while failed or unknown reads leave the marker intact.
+# A replacement URL starts a new notification identity; teardown removes the
+# marker. Only merged output retires the poll.
 # Other states and every error stay silent, so a failed lookup can never be
 # read as a merge. The provider-tagged identity is data in the sidecar and is never
 # interpolated into this source: these bytes are identical for every task.
 # Each provider is read through its own standard CLI, gh for GitHub, glab for
-# GitLab, gerrit-axi for Gerrit, and az repos pr show for dev.azure.com.
-# The ADO branch requires az, jq, and timeout or gtimeout; registration's
-# authenticated REST head read also requires curl (bin/fm-pr-check.sh).
-# The ADO CLI read is hard-bounded so a wedged connection cannot stall the
-# watcher cycle, and disables implicit organization detection.
+# GitLab, gerrit-axi for Gerrit, and authenticated REST for dev.azure.com.
+# The ADO branch requires az, curl, jq, and timeout or gtimeout, matching
+# registration's authenticated REST head read (bin/fm-pr-check.sh).
+# Token acquisition and REST reads are bounded by FM_PR_ADO_TIMEOUT.
 set -u
 LC_ALL=C
 export LC_ALL
 
-if [ "$#" -eq 6 ] && [ "$1" = --validated ]; then
+if [ "$#" -eq 7 ] && [ "$1" = --validated ]; then
   provider=$2
   url=$3
   host=$4
   path=$5
   number=$6
+  marker=$7
 elif [ "$#" -eq 0 ]; then
   case "$0" in
-    *.check.sh) data=${0%.check.sh}.pr-poll ;;
+    *.check.sh) data=${0%.check.sh}.pr-poll; marker=${0%.check.sh}.pr-poll-last-reported ;;
     *) exit 0 ;;
   esac
 
@@ -69,7 +75,8 @@ case "$provider" in
     case "$project:$repo" in
       .:*|..:*|*:.|*:..) exit 0 ;;
     esac
-    command -v az >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 || exit 0
+    command -v az >/dev/null 2>&1 && command -v curl >/dev/null 2>&1 \
+      && command -v jq >/dev/null 2>&1 || exit 0
     if command -v timeout >/dev/null 2>&1; then
       bound=timeout
     elif command -v gtimeout >/dev/null 2>&1; then
@@ -79,23 +86,40 @@ case "$provider" in
     fi
     ado_timeout=${FM_PR_ADO_TIMEOUT:-20}
     [[ "$ado_timeout" =~ ^[1-9][0-9]*$ ]] || ado_timeout=20
-    # PR IDs are organization-wide and show has no --project argument. Read
-    # from the URL's organization and bind the returned project/repository
-    # names to its decoded path rather than using az's configured defaults.
-    json=$("$bound" -k 1 "$ado_timeout" az repos pr show --id "$number" \
-      --organization "https://dev.azure.com/$org" --detect false \
-      --output json --only-show-errors 2>/dev/null) || exit 0
+    token=$("$bound" -k 1 "$ado_timeout" az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv 2>/dev/null) || exit 0
+    [ -n "$token" ] || exit 0
+    case "$token" in *$'\n'*|*$'\r'*) exit 0 ;; esac
+    json=$(curl -fsS --max-time "$ado_timeout" --request GET --header @/dev/fd/3 \
+      "https://dev.azure.com/$org/$project/_apis/git/repositories/$repo/pullRequests/$number?api-version=7.1" \
+      2>/dev/null 3< <(printf 'Authorization: Bearer %s\n' "$token")) || exit 0
     [ -n "$json" ] || exit 0
-    state=$(printf '%s' "$json" | jq -er --argjson id "$number" \
-      --arg project "${project//%20/ }" --arg repo "${repo//%20/ }" '
-      if type == "object" and .pullRequestId == $id
-         and .repository.project.name == $project and .repository.name == $repo then
+    state=$(printf '%s' "$json" | jq -er --argjson id "$number" '
+      if type == "object" and .pullRequestId == $id then
         if .status == "completed" then "merged"
         elif .status == "abandoned" then "abandoned"
         elif .status == "active" and .mergeStatus == "conflicts" then "conflicts"
+        elif .status == "active" then "active"
         else empty end
       else empty end' 2>/dev/null) || exit 0
-    printf '%s\n' "$state"
+    if [ "$state" = merged ]; then
+      printf '%s\n' merged
+      exit 0
+    fi
+    record=$(printf '%s\n%s' "$url" "$state")
+    if [ -e "$marker" ] || [ -L "$marker" ]; then
+      [ -f "$marker" ] && [ ! -L "$marker" ] || exit 0
+    fi
+    if [ -f "$marker" ] && [ ! -L "$marker" ] \
+      && [ "$(cat "$marker" 2>/dev/null)" = "$record" ]; then
+      exit 0
+    fi
+    marker_tmp=$(mktemp "${marker%/*}/.fm-pr-poll-last-reported.XXXXXX" 2>/dev/null) || exit 0
+    trap 'rm -f -- "$marker_tmp"' EXIT
+    trap 'exit 0' HUP INT TERM
+    printf '%s\n' "$record" > "$marker_tmp" \
+      && chmod 600 "$marker_tmp" \
+      && mv -f -- "$marker_tmp" "$marker" || exit 0
+    [ "$state" = active ] || printf '%s\n' "$state"
     ;;
   github)
     [ "$host" = github.com ] || exit 0

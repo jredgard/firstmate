@@ -971,12 +971,6 @@ add_ado_mocks() {  # <case-dir>
 case "$*" in
   'account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv')
     printf '%s\n' fixture-token ;;
-  'repos pr show --id 42 --organization https://dev.azure.com/acme --detect false --output json --only-show-errors')
-    printf '%s\n' "$*" >> "$FM_TEST_ADO_DIR/az.log"
-    [ "${FM_TEST_ADO_FAIL:-0}" != 1 ] || exit 1
-    fixture=${FM_TEST_ADO_FIXTURE:-$ADO_FIXTURES/active.json}
-    [ ! -e "$FM_TEST_ADO_DIR/completed" ] || fixture="$ADO_FIXTURES/completed.json"
-    cat "$fixture" ;;
   *) exit 2 ;;
 esac
 SH
@@ -996,11 +990,14 @@ while [ "$#" -gt 0 ]; do
 done
 [ "$auth" = 'Authorization: Bearer fixture-token' ] || exit 2
 case "$max_time" in ''|0|*[!0-9]*) exit 2 ;; esac
+[ "${FM_TEST_ADO_FAIL:-0}" != 1 ] || exit 1
 case "$url" in
-  *'/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1')
-    status=active
-    [ ! -e "$FM_TEST_ADO_DIR/completed" ] || status=completed
-    printf '{"pullRequestId":42,"status":"%s","isDraft":false,"mergeStatus":"succeeded","lastMergeSourceCommit":{"commitId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"repository":{"project":{"id":"11111111-1111-1111-1111-111111111111"}}}\n' "$status"
+  'https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1'|\
+  'https://dev.azure.com/acme/project%20one/_apis/git/repositories/backend/pullRequests/42?api-version=7.1'|\
+  'https://dev.azure.com/acme/11111111-1111-1111-1111-111111111111/_apis/git/repositories/22222222-2222-2222-2222-222222222222/pullRequests/42?api-version=7.1')
+    fixture=${FM_TEST_ADO_FIXTURE:-$ADO_FIXTURES/active.json}
+    [ ! -e "$FM_TEST_ADO_DIR/completed" ] || fixture="$ADO_FIXTURES/completed.json"
+    cat "$fixture"
     ;;
   *) exit 2 ;;
 esac
@@ -1010,7 +1007,7 @@ SH
 }
 
 test_ado_registration_and_poll() {
-  local dir state url out rc
+  local dir state url out rc variant
   dir=$(make_case ado-registration)
   state="$dir/home/state"
   url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
@@ -1033,11 +1030,26 @@ test_ado_registration_and_poll() {
   cat "$dir/tampered-poll" > "$state/task-a.pr-poll"
   out=$(FM_TEST_ADO_DIR="$dir" run_poll "$dir")
   [ -z "$out" ] || fail "tampered Azure DevOps poll emitted a merged wake"
-  dir=$(make_case ado-hung-show)
+  for variant in \
+    'https://dev.azure.com/acme/project%20one/_git/backend/pullrequest/42' \
+    'https://dev.azure.com/acme/11111111-1111-1111-1111-111111111111/_git/22222222-2222-2222-2222-222222222222/pullrequest/42'; do
+    rm "$dir/completed"
+    FM_TEST_ADO_DIR="$dir" run_check_entry "$dir" task-a "$variant" > "$dir/stdout" 2> "$dir/stderr" \
+      || fail "Azure DevOps registration refused $variant: $(cat "$dir/stderr")"
+    out=$(FM_TEST_ADO_DIR="$dir" FM_TEST_ADO_FIXTURE="$ADO_FIXTURES/conflicts.json" run_poll "$dir")
+    [ "$out" = conflicts ] || fail "replacement Azure DevOps URL $variant suppressed its first conflict"
+    out=$(FM_TEST_ADO_DIR="$dir" FM_TEST_ADO_FIXTURE="$ADO_FIXTURES/conflicts.json" run_poll "$dir")
+    [ -z "$out" ] || fail "replacement Azure DevOps URL $variant repeated its conflict"
+    touch "$dir/completed"
+    out=$(FM_TEST_ADO_DIR="$dir" run_poll "$dir")
+    [ "$out" = merged ] || fail "registered Azure DevOps URL $variant stayed blind to merge"
+    assert_grep "pr=$variant" "$state/task-a.meta" "variant URL not recorded"
+  done
+  dir=$(make_case ado-hung-token)
   add_ado_mocks "$dir"
   write_task_meta "$dir"
   FM_TEST_ADO_DIR="$dir" run_check_entry "$dir" task-a "$url" > "$dir/stdout" 2> "$dir/stderr" \
-    || fail "hung-show case could not arm its Azure DevOps poll: $(cat "$dir/stderr")"
+    || fail "hung-token case could not arm its Azure DevOps poll: $(cat "$dir/stderr")"
   cat > "$dir/fakebin/az" <<'SH'
 #!/usr/bin/env bash
 sleep 30
@@ -1066,35 +1078,40 @@ SH
 }
 
 test_ado_poll_states_and_watch_wakes() {
-  local dir state url fixture expected out before rc label filter
+  local dir state url fixture expected out before rc label filter previous marker saved
   dir=$(make_case ado-poll-states)
   state="$dir/home/state"
   url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
   add_ado_mocks "$dir"
   write_poll_meta "$state" task-a "$url"
   seed_canonical_poll "$dir" task-a "$url"
-  # ADO needs neither GitHub CLI nor curl once the authenticated poll is armed.
-  rm "$dir/fakebin/gh" "$dir/fakebin/curl"
+  rm "$dir/fakebin/gh"
   cat > "$dir/fakebin/gh" <<'SH'
 #!/usr/bin/env bash
 printf 'unexpected gh call\n' >> "$FM_TEST_ADO_DIR/gh-called"
 exit 1
 SH
   chmod +x "$dir/fakebin/gh"
-  for label in active conflicts abandoned completed; do
-    case "$label" in active) expected= ;; completed) expected=merged ;; *) expected=$label ;; esac
+  previous=
+  for label in active conflicts conflicts active conflicts abandoned abandoned active abandoned completed; do
+    case "$label" in
+      active) expected= ;;
+      completed) expected=merged ;;
+      "$previous") expected= ;;
+      *) expected=$label ;;
+    esac
     fixture="$ADO_FIXTURES/$label.json"
     out=$(FM_TEST_ADO_DIR="$dir" FM_TEST_ADO_FIXTURE="$fixture" run_poll "$dir")
     [ "$out" = "$expected" ] || fail "Azure DevOps $label emitted '$out', expected '$expected'"
+    previous=$label
   done
-  # Malformed, foreign, failed and unknown reads must never wake or retire work.
-  for label in wrong-id wrong-project wrong-repo unknown-status unknown-merge missing-status malformed; do
+  marker="$state/task-a.pr-poll-last-reported"
+  [ "$(file_mode "$marker")" = 600 ] || fail "Azure DevOps transition marker is not private"
+  saved=$(cat "$marker")
+  for label in wrong-id unknown-status missing-status malformed; do
     case "$label" in
       wrong-id) filter='.pullRequestId = 43' ;;
-      wrong-project) filter='.repository.project.name = "Elsewhere"' ;;
-      wrong-repo) filter='.repository.name = "Elsewhere"' ;;
       unknown-status) filter='.status = "unknown"' ;;
-      unknown-merge) filter='.status = "active" | .mergeStatus = "queued"' ;;
       missing-status) filter='del(.status)' ;;
       malformed) filter= ;;
     esac
@@ -1106,12 +1123,18 @@ SH
     fi
     out=$(FM_TEST_ADO_DIR="$dir" FM_TEST_ADO_FIXTURE="$fixture" run_poll "$dir")
     [ -z "$out" ] || fail "Azure DevOps $label emitted '$out'"
+    [ "$(cat "$marker")" = "$saved" ] || fail "Azure DevOps $label reset transition suppression"
   done
   out=$(FM_TEST_ADO_DIR="$dir" FM_TEST_ADO_FAIL=1 run_poll "$dir")
-  [ -z "$out" ] || fail "failed Azure DevOps CLI read emitted '$out'"
+  [ -z "$out" ] || fail "failed Azure DevOps REST read emitted '$out'"
+  [ "$(cat "$marker")" = "$saved" ] || fail "failed REST read reset transition suppression"
+  out=$(FM_TEST_ADO_DIR="$dir" FM_TEST_ADO_FIXTURE="$ADO_FIXTURES/abandoned.json" run_poll "$dir")
+  [ -z "$out" ] || fail "an unchanged abandoned state repeated after failed reads"
+  rm "$marker"
   before=$(poll_artifact_snapshot "$state" task-a)
   add_stop_custom_check "$dir"
-  for label in active conflicts active abandoned completed; do
+  previous=
+  for label in active conflicts conflicts active conflicts abandoned abandoned active abandoned completed; do
     rm -f "$state/.last-check"
     fixture="$ADO_FIXTURES/$label.json"
     rc=0
@@ -1119,11 +1142,12 @@ SH
       run_watcher_bounded "$dir/home" "$dir/fakebin" > "$dir/watch.out" 2> "$dir/watch.err" || rc=$?
     [ "$rc" -eq 0 ] || fail "Azure DevOps $label watcher failed: $(cat "$dir/watch.err")"
     out=$(cat "$dir/watch.out")
-    case "$label:$out" in
-      active:check:*z-stop.check.sh:*stop-cycle) ;;
-      conflicts:check:*task-a.check.sh:*conflicts|abandoned:check:*task-a.check.sh:*abandoned)
+    case "$label:$previous:$out" in
+      conflicts:conflicts:check:*z-stop.check.sh:*stop-cycle|abandoned:abandoned:check:*z-stop.check.sh:*stop-cycle) ;;
+      active:*:check:*z-stop.check.sh:*stop-cycle) ;;
+      conflicts:*:check:*task-a.check.sh:*conflicts|abandoned:*:check:*task-a.check.sh:*abandoned)
         assert_grep "task-a.check.sh: $label" "$state/.wake-queue" "$label left no durable check wake" ;;
-      completed:check:*task-a.check.sh:*merged)
+      completed:*:check:*task-a.check.sh:*merged)
         assert_poll_absent "$state" task-a
         assert_grep "$url" "$state/.wake-queue" "completed left no URL-bound merge outcome" ;;
       *) fail "Azure DevOps $label watcher emitted '$out'" ;;
@@ -1134,9 +1158,10 @@ SH
       assert_no_grep "merged-task-a" "$state/.wake-queue" "Azure DevOps $label recorded a merge"
     fi
     ack_watcher_cycle "$state" || fail "Azure DevOps $label wake acknowledgement failed"
+    previous=$label
   done
   [ ! -e "$dir/gh-called" ] || fail "Azure DevOps polling called gh"
-  pass "Azure DevOps az fixtures surface conflict/abandoned wakes and retire only completed PRs"
+  pass "Azure DevOps REST polling deduplicates conflict/abandoned transitions across watcher restarts"
 }
 
 test_static_poll_contract() {
@@ -1648,6 +1673,8 @@ test_teardown_removes_poll_artifacts() {
   printf 'check\n' > "$dir/home/state/task-a.check.sh"
   printf 'data\n' > "$dir/home/state/task-a.pr-poll"
   printf 'registration\n' > "$dir/home/state/task-a.pr-poll-registration"
+  printf 'https://dev.azure.com/acme/Project/_git/Repo/pullrequest/42\nconflicts\n' \
+    > "$dir/home/state/task-a.pr-poll-last-reported"
   printf 'trust\n' > "$dir/home/state/task-a.check-trust"
   cat > "$fakebin/tmux" <<'SH'
 #!/usr/bin/env bash
@@ -1662,6 +1689,7 @@ SH
   [ ! -e "$dir/home/state/task-a.check.sh" ] || fail "teardown left the runnable check"
   [ ! -e "$dir/home/state/task-a.pr-poll" ] || fail "teardown left the sidecar"
   [ ! -e "$dir/home/state/task-a.pr-poll-registration" ] || fail "teardown left the PR poll registration"
+  [ ! -e "$dir/home/state/task-a.pr-poll-last-reported" ] || fail "teardown left the transition marker"
   [ ! -e "$dir/home/state/task-a.check-trust" ] || fail "teardown left the custom check registration"
 
   dir=$(make_case teardown-retirement-receipt)
@@ -3628,6 +3656,14 @@ SH
   fm_pr_poll_artifacts_valid "$state" task-a "$POLL" || fail "released watcher did not strictly authenticate the poll"
   pass "device re-record publication waits without rewriting its registration"
 }
+
+if [ "${1:-}" = --ado-only ]; then
+  test_ado_registration_and_poll
+  test_ado_poll_states_and_watch_wakes
+  test_static_poll_contract
+  test_teardown_removes_poll_artifacts
+  exit 0
+fi
 
 test_parser_matrix
 test_ado_registration_and_poll
