@@ -347,10 +347,8 @@ fm_nm_driving_block() {  # <forge> [<nm-skip>]
   local custody_line followup_line sync_line nm_skip=${2:-} run_skip reattach_flags="with only a bounded \`--wait\`"
   fm_nm_skip_valid "$nm_skip" fm_nm_driving_block || return 1
   run_skip=$nm_skip
-  if [ -n "$nm_skip" ]; then
-    [ "$1" != gerrit ] || run_skip="push,pr,ci,$nm_skip"
-    reattach_flags="with \`--skip $run_skip\` and a bounded \`--wait\`"
-  fi
+  [ "$1" != gerrit ] || run_skip="push,pr,ci${nm_skip:+,$nm_skip}"
+  [ -z "$run_skip" ] || reattach_flags="with \`--skip $run_skip\` and a bounded \`--wait\`"
   if [ "$1" = gerrit ]; then
     custody_line='When the run reaches a passing outcome, follow the custody recovery steps below before publishing.'
     followup_line='For follow-up commits, recover custody first, commit on this branch, and run the review pass again before publishing.'
