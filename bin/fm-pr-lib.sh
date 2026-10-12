@@ -1489,6 +1489,24 @@ fm_pr_poll_merge_mark_notified() {  # <state> <id> <provider> <host> <path> <num
   fi
 }
 
+fm_pr_poll_mark_reported() {
+  local state=$1 id=$2 url=$3 result=$4 marker tmp device
+  fm_pr_task_id_valid "$id" || return 1
+  fm_pr_url_parse "$url" && [ "$FM_PR_PROVIDER" = ado ] || return 1
+  case "$result" in conflicts|abandoned) ;; *) return 1 ;; esac
+  marker="$state/$id.pr-poll-last-reported"
+  device=$(fm_pr_file_device "$state") || return 1
+  fm_pr_regular_destination_on_device_or_absent "$marker" "$device" || return 1
+  tmp=$(mktemp "$state/.fm-pr-poll-last-reported.XXXXXX") || return 1
+  if ! printf '%s\n%s\n' "$url" "$result" > "$tmp" \
+    || ! chmod 600 "$tmp" \
+    || ! fm_pr_regular_destination_on_device_or_absent "$marker" "$device" \
+    || ! mv -f -- "$tmp" "$marker"; then
+    rm -f -- "$tmp"
+    return 1
+  fi
+}
+
 # Removed at teardown alongside the other per-task PR-poll artifacts
 # (bin/fm-teardown.sh) so a retired task id leaves no residue behind.
 fm_pr_poll_merge_notified_remove() {  # <state> <id>

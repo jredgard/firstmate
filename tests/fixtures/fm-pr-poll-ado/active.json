@@ -1,0 +1,18 @@
+{
+  "pullRequestId": 42,
+  "status": "active",
+  "mergeStatus": "succeeded",
+  "isDraft": false,
+  "lastMergeSourceCommit": {
+    "commitId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "repository": {
+    "name": "Backend",
+    "project": {
+      "id": "11111111-1111-1111-1111-111111111111",
+      "name": "Project One"
+    }
+  },
+  "sourceRefName": "refs/heads/fm/example",
+  "targetRefName": "refs/heads/main"
+}

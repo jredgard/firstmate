@@ -1,30 +1,42 @@
 #!/usr/bin/env bash
 # Static watcher program for a validated pull request, merge request, or Gerrit
 # change poll sidecar.
-# It emits exactly one merged line for a merged change and stays silent
-# otherwise, including on every error, so a failed lookup can never be read as
-# a merge. The provider-tagged identity is data in the sidecar and is never
+# It emits exactly one merged line for a merged change. Azure DevOps also
+# emits conflicts for an active conflicted PR and abandoned for an abandoned
+# PR; both use the watcher's ordinary check wake and retain the merge poll.
+# <task>.pr-poll-last-reported stores the canonical URL and last delivered state
+# as two lines, atomically replaced with mode 600 by the watcher only after a
+# durable wake append succeeds under the task control lock. Conflicts and
+# abandonment notify once per transition across watcher restarts; a successful
+# active read removes suppression, while failed or unknown reads preserve it.
+# The poll compares and emits notifications; an undelivered result may repeat.
+# --validated accepts provider, URL, host, path, number, and an optional marker
+# path. Without that path it emits without suppression for every provider.
+# Non-merged PR wakes are collected so later checks run in the same sweep.
+# A replacement URL starts a new notification identity; teardown removes the
+# marker. Only merged output retires the poll.
+# Other states and every error stay silent, so a failed lookup can never be
+# read as a merge. The provider-tagged identity is data in the sidecar and is never
 # interpolated into this source: these bytes are identical for every task.
 # Each provider is read through its own standard CLI, gh for GitHub, glab for
-# GitLab, gerrit-axi for Gerrit, and Azure REST for dev.azure.com. The ADO
-# branch requires az, curl, jq, and timeout or gtimeout;
-# bin/fm-pr-check.sh checks them before arming. Its token travels through a
-# private file descriptor rather than argv, and both the token acquisition and
-# the REST read are hard-bounded so a wedged connection cannot stall the
-# watcher cycle.
+# GitLab, gerrit-axi for Gerrit, and authenticated REST for dev.azure.com.
+# The ADO branch requires az, curl, jq, and timeout or gtimeout, matching
+# registration's authenticated REST head read (bin/fm-pr-check.sh).
+# Token acquisition and REST reads are bounded by FM_PR_ADO_TIMEOUT.
 set -u
 LC_ALL=C
 export LC_ALL
 
-if [ "$#" -eq 6 ] && [ "$1" = --validated ]; then
+if { [ "$#" -eq 6 ] || [ "$#" -eq 7 ]; } && [ "$1" = --validated ]; then
   provider=$2
   url=$3
   host=$4
   path=$5
   number=$6
+  marker=${7:-}
 elif [ "$#" -eq 0 ]; then
   case "$0" in
-    *.check.sh) data=${0%.check.sh}.pr-poll ;;
+    *.check.sh) data=${0%.check.sh}.pr-poll; marker=${0%.check.sh}.pr-poll-last-reported ;;
     *) exit 0 ;;
   esac
 
@@ -86,9 +98,35 @@ case "$provider" in
       "https://dev.azure.com/$org/$project/_apis/git/repositories/$repo/pullRequests/$number?api-version=7.1" \
       2>/dev/null 3< <(printf 'Authorization: Bearer %s\n' "$token")) || exit 0
     [ -n "$json" ] || exit 0
-    printf '%s' "$json" | jq -e --argjson id "$number" \
-      'type == "object" and .pullRequestId == $id and .status == "completed"' >/dev/null 2>&1 \
-      && printf '%s\n' merged
+    state=$(printf '%s' "$json" | jq -er --argjson id "$number" '
+      if type == "object" and .pullRequestId == $id then
+        if .status == "completed" then "merged"
+        elif .status == "abandoned" then "abandoned"
+        elif .status == "active" and .mergeStatus == "conflicts" then "conflicts"
+        elif .status == "active" then "active"
+        else empty end
+      else empty end' 2>/dev/null) || exit 0
+    if [ "$state" = merged ]; then
+      printf '%s\n' merged
+      exit 0
+    fi
+    if [ -z "$marker" ]; then
+      [ "$state" = active ] || printf '%s\n' "$state"
+      exit 0
+    fi
+    record=$(printf '%s\n%s' "$url" "$state")
+    if [ -e "$marker" ] || [ -L "$marker" ]; then
+      [ -f "$marker" ] && [ ! -L "$marker" ] || exit 0
+    fi
+    if [ -f "$marker" ] && [ ! -L "$marker" ] \
+      && [ "$(cat "$marker" 2>/dev/null)" = "$record" ]; then
+      exit 0
+    fi
+    if [ "$state" = active ]; then
+      rm -f -- "$marker"
+    else
+      printf '%s\n' "$state"
+    fi
     ;;
   github)
     [ "$host" = github.com ] || exit 0
