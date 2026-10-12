@@ -90,7 +90,7 @@ advance_origin() {
 head_sha() { git -C "$1" rev-parse HEAD; }
 
 # Keep a real master branch and both remote HEAD records on master while main
-# advances, reproducing a clone whose remote default differs from its registry.
+# advances, reproducing a clone whose remote default differs from its upstream.
 origin_head_on_master() {
   local home=$1 name=$2 clone="$1/projects/$2"
   git -C "$home/work-$name" push -q origin main:refs/heads/master
@@ -253,7 +253,7 @@ test_detached_clean_ancestor_recovers() {
   local home clone out before after
   home=$(new_home)
   clone=$(build_pair "$home" alpha)
-  advance_origin "$home" alpha C1
+  origin_head_on_master "$home" alpha
   before=$(head_sha "$clone")
   # Detach at the clone's main (C0), an ancestor of the now-advanced origin/main.
   git -C "$clone" checkout --detach --quiet
@@ -330,10 +330,18 @@ test_dirty_is_stuck_untouched() {
 }
 
 test_non_default_branch_is_stuck_untouched() {
-  local home clone out
+  local home clone out before main_before
   home=$(new_home)
   clone=$(build_pair "$home" delta)
-  git -C "$clone" checkout -q -b feature
+  git -C "$home/work-delta" push -q origin main:refs/heads/feature
+  git -C "$clone" fetch -q origin
+  git -C "$clone" checkout -q -b feature --track origin/feature
+  git -C "$home/work-delta" checkout -q -b feature
+  commit_file "$home/work-delta" feature.txt remote "advance remote feature"
+  git -C "$home/work-delta" push -q origin feature
+  git -C "$home/work-delta" checkout -q main
+  before=$(head_sha "$clone")
+  main_before=$(git -C "$clone" rev-parse main)
   advance_origin "$home" delta C1
 
   out=$(run_sync "$home" "$clone")
@@ -342,7 +350,10 @@ test_non_default_branch_is_stuck_untouched() {
   assert_contains "$out" "commits behind origin/main - needs attention" "STUCK is quantified"
   assert_not_contains "$out" "recovered" "named branch is never auto-changed"
   [ "$(git -C "$clone" symbolic-ref --short HEAD)" = "feature" ] || fail "named branch checkout was changed"
-  pass "non-default named branch is reported STUCK and left untouched"
+  [ "$(head_sha "$clone")" = "$before" ] || fail "tracked feature branch was advanced"
+  [ "$(git -C "$clone" rev-parse main)" = "$main_before" ] || fail "local main was moved"
+  [ "$(git -C "$clone" rev-parse origin/feature)" != "$before" ] || fail "remote feature was not advanced in fixture"
+  pass "tracked non-default named branch is reported STUCK and left untouched"
 }
 
 test_diverged_is_stuck_untouched() {
@@ -352,7 +363,7 @@ test_diverged_is_stuck_untouched() {
   # Local main gains its own commit; origin advances down a different line.
   commit_file "$clone" local.txt local "local divergent commit"
   before=$(head_sha "$clone")
-  advance_origin "$home" epsilon C1
+  origin_head_on_master "$home" epsilon
 
   out=$(run_sync "$home" "$clone")
 
@@ -393,24 +404,35 @@ test_already_current_unchanged() {
   pass "already-current clone is reported unchanged"
 }
 
-test_registered_branch_overrides_tracking_and_origin_head() {
-  local home clone out master_before
+test_registry_description_does_not_select_sync_branch() {
+  local home clone out description name
   home=$(new_home)
-  clone=$(build_pair "$home" registered-main)
-  origin_head_on_master "$home" registered-main
-  git -C "$clone" branch --set-upstream-to=origin/master main >/dev/null
-  master_before=$(git -C "$clone" rev-parse origin/master)
   mkdir -p "$home/data"
-  printf -- '- registered-main-extra [no-mistakes] - branch master\n- registered-main [no-mistakes branch=ship/] - frontend (React, branch main): test project\n' \
-    > "$home/data/projects.md"
+  name=registry-prose
+  for description in \
+      '9 unpushed commits parked on local branch codex/azure-deployment' \
+      'feature branch per task' \
+      'branch workflow' \
+      'frontend (React, branch master): test project'; do
+    clone=$(build_pair "$home" "$name")
+    git -C "$clone" branch -m main master
+    git -C "$home/remotes/$name.git" symbolic-ref HEAD refs/heads/master
+    git -C "$home/work-$name" push -q origin main:refs/heads/master
+    git -C "$clone" fetch -q origin
+    git -C "$clone" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
+    git -C "$clone" branch --set-upstream-to=origin/master master >/dev/null
+    commit_file "$home/work-$name" file.txt v1 C1
+    git -C "$home/work-$name" push -q origin main:refs/heads/master
+    printf -- '- %s [no-mistakes branch=ship/] - %s\n' "$name" "$description" > "$home/data/projects.md"
 
-  out=$(run_sync "$home" registered-main)
+    out=$(run_sync "$home" "$name")
 
-  assert_contains "$out" "registered-main: synced" "registry main overrides tracking and remote HEAD master"
-  assert_not_contains "$out" "STUCK" "registered main must not be reported STUCK"
-  [ "$(head_sha "$clone")" = "$(git -C "$clone" rev-parse origin/main)" ] || fail "registered main was not refreshed"
-  [ "$(git -C "$clone" rev-parse origin/master)" = "$master_before" ] || fail "master was changed"
-  pass "the exact registry project branch overrides tracking, remote HEAD, and ship prefix"
+    assert_contains "$out" "$name: synced" "registry prose must not select a sync branch"
+    assert_not_contains "$out" "STUCK" "registry prose must not prevent syncing local master"
+    [ "$(head_sha "$clone")" = "$(git -C "$clone" rev-parse origin/master)" ] || fail "local master was not refreshed"
+    name="$name-next"
+  done
+  pass "registry descriptions and ship prefixes do not select the sync branch"
 }
 
 test_tracking_branch_overrides_origin_head() {
@@ -421,9 +443,61 @@ test_tracking_branch_overrides_origin_head() {
 
   out=$(run_sync "$home" "$clone")
 
-  assert_contains "$out" "tracking-main: synced" "tracking main overrides remote HEAD master without a registry branch"
+  assert_contains "$out" "tracking-main: synced" "local main upstream overrides remote HEAD master"
   [ "$(head_sha "$clone")" = "$(git -C "$clone" rev-parse origin/main)" ] || fail "tracking main was not refreshed"
-  pass "the clone tracking branch overrides origin/HEAD when no branch is registered"
+  pass "local main upstream overrides origin/HEAD"
+}
+
+test_local_default_and_remote_upstream_names_can_differ() {
+  local home clone out state before branch name
+  home=$(new_home)
+  for branch in main master; do
+    for state in clean detached dirty diverged feature; do
+      name="upstream-$branch-$state"
+      clone=$(build_pair "$home" "$name")
+      origin_head_on_master "$home" "$name"
+      git -C "$home/work-$name" push -q origin main:refs/heads/release
+      git -C "$clone" fetch -q origin
+      [ "$branch" = main ] || git -C "$clone" branch -m main "$branch"
+      git -C "$clone" branch --set-upstream-to=origin/release "$branch" >/dev/null
+      before=$(head_sha "$clone")
+      case "$state" in
+        detached) git -C "$clone" checkout --detach --quiet ;;
+        dirty) printf 'uncommitted edit\n' >> "$clone/file.txt" ;;
+        diverged)
+          commit_file "$clone" local.txt local "local divergent commit"
+          before=$(head_sha "$clone")
+          ;;
+        feature)
+          git -C "$clone" checkout -q -b feature
+          git -C "$clone" branch --set-upstream-to=origin/release feature >/dev/null
+          ;;
+      esac
+
+      out=$(run_sync "$home" "$clone")
+
+      case "$state" in
+        clean|detached)
+          assert_contains "$out" "synced" "local default must sync against its differently named upstream"
+          [ "$(git -C "$clone" symbolic-ref --short HEAD)" = "$branch" ] || fail "local default name was not retained"
+          [ "$(head_sha "$clone")" = "$(git -C "$clone" rev-parse origin/release)" ] || fail "local default was not refreshed from upstream"
+          ;;
+        dirty|diverged|feature)
+          assert_contains "$out" "$name: STUCK:" "unsafe checkout must remain STUCK"
+          assert_contains "$out" "1 commits behind origin/release" "warning must compare against the default branch upstream"
+          [ "$(head_sha "$clone")" = "$before" ] || fail "unsafe checkout was advanced"
+          [ "$(git -C "$clone" rev-parse "$branch")" = "$before" ] || fail "local default was moved"
+          if [ "$state" = dirty ]; then
+            assert_contains "$(cat "$clone/file.txt")" "uncommitted edit" "dirty edit must remain intact"
+          fi
+          if [ "$state" = feature ]; then
+            [ "$(git -C "$clone" symbolic-ref --short HEAD)" = feature ] || fail "tracked feature branch was switched"
+          fi
+          ;;
+      esac
+    done
+  done
+  pass "local main/master names and remote upstream names stay distinct across sync states"
 }
 
 test_origin_head_fallback_without_tracking() {
@@ -431,32 +505,54 @@ test_origin_head_fallback_without_tracking() {
   home=$(new_home)
   clone=$(build_pair "$home" fallback-master)
   origin_head_on_master "$home" fallback-master
+  git -C "$clone" branch --unset-upstream main
   git -C "$clone" checkout -q -b master --no-track origin/master
 
   out=$(run_sync "$home" "$clone")
 
-  assert_contains "$out" "fallback-master: already current" "origin/HEAD is used without registry or tracking branch"
+  assert_contains "$out" "fallback-master: already current" "origin/HEAD is used without local main/master upstreams"
   [ "$(git -C "$clone" symbolic-ref --short HEAD)" = master ] || fail "fallback switched branches"
-  pass "origin/HEAD remains the fallback without registry or tracking branch"
+  pass "origin/HEAD remains the fallback without local main/master upstreams"
 }
 
-test_registered_branch_dirty_checkout_is_untouched() {
+test_local_default_fallback_without_upstream_or_origin_head() {
+  local home clone out branch name
+  home=$(new_home)
+  for branch in main master; do
+    name="fallback-$branch-no-head"
+    clone=$(build_pair "$home" "$name")
+    advance_origin "$home" "$name" C1
+    if [ "$branch" = master ]; then
+      git -C "$home/work-$name" push -q origin main:refs/heads/master
+      git -C "$clone" branch -m main master
+    fi
+    git -C "$clone" branch --unset-upstream "$branch"
+    git -C "$clone" config remote.origin.followRemoteHEAD never
+    git -C "$clone" symbolic-ref --delete refs/remotes/origin/HEAD
+
+    out=$(run_sync "$home" "$clone")
+
+    assert_contains "$out" "$name: synced" "local main/master fallback must still sync without upstream or origin/HEAD"
+    [ "$(head_sha "$clone")" = "$(git -C "$clone" rev-parse "origin/$branch")" ] || fail "local default fallback was not refreshed"
+  done
+  pass "local main/master remains the final fallback without upstream or origin/HEAD"
+}
+
+test_tracking_branch_dirty_checkout_is_untouched() {
   local home clone out before
   home=$(new_home)
   clone=$(build_pair "$home" dirty-main)
   origin_head_on_master "$home" dirty-main
-  mkdir -p "$home/data"
-  printf -- '- dirty-main [no-mistakes] - frontend (React, branch main): test project\n' > "$home/data/projects.md"
   before=$(head_sha "$clone")
   printf 'uncommitted edit\n' >> "$clone/file.txt"
 
-  out=$(run_sync "$home" dirty-main)
+  out=$(run_sync "$home")
 
-  assert_contains "$out" "dirty-main: STUCK:" "registered branch does not bypass dirty-checkout refusal"
-  assert_contains "$out" "1 commits behind origin/main" "dirty-checkout report compares against registered main"
+  assert_contains "$out" "dirty-main: STUCK:" "local main upstream does not bypass dirty-checkout refusal"
+  assert_contains "$out" "1 commits behind origin/main" "dirty-checkout report compares against local main upstream"
   [ "$(head_sha "$clone")" = "$before" ] || fail "dirty checkout was advanced"
   assert_contains "$(cat "$clone/file.txt")" "uncommitted edit" "dirty edit must remain intact"
-  pass "registered branch selection still leaves uncommitted work untouched"
+  pass "local main upstream selection still leaves uncommitted work untouched"
 }
 
 test_no_origin_skipped() {
@@ -834,10 +930,12 @@ test_non_default_branch_is_stuck_untouched
 test_diverged_is_stuck_untouched
 test_on_default_clean_behind_fast_forwards
 test_already_current_unchanged
-test_registered_branch_overrides_tracking_and_origin_head
+test_registry_description_does_not_select_sync_branch
 test_tracking_branch_overrides_origin_head
+test_local_default_and_remote_upstream_names_can_differ
 test_origin_head_fallback_without_tracking
-test_registered_branch_dirty_checkout_is_untouched
+test_local_default_fallback_without_upstream_or_origin_head
+test_tracking_branch_dirty_checkout_is_untouched
 test_no_origin_skipped
 test_local_only_skipped
 test_unresolvable_registry_posture_skipped
