@@ -1,0 +1,115 @@
+Traceback (most recent call last):
+  File "<stdin>", line 3, in <module>
+sqlite3.OperationalError: table runs already exists
+===== S0 REPRO (base commit tool d9da4de): PR 58753 shape, lint skipped, registry grants lint
+PR 58753: review summary posted as a closed comment thread for attestation aaaabbbbccccddddeeeeffff0000111122223333
+error: attested step lint is skipped, not passed; description not updated
+exit=1
+--- az calls:
+repos pr show --id 58753 --organization https://dev.azure.com/org --query {description: description, repo: rep
+repos pr policy list --id 58753 --organization https://dev.azure.com/org -o json
+devops invoke --organization https://dev.azure.com/org --area git --resource pullRequestThreads --route-parame
+devops invoke --organization https://dev.azure.com/org --area git --resource pullRequestThreads --route-parame
+--- review comment posted: yes
+--- description update written: no
+
+===== S1 registered lint skip: DoD (nm_skip=lint) generated command, run verbatim
+DoD renders: fm-pr-report-compact <org-url> <pr-id> --nm-skip lint
+PR 58753: review summary posted as a closed comment thread for attestation aaaabbbbccccddddeeeeffff0000111122223333
+PR 58753: description normalized to 603 UTF-16 code units
+exit=0
+--- az calls:
+repos pr show --id 58753 --organization https://dev.azure.com/org --query {description: description, repo: rep
+repos pr policy list --id 58753 --organization https://dev.azure.com/org -o json
+devops invoke --organization https://dev.azure.com/org --area git --resource pullRequestThreads --route-parame
+devops invoke --organization https://dev.azure.com/org --area git --resource pullRequestThreads --route-parame
+repos pr update --id 58753 --organization https://dev.azure.com/org --description <body> --query pullRequestId
+--- review comment posted: yes
+--- description update written; board:
+- ✅ intent - passed
+- ✅ review - passed
+- ✅ test - passed
+- ⏭️ lint - skipped (registered)
+- ✅ pr - passed
+- ✅ ci - passed
+--- attestation preserved byte-for-byte: 1
+
+===== S1b rerun on already-normalized description is idempotent
+PR 58753: review summary posted as a closed comment thread for attestation aaaabbbbccccddddeeeeffff0000111122223333
+PR 58753: description already normalized, not rewritten
+exit=0
+--- az calls:
+repos pr show --id 58753 --organization https://dev.azure.com/org --query {description: description, repo: rep
+repos pr policy list --id 58753 --organization https://dev.azure.com/org -o json
+devops invoke --organization https://dev.azure.com/org --area git --resource pullRequestThreads --route-parame
+devops invoke --organization https://dev.azure.com/org --area git --resource pullRequestThreads --route-parame
+--- review comment posted: yes
+--- description update written: no
+
+===== S2 unregistered skip: DoD (nm_skip empty) generated command, lint attested skipped
+DoD renders: fm-pr-report-compact <org-url> <pr-id>
+PR 58753: review summary posted as a closed comment thread for attestation aaaabbbbccccddddeeeeffff0000111122223333
+error: attested step lint is skipped, not passed; description not updated
+exit=1
+--- az calls:
+repos pr show --id 58753 --organization https://dev.azure.com/org --query {description: description, repo: rep
+repos pr policy list --id 58753 --organization https://dev.azure.com/org -o json
+devops invoke --organization https://dev.azure.com/org --area git --resource pullRequestThreads --route-parame
+devops invoke --organization https://dev.azure.com/org --area git --resource pullRequestThreads --route-parame
+--- review comment posted: yes
+--- description update written: no
+
+===== S3 adversarial: ungrantable --nm-skip values
+error: fm-pr-report-compact: invalid no-mistakes skip 'review'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+  --nm-skip 'review' exit=2 az_calls=0 update=no
+error: fm-pr-report-compact: invalid no-mistakes skip 'test'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+  --nm-skip 'test' exit=2 az_calls=0 update=no
+error: fm-pr-report-compact: invalid no-mistakes skip 'ci'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+  --nm-skip 'ci' exit=2 az_calls=0 update=no
+error: fm-pr-report-compact: invalid no-mistakes skip 'lint,ci'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+  --nm-skip 'lint,ci' exit=2 az_calls=0 update=no
+error: fm-pr-report-compact: invalid no-mistakes skip 'Lint'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+  --nm-skip 'Lint' exit=2 az_calls=0 update=no
+
+===== S4 adversarial: lint registered, but attested test is skipped (not granted)
+"test","status":"skipped"
+PR 58753: review summary posted as a closed comment thread for attestation aaaabbbbccccddddeeeeffff0000111122223333
+error: attested step test is skipped, not passed; description not updated
+exit=1
+--- az calls:
+repos pr show --id 58753 --organization https://dev.azure.com/org --query {description: description, repo: rep
+repos pr policy list --id 58753 --organization https://dev.azure.com/org -o json
+devops invoke --organization https://dev.azure.com/org --area git --resource pullRequestThreads --route-parame
+devops invoke --organization https://dev.azure.com/org --area git --resource pullRequestThreads --route-parame
+--- review comment posted: yes
+--- description update written: no
+
+===== S4b adversarial: lint registered, but attested lint FAILED
+PR 58753: review summary posted as a closed comment thread for attestation aaaabbbbccccddddeeeeffff0000111122223333
+error: attested step lint is failed, not passed; description not updated
+exit=1
+--- az calls:
+repos pr show --id 58753 --organization https://dev.azure.com/org --query {description: description, repo: rep
+repos pr policy list --id 58753 --organization https://dev.azure.com/org -o json
+devops invoke --organization https://dev.azure.com/org --area git --resource pullRequestThreads --route-parame
+devops invoke --organization https://dev.azure.com/org --area git --resource pullRequestThreads --route-parame
+--- review comment posted: yes
+--- description update written: no
+
+===== S5 adversarial: lint registered, Build policy queued (CI not green)
+error: CI was not verified green for PR 58753; blocking Build policy status: queued; description not updated
+exit=1
+--- az calls:
+repos pr show --id 58753 --organization https://dev.azure.com/org --query {description: description, repo: rep
+repos pr policy list --id 58753 --organization https://dev.azure.com/org -o json
+--- review comment posted: no
+--- description update written: no
+
+===== S6 --stdin filter with registered skip
+- ✅ intent - passed
+- ✅ review - passed
+- ✅ test - passed
+- ⏭️ lint - skipped (registered)
+- ✅ pr - passed
+- ✅ ci - passed
+exit=0
