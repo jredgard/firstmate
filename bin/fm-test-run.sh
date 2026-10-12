@@ -71,7 +71,7 @@
 #   --per-script-timeout-secs N
 #                   terminate a script that runs longer than N seconds and
 #                   record it as exit 124 (0 disables, the default). The
-#                   --changed applies 1500s automatically, above the current
+#                   --changed applies 2310s automatically, above the current
 #                   slowest CI hint with margin; exceeding it becomes a bounded
 #                   failure, not proof of a hang. --max-wall-ms is checked
 #                   after the run and so cannot catch a hang on its own.
@@ -188,16 +188,14 @@ JOBS_MAX=8
 MAX_WALL_MS=
 PER_SCRIPT_TIMEOUT_SECS=0
 # Bound applied automatically on the automatic --changed path, derived from
-# the earlier watch-triage measurement of about 1075s under CI load. The host
-# suite has since reached 1649s, so this local changed-selection bound can fail
-# a healthy host run; CI lanes do not enable it. It provides roughly 1.4x
-# headroom over that earlier watch-triage measurement,
-# and it stays under the 30-minute normal CI tier so a wedged script fails here,
-# with its output, before the job cap
-# cancels the lane. It is a guard, not a speed control: a HUNG script becomes a
+# measured healthy runtimes with margin: the slowest measured script is
+# tests/fm-supervision-host.test.sh at about 1649s under CI load. 2310s keeps
+# every measured script under the bound with roughly 1.4x headroom and stays
+# under the 45-minute host CI tier. CI lanes do not enable this local bound.
+# It is a guard, not a speed control: a HUNG script becomes a
 # bounded failure instead of an unbounded suite, which is the shape that
 # silently outruns a caller's invocation budget.
-CHANGED_DEFAULT_TIMEOUT_SECS=1500
+CHANGED_DEFAULT_TIMEOUT_SECS=2310
 
 # How many separate-runner shards the portable serial remainder splits into.
 # One owner: CI lane names carry this count and are refused when they disagree.
