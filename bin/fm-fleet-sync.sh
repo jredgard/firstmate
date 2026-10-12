@@ -3,10 +3,8 @@
 # origin/<default> when safe, and prune local branches whose upstream tracking
 # branch is gone (the remote branch was deleted, i.e. its PR merged) and that no
 # worktree still needs.
-# Resolve <default> from the exact project's registry description ("branch main"),
-# then the checked-out branch's origin upstream, then origin/HEAD, retaining the
-# local main/master fallback when none is recorded.
-# The registry's bracketed branch= token is a ship prefix, not the sync branch.
+# Compare local main/master against its origin upstream, otherwise use origin/HEAD,
+# retaining the local main/master fallback when no remote default is recorded.
 # Self-heals the one unambiguously safe drift: a clean, detached HEAD that holds
 # no unique commits (it is an ancestor of origin/<default>) and whose <default>
 # branch is free to check out is re-attached and then fast-forwarded ("recovered:").
@@ -122,46 +120,27 @@ resolve_project_arg() {
 }
 
 default_branch() {
-  local ref branch registry="${FM_DATA_OVERRIDE:-$FM_HOME/data}/projects.md"
-  if [ -f "$registry" ]; then
-    branch=$(awk -v n="$(basename "$PROJ")" '
-      {
-        prefix = "- " n; plen = length(prefix)
-        if (substr($0, 1, plen) != prefix) next
-        after = substr($0, plen + 1)
-        if (substr(after, 1, 2) != " [" && substr(after, 1, 3) != " - ") next
-        sep = index(after, " - ")
-        if (!sep) exit
-        desc = substr(after, sep + 3)
-        if (match(desc, /(^|[[:space:](,;])branch[[:space:]]+[^[:space:]),;:]+/)) {
-          branch = substr(desc, RSTART, RLENGTH)
-          sub(/^.*branch[[:space:]]+/, "", branch)
-          print branch
-        }
-        exit
-      }
-    ' "$registry") || return 1
-    if [ -n "$branch" ]; then
-      git -C "$PROJ" check-ref-format "refs/heads/$branch" >/dev/null 2>&1 || return 1
-      printf '%s\n' "$branch"
-      return 0
-    fi
-  fi
-  ref=$(git -C "$PROJ" rev-parse --symbolic-full-name '@{upstream}' 2>/dev/null || true)
-  case "$ref" in
-    refs/remotes/origin/*)
-      printf '%s\n' "${ref#refs/remotes/origin/}"
-      return 0
-      ;;
-  esac
+  local ref branch
+  for branch in main master; do
+    ref=$(git -C "$PROJ" rev-parse --symbolic-full-name "$branch@{upstream}" 2>/dev/null || true)
+    case "$ref" in
+      refs/remotes/origin/*)
+        DEFAULT=$branch
+        BASE="origin/${ref#refs/remotes/origin/}"
+        return 0
+        ;;
+    esac
+  done
   ref=$(git -C "$PROJ" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)
   if [ -n "$ref" ]; then
-    echo "${ref#origin/}"
+    DEFAULT=${ref#origin/}
+    BASE=$ref
     return 0
   fi
   for branch in main master; do
     if git -C "$PROJ" show-ref --verify --quiet "refs/heads/$branch"; then
-      echo "$branch"
+      DEFAULT=$branch
+      BASE="origin/$branch"
       return 0
     fi
   done
@@ -388,11 +367,10 @@ sync_project() {
 
   prune_gone_branches || true
 
-  DEFAULT=$(default_branch) || {
+  default_branch || {
     echo "$label: skipped: cannot determine default branch"
     return 0
   }
-  BASE="origin/$DEFAULT"
   if ! git -C "$PROJ" rev-parse --verify --quiet "$BASE^{commit}" >/dev/null; then
     echo "$label: skipped: $BASE does not exist"
     return 0
