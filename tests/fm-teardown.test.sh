@@ -1052,7 +1052,7 @@ SH
       available|absent|reassigned)
         expect_code 0 "$rc" "$scenario ancestry evidence"
         assert_absent "$case_dir/state/task-x1.meta" "$scenario task remained active"
-        [ "$(backlog_row_state "$case_dir")" = done ] || fail "$scenario task stayed open"
+        [ "$(backlog_row_state "$case_dir")" = "done" ] || fail "$scenario task stayed open"
         if [ "$scenario" = reassigned ]; then
           assert_present "$case_dir/pool/1/.fm-slot-owner" 'cleanup erased another task claim'
           [ "$(git -C "$case_dir/wt" rev-parse HEAD)" = "$head" ] || fail 'cleanup moved another task branch'
