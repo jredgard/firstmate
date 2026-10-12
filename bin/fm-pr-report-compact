@@ -568,7 +568,9 @@ def verify_build_policy(org: str, pr_id: str) -> None:
 
 
 def nm_skip_valid(value: str) -> bool:
-    # Standalone counterpart of bin/fm-dod-lib.sh's fm_nm_skip_valid owner.
+    # Standalone counterpart of bin/fm-dod-lib.sh's fm_nm_skip_valid owner:
+    # this file is vendored alone as standard-library-only Python, so it must
+    # not source sibling scripts; the test battery pins parity with the owner.
     if value in ("", "lint"):
         return True
     print(
