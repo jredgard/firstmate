@@ -253,7 +253,7 @@ test_detached_clean_ancestor_recovers() {
   local home clone out before after
   home=$(new_home)
   clone=$(build_pair "$home" alpha)
-  origin_head_on_master "$home" alpha
+  advance_origin "$home" alpha C1
   before=$(head_sha "$clone")
   # Detach at the clone's main (C0), an ancestor of the now-advanced origin/main.
   git -C "$clone" checkout --detach --quiet
@@ -440,6 +440,7 @@ test_tracking_branch_overrides_origin_head() {
   home=$(new_home)
   clone=$(build_pair "$home" tracking-main)
   origin_head_on_master "$home" tracking-main
+  git -C "$clone" branch -q master --track origin/master
 
   out=$(run_sync "$home" "$clone")
 
@@ -477,16 +478,86 @@ test_local_default_and_remote_upstream_names_can_differ() {
       out=$(run_sync "$home" "$clone")
 
       case "$state" in
-        clean|detached)
+        clean)
           assert_contains "$out" "synced" "local default must sync against its differently named upstream"
           [ "$(git -C "$clone" symbolic-ref --short HEAD)" = "$branch" ] || fail "local default name was not retained"
           [ "$(head_sha "$clone")" = "$(git -C "$clone" rev-parse origin/release)" ] || fail "local default was not refreshed from upstream"
           ;;
-        dirty|diverged|feature)
+        detached)
+          assert_contains "$out" "recovered: re-attached master (already current)" "detached recovery must use origin/HEAD"
+          [ "$(git -C "$clone" symbolic-ref --short HEAD)" = master ] || fail "detached checkout did not recover to origin/HEAD"
+          [ "$(head_sha "$clone")" = "$before" ] || fail "detached checkout followed an unchecked branch upstream"
+          [ "$(git -C "$clone" rev-parse "$branch")" = "$before" ] || fail "unchecked local branch was moved"
+          ;;
+        dirty|diverged)
           assert_contains "$out" "$name: STUCK:" "unsafe checkout must remain STUCK"
           assert_contains "$out" "1 commits behind origin/release" "warning must compare against the default branch upstream"
           [ "$(head_sha "$clone")" = "$before" ] || fail "unsafe checkout was advanced"
           [ "$(git -C "$clone" rev-parse "$branch")" = "$before" ] || fail "local default was moved"
+          if [ "$state" = dirty ]; then
+            assert_contains "$(cat "$clone/file.txt")" "uncommitted edit" "dirty edit must remain intact"
+          fi
+          ;;
+        feature)
+          assert_contains "$out" "$name: STUCK: on branch feature" "tracked feature checkout must remain STUCK"
+          assert_contains "$out" "0 commits behind origin/master" "feature warning must compare against origin/HEAD"
+          [ "$(git -C "$clone" symbolic-ref --short HEAD)" = feature ] || fail "tracked feature branch was switched"
+          [ "$(head_sha "$clone")" = "$before" ] || fail "tracked feature checkout was advanced"
+          [ "$(git -C "$clone" rev-parse "$branch")" = "$before" ] || fail "unchecked local branch was moved"
+          ;;
+      esac
+    done
+  done
+  pass "only checked-out main/master uses its upstream across sync states"
+}
+
+test_dev_default_and_master_ignore_stray_main() {
+  local home clone out branch state name main_before before
+  home=$(new_home)
+  for branch in dev master; do
+    for state in clean detached dirty diverged feature; do
+      name="default-$branch-$state"
+      clone=$(build_pair "$home" "$name")
+      git -C "$home/work-$name" push -q origin "main:refs/heads/$branch"
+      git -C "$home/remotes/$name.git" symbolic-ref HEAD "refs/heads/$branch"
+      git -C "$clone" fetch -q origin
+      git -C "$clone" symbolic-ref refs/remotes/origin/HEAD "refs/remotes/origin/$branch"
+      git -C "$clone" checkout -q -b "$branch" --track "origin/$branch"
+      if [ "$branch" = dev ] && [ "$state" = dirty ]; then
+        git -C "$clone" branch --set-upstream-to=origin/main dev >/dev/null
+      fi
+      main_before=$(git -C "$clone" rev-parse main)
+      before=$(head_sha "$clone")
+      commit_file "$home/work-$name" file.txt v1 C1
+      git -C "$home/work-$name" push -q origin "main:refs/heads/$branch"
+      case "$state" in
+        detached) git -C "$clone" checkout --detach --quiet ;;
+        dirty) printf 'uncommitted edit\n' >> "$clone/file.txt" ;;
+        diverged)
+          commit_file "$clone" local.txt local "local divergent commit"
+          before=$(head_sha "$clone")
+          ;;
+        feature)
+          git -C "$clone" checkout -q -b feature
+          git -C "$clone" branch --set-upstream-to=origin/main feature >/dev/null
+          ;;
+      esac
+
+      out=$(run_sync "$home" "$clone")
+
+      [ "$(git -C "$clone" rev-parse main)" = "$main_before" ] || fail "stray main branch was moved"
+      case "$state" in
+        clean|detached)
+          assert_contains "$out" "synced" "the selected default must sync despite a stray main tracking origin/main"
+          assert_not_contains "$out" "STUCK" "stray main must not prevent syncing the selected default"
+          [ "$(git -C "$clone" symbolic-ref --short HEAD)" = "$branch" ] || fail "selected default branch was not retained"
+          [ "$(head_sha "$clone")" = "$(git -C "$clone" rev-parse "origin/$branch")" ] || fail "selected default was not refreshed"
+          ;;
+        dirty|diverged|feature)
+          assert_contains "$out" "$name: STUCK:" "unsafe checkout must remain STUCK"
+          assert_contains "$out" "1 commits behind origin/$branch" "warning must compare against the selected default"
+          [ "$(head_sha "$clone")" = "$before" ] || fail "unsafe checkout was advanced"
+          [ "$(git -C "$clone" rev-parse "$branch")" = "$before" ] || fail "selected local default was moved"
           if [ "$state" = dirty ]; then
             assert_contains "$(cat "$clone/file.txt")" "uncommitted edit" "dirty edit must remain intact"
           fi
@@ -497,7 +568,7 @@ test_local_default_and_remote_upstream_names_can_differ() {
       esac
     done
   done
-  pass "local main/master names and remote upstream names stay distinct across sync states"
+  pass "dev and master defaults ignore stray main upstreams across sync states"
 }
 
 test_origin_head_fallback_without_tracking() {
@@ -525,6 +596,7 @@ test_local_default_fallback_without_upstream_or_origin_head() {
     if [ "$branch" = master ]; then
       git -C "$home/work-$name" push -q origin main:refs/heads/master
       git -C "$clone" branch -m main master
+      git -C "$clone" branch -q main --track origin/main
     fi
     git -C "$clone" branch --unset-upstream "$branch"
     git -C "$clone" config remote.origin.followRemoteHEAD never
@@ -933,6 +1005,7 @@ test_already_current_unchanged
 test_registry_description_does_not_select_sync_branch
 test_tracking_branch_overrides_origin_head
 test_local_default_and_remote_upstream_names_can_differ
+test_dev_default_and_master_ignore_stray_main
 test_origin_head_fallback_without_tracking
 test_local_default_fallback_without_upstream_or_origin_head
 test_tracking_branch_dirty_checkout_is_untouched
