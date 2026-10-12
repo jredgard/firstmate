@@ -1,0 +1,307 @@
+### payload 05cf55d (05cf55d)
+$ ls tooling/
+fm-pr-report-compact
+
+--- registered lint skip, python-only PATH (no bash)
+$ PATH=/tmp/tmp.RTqaDSipGE/onlypy python3 -I -S tooling/fm-pr-report-compact --stdin --nm-skip lint
+exit=1
+[stdout]
+[stderr]
+Traceback (most recent call last):
+  File "/tmp/tmp.RTqaDSipGE/factory/tooling/fm-pr-report-compact", line 684, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/tmp/tmp.RTqaDSipGE/factory/tooling/fm-pr-report-compact", line 584, in main
+    if subprocess.run(
+       ~~~~~~~~~~~~~~^
+        ["bash", "-c", '. "$1"; fm_nm_skip_valid "$2" fm-pr-report-compact',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         "_", os.path.join(os.path.dirname(os.path.abspath(__file__)), "fm-dod-lib.sh"),
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         args.nm_skip],
+         ^^^^^^^^^^^^^^
+    ).returncode != 0:
+    ^
+  File "/usr/lib/python3.14/subprocess.py", line 555, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1990, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: 'bash'
+
+--- registered lint skip, full PATH
+$ PATH=<full login PATH> python3 -I -S tooling/fm-pr-report-compact --stdin --nm-skip lint
+exit=2
+[stdout]
+[stderr]
+_: line 1: /tmp/tmp.RTqaDSipGE/factory/tooling/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+
+--- omitted skip, all steps passed
+$ PATH=/tmp/tmp.RTqaDSipGE/onlypy python3 -I -S tooling/fm-pr-report-compact --stdin
+exit=1
+[stdout]
+[stderr]
+Traceback (most recent call last):
+  File "/tmp/tmp.RTqaDSipGE/factory/tooling/fm-pr-report-compact", line 684, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/tmp/tmp.RTqaDSipGE/factory/tooling/fm-pr-report-compact", line 584, in main
+    if subprocess.run(
+       ~~~~~~~~~~~~~~^
+        ["bash", "-c", '. "$1"; fm_nm_skip_valid "$2" fm-pr-report-compact',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         "_", os.path.join(os.path.dirname(os.path.abspath(__file__)), "fm-dod-lib.sh"),
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         args.nm_skip],
+         ^^^^^^^^^^^^^^
+    ).returncode != 0:
+    ^
+  File "/usr/lib/python3.14/subprocess.py", line 555, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1990, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: 'bash'
+
+--- explicit empty skip, all steps passed
+$ PATH=/tmp/tmp.RTqaDSipGE/onlypy python3 -I -S tooling/fm-pr-report-compact --stdin --nm-skip 
+exit=1
+[stdout]
+[stderr]
+Traceback (most recent call last):
+  File "/tmp/tmp.RTqaDSipGE/factory/tooling/fm-pr-report-compact", line 684, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/tmp/tmp.RTqaDSipGE/factory/tooling/fm-pr-report-compact", line 584, in main
+    if subprocess.run(
+       ~~~~~~~~~~~~~~^
+        ["bash", "-c", '. "$1"; fm_nm_skip_valid "$2" fm-pr-report-compact',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         "_", os.path.join(os.path.dirname(os.path.abspath(__file__)), "fm-dod-lib.sh"),
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         args.nm_skip],
+         ^^^^^^^^^^^^^^
+    ).returncode != 0:
+    ^
+  File "/usr/lib/python3.14/subprocess.py", line 555, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1990, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: 'bash'
+
+--- adversarial: --nm-skip ci must exit 2
+$ PATH=/tmp/tmp.RTqaDSipGE/onlypy python3 -I -S tooling/fm-pr-report-compact --stdin --nm-skip ci
+exit=1
+[stdout]
+[stderr]
+Traceback (most recent call last):
+  File "/tmp/tmp.RTqaDSipGE/factory/tooling/fm-pr-report-compact", line 684, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/tmp/tmp.RTqaDSipGE/factory/tooling/fm-pr-report-compact", line 584, in main
+    if subprocess.run(
+       ~~~~~~~~~~~~~~^
+        ["bash", "-c", '. "$1"; fm_nm_skip_valid "$2" fm-pr-report-compact',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         "_", os.path.join(os.path.dirname(os.path.abspath(__file__)), "fm-dod-lib.sh"),
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         args.nm_skip],
+         ^^^^^^^^^^^^^^
+    ).returncode != 0:
+    ^
+  File "/usr/lib/python3.14/subprocess.py", line 555, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1990, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: 'bash'
+
+--- adversarial: --nm-skip 'lint,ci' must exit 2
+$ PATH=/tmp/tmp.RTqaDSipGE/onlypy python3 -I -S tooling/fm-pr-report-compact --stdin --nm-skip lint,ci
+exit=1
+[stdout]
+[stderr]
+Traceback (most recent call last):
+  File "/tmp/tmp.RTqaDSipGE/factory/tooling/fm-pr-report-compact", line 684, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/tmp/tmp.RTqaDSipGE/factory/tooling/fm-pr-report-compact", line 584, in main
+    if subprocess.run(
+       ~~~~~~~~~~~~~~^
+        ["bash", "-c", '. "$1"; fm_nm_skip_valid "$2" fm-pr-report-compact',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         "_", os.path.join(os.path.dirname(os.path.abspath(__file__)), "fm-dod-lib.sh"),
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         args.nm_skip],
+         ^^^^^^^^^^^^^^
+    ).returncode != 0:
+    ^
+  File "/usr/lib/python3.14/subprocess.py", line 555, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1990, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: 'bash'
+
+--- adversarial: --nm-skip ' lint' must exit 2
+$ PATH=/tmp/tmp.RTqaDSipGE/onlypy python3 -I -S tooling/fm-pr-report-compact --stdin --nm-skip  lint
+exit=1
+[stdout]
+[stderr]
+Traceback (most recent call last):
+  File "/tmp/tmp.RTqaDSipGE/factory/tooling/fm-pr-report-compact", line 684, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/tmp/tmp.RTqaDSipGE/factory/tooling/fm-pr-report-compact", line 584, in main
+    if subprocess.run(
+       ~~~~~~~~~~~~~~^
+        ["bash", "-c", '. "$1"; fm_nm_skip_valid "$2" fm-pr-report-compact',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         "_", os.path.join(os.path.dirname(os.path.abspath(__file__)), "fm-dod-lib.sh"),
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         args.nm_skip],
+         ^^^^^^^^^^^^^^
+    ).returncode != 0:
+    ^
+  File "/usr/lib/python3.14/subprocess.py", line 555, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1990, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: 'bash'
+
+--- adversarial: unregistered lint skip refused
+$ PATH=/tmp/tmp.RTqaDSipGE/onlypy python3 -I -S tooling/fm-pr-report-compact --stdin
+exit=1
+[stdout]
+[stderr]
+Traceback (most recent call last):
+  File "/tmp/tmp.RTqaDSipGE/factory/tooling/fm-pr-report-compact", line 684, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/tmp/tmp.RTqaDSipGE/factory/tooling/fm-pr-report-compact", line 584, in main
+    if subprocess.run(
+       ~~~~~~~~~~~~~~^
+        ["bash", "-c", '. "$1"; fm_nm_skip_valid "$2" fm-pr-report-compact',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         "_", os.path.join(os.path.dirname(os.path.abspath(__file__)), "fm-dod-lib.sh"),
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         args.nm_skip],
+         ^^^^^^^^^^^^^^
+    ).returncode != 0:
+    ^
+  File "/usr/lib/python3.14/subprocess.py", line 555, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1990, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: 'bash'
+
+--- adversarial: invalid skip refused before az in ADO mode (no az on PATH)
+$ PATH=/tmp/tmp.RTqaDSipGE/onlypy python3 -I -S tooling/fm-pr-report-compact https://dev.azure.com/org 123 --nm-skip review
+exit=1
+[stdout]
+[stderr]
+Traceback (most recent call last):
+  File "/tmp/tmp.RTqaDSipGE/factory/tooling/fm-pr-report-compact", line 684, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/tmp/tmp.RTqaDSipGE/factory/tooling/fm-pr-report-compact", line 584, in main
+    if subprocess.run(
+       ~~~~~~~~~~~~~~^
+        ["bash", "-c", '. "$1"; fm_nm_skip_valid "$2" fm-pr-report-compact',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         "_", os.path.join(os.path.dirname(os.path.abspath(__file__)), "fm-dod-lib.sh"),
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         args.nm_skip],
+         ^^^^^^^^^^^^^^
+    ).returncode != 0:
+    ^
+  File "/usr/lib/python3.14/subprocess.py", line 555, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1990, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: 'bash'

@@ -1,0 +1,142 @@
+### payload f9bb6b5 (f9bb6b5)
+$ ls tooling/
+fm-pr-report-compact
+
+--- registered lint skip, python-only PATH (no bash)
+$ PATH=/tmp/tmp.jTLjKDcQ5p/onlypy python3 -I -S tooling/fm-pr-report-compact --stdin --nm-skip lint
+exit=0
+[stdout]
+## Intent
+
+Ship it.
+
+## What Changed
+
+Files.
+
+## Risk Assessment
+
+Low.
+
+## Pipeline
+
+<!-- no-mistakes-pipeline-attestation:v1 {"head_sha":"d4aeca250cf6e5927915d23a55a7b51c2aac2d34","steps":[{"step":"intent","status":"completed"},{"step":"review","status":"completed"},{"step":"lint","status":"skipped"},{"step":"pr","status":"running"},{"step":"ci","status":"pending"}]} -->
+
+- ✅ intent - passed
+- ✅ review - passed
+- ⏭️ lint - skipped (registered)
+- ✅ pr - passed
+- ✅ ci - passed[stderr]
+
+--- registered lint skip, full PATH
+$ PATH=<full login PATH> python3 -I -S tooling/fm-pr-report-compact --stdin --nm-skip lint
+exit=0
+[stdout]
+## Intent
+
+Ship it.
+
+## What Changed
+
+Files.
+
+## Risk Assessment
+
+Low.
+
+## Pipeline
+
+<!-- no-mistakes-pipeline-attestation:v1 {"head_sha":"d4aeca250cf6e5927915d23a55a7b51c2aac2d34","steps":[{"step":"intent","status":"completed"},{"step":"review","status":"completed"},{"step":"lint","status":"skipped"},{"step":"pr","status":"running"},{"step":"ci","status":"pending"}]} -->
+
+- ✅ intent - passed
+- ✅ review - passed
+- ⏭️ lint - skipped (registered)
+- ✅ pr - passed
+- ✅ ci - passed[stderr]
+
+--- omitted skip, all steps passed
+$ PATH=/tmp/tmp.jTLjKDcQ5p/onlypy python3 -I -S tooling/fm-pr-report-compact --stdin
+exit=0
+[stdout]
+## Intent
+
+Ship it.
+
+## What Changed
+
+Files.
+
+## Risk Assessment
+
+Low.
+
+## Pipeline
+
+<!-- no-mistakes-pipeline-attestation:v1 {"head_sha":"d4aeca250cf6e5927915d23a55a7b51c2aac2d34","steps":[{"step":"intent","status":"completed"},{"step":"review","status":"completed"},{"step":"test","status":"completed"},{"step":"pr","status":"running"},{"step":"ci","status":"pending"}]} -->
+
+- ✅ intent - passed
+- ✅ review - passed
+- ✅ test - passed
+- ✅ pr - passed
+- ✅ ci - passed[stderr]
+
+--- explicit empty skip, all steps passed
+$ PATH=/tmp/tmp.jTLjKDcQ5p/onlypy python3 -I -S tooling/fm-pr-report-compact --stdin --nm-skip 
+exit=0
+[stdout]
+## Intent
+
+Ship it.
+
+## What Changed
+
+Files.
+
+## Risk Assessment
+
+Low.
+
+## Pipeline
+
+<!-- no-mistakes-pipeline-attestation:v1 {"head_sha":"d4aeca250cf6e5927915d23a55a7b51c2aac2d34","steps":[{"step":"intent","status":"completed"},{"step":"review","status":"completed"},{"step":"test","status":"completed"},{"step":"pr","status":"running"},{"step":"ci","status":"pending"}]} -->
+
+- ✅ intent - passed
+- ✅ review - passed
+- ✅ test - passed
+- ✅ pr - passed
+- ✅ ci - passed[stderr]
+
+--- adversarial: --nm-skip ci must exit 2
+$ PATH=/tmp/tmp.jTLjKDcQ5p/onlypy python3 -I -S tooling/fm-pr-report-compact --stdin --nm-skip ci
+exit=2
+[stdout]
+[stderr]
+error: fm-pr-report-compact: invalid no-mistakes skip 'ci'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+
+--- adversarial: --nm-skip 'lint,ci' must exit 2
+$ PATH=/tmp/tmp.jTLjKDcQ5p/onlypy python3 -I -S tooling/fm-pr-report-compact --stdin --nm-skip lint,ci
+exit=2
+[stdout]
+[stderr]
+error: fm-pr-report-compact: invalid no-mistakes skip 'lint,ci'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+
+--- adversarial: --nm-skip ' lint' must exit 2
+$ PATH=/tmp/tmp.jTLjKDcQ5p/onlypy python3 -I -S tooling/fm-pr-report-compact --stdin --nm-skip  lint
+exit=2
+[stdout]
+[stderr]
+error: fm-pr-report-compact: invalid no-mistakes skip ' lint'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+
+--- adversarial: unregistered lint skip refused
+$ PATH=/tmp/tmp.jTLjKDcQ5p/onlypy python3 -I -S tooling/fm-pr-report-compact --stdin
+exit=1
+[stdout]
+[stderr]
+error: attested step lint is skipped, not passed; description not updated
+
+--- adversarial: invalid skip refused before az in ADO mode (no az on PATH)
+$ PATH=/tmp/tmp.jTLjKDcQ5p/onlypy python3 -I -S tooling/fm-pr-report-compact https://dev.azure.com/org 123 --nm-skip review
+exit=2
+[stdout]
+[stderr]
+error: fm-pr-report-compact: invalid no-mistakes skip 'review'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake

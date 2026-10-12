@@ -1,0 +1,218 @@
+$ bash tests/fm-pr-report-compact.test.sh  # f9bb6b5 tests against pre-fix 05cf55d tool
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: tool errored on oversized body
+FAIL: oversized body must be rewritten
+FAIL: attestation must survive byte-for-byte
+FAIL: attestation must survive exactly once
+FAIL: intent must have exactly one verified passed line
+FAIL: review must have exactly one verified passed line
+FAIL: test must have exactly one verified passed line
+FAIL: pr must have exactly one verified passed line
+FAIL: ci must have exactly one verified passed line
+FAIL: sections must be emitted in canonical order
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: tool errored on prose bullets naming steps
+FAIL: prose bullet naming a step must survive normalization
+FAIL: second prose bullet naming a step must survive normalization
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: tool errored on fitting body
+FAIL: a fitting body without a board must be normalized
+FAIL: a fitting body must gain the final CI status
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: tool errored on an already-normalized body
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: registered lint skip must be accepted
+FAIL: unregistered skip refusal must name the step
+FAIL: empty posture must reach the attested skip refusal
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: explicit empty posture must accept passed steps
+FAIL: standalone rule must accept owner-approved skip ''
+FAIL: standalone rule must preserve owner diagnostic for skip ''
+FAIL: standalone rule must accept owner-approved skip 'lint'
+FAIL: standalone rule must preserve owner diagnostic for skip 'lint'
+FAIL: standalone rule must preserve owner diagnostic for skip 'intent'
+FAIL: standalone rule must preserve owner diagnostic for skip 'review'
+FAIL: standalone rule must preserve owner diagnostic for skip 'test'
+FAIL: standalone rule must preserve owner diagnostic for skip 'pr'
+FAIL: standalone rule must preserve owner diagnostic for skip 'ci'
+FAIL: standalone rule must preserve owner diagnostic for skip 'lint-extra'
+FAIL: standalone rule must preserve owner diagnostic for skip 'lint,ci'
+FAIL: standalone rule must preserve owner diagnostic for skip 'lint,lint'
+FAIL: standalone rule must preserve owner diagnostic for skip 'lint,'
+FAIL: standalone rule must preserve owner diagnostic for skip ',lint'
+FAIL: standalone rule must preserve owner diagnostic for skip 'Lint'
+FAIL: standalone rule must preserve owner diagnostic for skip ' lint'
+FAIL: standalone rule must preserve owner diagnostic for skip 'lint '
+FAIL: standalone rule must preserve owner diagnostic for skip 'lint
+'
+FAIL: standalone rule must preserve owner diagnostic for skip '	lint'
+FAIL: invalid skip refusal must identify the rejected value
+FAIL: invalid skip refusal must identify the rejected value
+FAIL: invalid skip refusal must identify the rejected value
+FAIL: invalid skip refusal must identify the rejected value
+FAIL: invalid skip refusal must identify the rejected value
+FAIL: invalid skip refusal must identify the rejected value
+FAIL: invalid skip refusal must identify the rejected value
+FAIL: invalid skip refusal must identify the rejected value
+FAIL: invalid skip refusal must identify the rejected value
+FAIL: invalid skip refusal must identify the rejected value
+FAIL: invalid skip refusal must identify the rejected value
+FAIL: invalid skip refusal must identify the rejected value
+FAIL: invalid skip refusal must identify the rejected value
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: tool errored while trimming the near-cap head
+FAIL: Intent trimming must retain AB# tokens
+FAIL: Risk must survive trimming
+FAIL: trimmed body must retain the exact attestation
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: tool errored on an unpunctuated oversized Intent
+FAIL: unpunctuated oversized Intent must use the bounded fallback
+FAIL: bounded Intent fallback must retain work-item tokens
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: tool errored on astral near-cap body
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: tool errored on an unclosed changed-file dump
+FAIL: raw changed-file dump must become the Files-tab pointer
+FAIL: Risk must render outside the removed file-list fence
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: tool errored on a closed text fence
+FAIL: closed text fence content must survive normalization
+FAIL: prose after a closed text fence must survive normalization
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: tool errored on marked body
+FAIL: a truncation-marked body must be rewritten
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: clean PR run failed
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: clean comment must name the run
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: review comment must identify its attestation round
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: clean comment must name the reviewed head
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: clean comment must count review rounds
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: clean comment must summarize the initial round
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: clean comment must summarize the clean final round
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: multi-round comment must explain each finding and attribute its fix
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: clean comment must state the residual verdict
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: review comment thread must be closed
+FAIL: fitting active PR without a board must be normalized
+FAIL: ADO update must receive the final board
+FAIL: ADO update must retain the exact attestation
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: ADO normalization must accept the registered lint skip
+FAIL: ADO description update must render the registered skip
+FAIL: ADO description update must preserve the skipped attestation
+FAIL: registered lint skip must retain verified CI reporting
+FAIL: ADO unregistered skip refusal must name the step
+FAIL: registered skip must reach the non-green Build policy refusal
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: generated command with empty skips must accept passed steps
+FAIL: generated command with empty skips must write the passed board
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: completed PR run failed
+FAIL: completed PR must still receive a newer-round review comment
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: completed PR comment must identify the current attestation round
+FAIL: completed PR must report its description was left as-merged
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: idempotent PR run failed
+FAIL: existing thread skip must be reported
+FAIL: normalized description skip must be reported
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: newer-round PR run failed
+FAIL: newer attestation must receive a new review comment
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: newer-round comment must carry the current marker
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: legacy-thread PR run failed
+FAIL: markerless legacy thread must receive the current review comment
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: legacy follow-up comment must carry the current marker
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: findings PR run failed
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import json, sys; print(json.load(open(sys.argv[1]))["comments"][0]["content"])
+                                      ~~~~^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/tmp.qeM6SKaXrx/post.json'
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: findings comment must include the review summary header
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: round summary must name and explain residual findings
+FAIL: finding heading must retain the current full-text format
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: finding description must remain in full
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: singular residual verdict must read '1 finding remains.'
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: multi-findings PR run failed
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: plural residual verdict must read '2 findings remain.'
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: each residual finding must remain in full
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: failing-fix PR run failed
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: failing fix_summary must survive on its round line as a fix attempt
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: id-less findings must still be narrated
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: failing-fix run must keep its residual verdict
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: flapping PR run failed
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: flapped round must keep its fix_summary as a fix attempt
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: reappearing finding must be listed under its own round
+grep: /tmp/tmp.qeM6SKaXrx/post.json: No such file or directory
+FAIL: flapping run must keep its residual verdict
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: missing-state PR run failed
+FAIL: missing-state reason must be reported
+FAIL: non-green refusal must name the Build policy state
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: non-blocking Build policy run failed
+FAIL: non-blocking Build policy must not block normalization
+FAIL: non-blocking policy run must write the final board
+_: line 1: /tmp/tmp.qeM6SKaXrx/standalone/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+FAIL: alias-shaped policy run failed
+FAIL: alias-shaped policy must not be matched as a blocking Build policy
+FAIL: alias-shaped policy run must write the final board
+FAIL: missing PR refusal must name the existence check
+FAIL: missing PR refusal must surface az stderr
+fm-pr-report-compact battery: 131 failure(s)
+exit=1
