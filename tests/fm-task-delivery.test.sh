@@ -1268,8 +1268,12 @@ test_forge_gerrit_changes_what_no_mistakes_means() {
   # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
   assert_grep 'Use `no-mistakes axi sync` only when `branch_sync.next_action` directs custody recovery' "$TMP_ROOT/forge-dod/gerrit-middle" \
     "the gerrit worker was told to recover custody at the wrong time"
+  # Gerrit's implicit push,pr,ci skips also ride on every reattach.
   # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
-  sed '/^When the run reaches a passing outcome,/d; /^For follow-up commits, recover custody first,/d; /^Use `no-mistakes axi sync` only when `branch_sync.next_action`/d' \
+  assert_grep 'when reattaching, use `no-mistakes axi run` with `--skip push,pr,ci` and a bounded `--wait`' "$TMP_ROOT/forge-dod/gerrit-middle" \
+    "the gerrit worker was told to reattach without the forge's skips"
+  # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
+  sed '/^When the run reaches a passing outcome,/d; /^For follow-up commits, recover custody first,/d; /^Use `no-mistakes axi sync` only when `branch_sync.next_action`/d; s/with `--skip push,pr,ci` and a bounded `--wait`/with only a bounded `--wait`/' \
     "$TMP_ROOT/forge-dod/gerrit-middle" > "$TMP_ROOT/forge-dod/gerrit-middle-common"
   # shellcheck disable=SC2016 # Backticks are literal generated Markdown.
   grep -v "reports the green PR" "$TMP_ROOT/forge-dod/plain-middle" \
