@@ -1153,7 +1153,9 @@ test_portable_serial_shards_partition_the_serial_lane() {
   [ "$("$RUNNER" --list --lane "portable-serial-1of${count}")" = \
     "$("$RUNNER" --list --lane "portable-serial-1of${count}")" ] \
     || fail "portable serial shard membership must be deterministic"
-  pass "portable serial shards are a deterministic disjoint cover of the serial lane"
+  [ "$("$RUNNER" --list --lane "portable-serial-2of${count}")" = tests/fm-supervision-host.test.sh ] \
+    || fail "the supervision-host shard must contain only the host suite"
+  pass "portable serial shards are a deterministic disjoint cover with an exclusive host shard"
 }
 
 test_portable_serial_hint_coverage_is_reported_and_bounded() {
@@ -1227,7 +1229,33 @@ PY
       assert_not_contains "$out" "FM_TEST_COVERAGE ok" "over-budget packing reported success"
     fi
   done
-  pass "serial packing accepts the exact budget and refuses one millisecond above it"
+  for weight in 2100000 2100001; do
+    cp "$RUNNER" "$repo/bin/fm-test-run.sh"
+    python3 - "$repo/bin/fm-test-run.sh" "$weight" <<'PYHOST' \
+      || fail "could not seed the host shard timing boundary"
+from pathlib import Path
+import re, sys
+runner = Path(sys.argv[1])
+runner.write_text(re.sub(
+    r"(?m)^tests/fm-supervision-host\.test\.sh [0-9]+$",
+    f"tests/fm-supervision-host.test.sh {sys.argv[2]}",
+    runner.read_text(),
+))
+PYHOST
+    out=$(bash "$repo/bin/fm-test-run.sh" --check-coverage 2>&1) && rc=0 || rc=$?
+    if [ "$weight" -eq 2100000 ]; then
+      expect_code 0 "$rc" "host packing exactly at its measured budget must be accepted"
+      assert_contains "$out" "serial_host_ms=2100000" "host budget not reported"
+      [ "$(bash "$repo/bin/fm-test-run.sh" --list --lane portable-serial-2of9)" = tests/fm-supervision-host.test.sh ] \
+        || fail "host hint growth must never add companion tests to its shard"
+    else
+      expect_code 1 "$rc" "host packing one millisecond over budget must be refused"
+      assert_contains "$out" "dedicated supervision-host shard packs 2100001ms above the 2100000ms target" \
+        "host over-budget refusal did not explain the excess"
+    fi
+  done
+  pass "ordinary and dedicated host packing accept their budgets and refuse one millisecond above"
+
 }
 
 test_portable_serial_shard_lane_refusals() {

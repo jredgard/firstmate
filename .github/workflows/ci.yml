@@ -179,13 +179,17 @@ jobs:
   tests-portable-serial:
     name: Behavior portable serial ${{ matrix.shard }}
     runs-on: ubuntu-latest
-    # Normal tier (see the timeout policy above).
-    timeout-minutes: 30
+    # Normal tier, except the dedicated supervision-host shard: its successful
+    # 27m29s CI measurement needs setup and variance margin (see timeout policy).
+    timeout-minutes: ${{ matrix.timeout || 30 }}
     strategy:
       # Every shard reports so one failure never hides another shard's result.
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        include:
+          - shard: 2
+            timeout: 45
     steps:
       - uses: actions/checkout@v6
         with:
