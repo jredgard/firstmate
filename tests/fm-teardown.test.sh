@@ -975,6 +975,108 @@ test_github_recorded_pr_landed_gate() {
   pass 'recorded GitHub PR requires merged-at-head readback before cleanup, including missing-copy and legacy records'
 }
 
+test_github_merge_commit_evidence() {
+  local scenario case_dir head live_head expected continuation merge tree object rc
+  for scenario in available absent reassigned missing-merge missing-head missing-parent ancestry-timeout api-timeout; do
+    case_dir=$(make_case "github-evidence-$scenario")
+    write_meta "$case_dir" no-mistakes ship
+    wt_commit_file "$case_dir" feature.txt hello
+    head=$(git -C "$case_dir/wt" rev-parse HEAD)
+    live_head=$(git -C "$case_dir/wt" rev-parse HEAD^)
+    git -C "$case_dir/wt" push -q origin fm/task-x1
+    git clone -q "$case_dir/origin.git" "$case_dir/merged"
+    tree=$(git -C "$case_dir/merged" rev-parse "$head^{tree}")
+    continuation=$(printf '%s\n' continuation | git -C "$case_dir/merged" commit-tree "$tree" -p "$head")
+    merge=$(printf '%s\n' merge | git -C "$case_dir/merged" commit-tree "$tree" -p "$live_head" -p "$continuation")
+    git -C "$case_dir/merged" update-ref refs/heads/merged-evidence "$merge"
+    git -C "$case_dir/merged" push -q origin merged-evidence
+    expected=$head
+    if [ "$scenario" != missing-merge ]; then
+      git -C "$case_dir/wt" fetch -q origin merged-evidence
+    fi
+    [ "$scenario" != missing-head ] || expected=$continuation
+    append_pr_meta_url "$case_dir"
+    printf 'pr_head=%s\n' "$expected" >> "$case_dir/state/task-x1.meta"
+    seed_backlog_in_flight "$case_dir"
+    add_gh_recorded_fixture "$case_dir" merged "$live_head" "$merge"
+    case "$scenario" in
+      absent)
+        git -C "$case_dir/project" worktree remove "$case_dir/wt"
+        ;;
+      reassigned)
+        mkdir -p "$case_dir/pool/1"
+        git -C "$case_dir/project" worktree move "$case_dir/wt" "$case_dir/pool/1/project"
+        ln -s pool/1/project "$case_dir/wt"
+        printf '{"worktrees":[{"name":"1","path":"%s"}]}\n' \
+          "$case_dir/pool/1/project" > "$case_dir/pool/treehouse-state.json"
+        printf 'task=other-task\nhome=%s\n' "$case_dir" > "$case_dir/pool/1/.fm-slot-owner"
+        ;;
+      missing-head|missing-parent)
+        object=$(git -C "$case_dir/project" rev-parse --path-format=absolute --git-path "objects/${continuation:0:2}/${continuation:2}")
+        rm "$object"
+        ;;
+      api-timeout)
+        printf 'touch "%s/api-started"\nsleep 30\n' "$case_dir" >> "$case_dir/fakebin/gh-axi"
+        ;;
+    esac
+    if [[ "$scenario" == missing-* ]]; then
+      if GIT_NO_LAZY_FETCH=1 git -C "$case_dir/project" merge-base --is-ancestor "$expected" "$merge" 2>/dev/null; then
+        fail "$scenario fixture unexpectedly has local ancestry evidence"
+      fi
+    fi
+    cat > "$case_dir/fakebin/git" <<SH
+#!/usr/bin/env bash
+args=("\$@")
+[ "\${1:-}" != -C ] || shift 2
+if [ "\${1:-}" = fetch ] && [ -e '$case_dir/state/task-x1.meta' ]; then
+  printf '%s\n' "\$*" >> '$case_dir/fetch-log'
+fi
+if [ "\${1:-} \${2:-}" = 'merge-base --is-ancestor' ]; then
+  printf '%s\n' "\${args[1]}" >> '$case_dir/proof-repos'
+  if [ '$scenario' = ancestry-timeout ]; then
+    touch '$case_dir/ancestry-started'
+    sleep 30
+  fi
+fi
+exec "$REAL_GIT_FOR_TEST" "\${args[@]}"
+SH
+    chmod +x "$case_dir/fakebin/git"
+    rc=0
+    FM_FAKE_AXI_STATUS="$(parked_axi_status_toon fm/task-x1 "$head")" \
+      FM_FAKE_NM_ABORT_LOG="$case_dir/abort-log" \
+      run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+    case "$scenario" in
+      available|absent|reassigned)
+        expect_code 0 "$rc" "$scenario ancestry evidence"
+        assert_absent "$case_dir/state/task-x1.meta" "$scenario task remained active"
+        [ "$(backlog_row_state "$case_dir")" = done ] || fail "$scenario task stayed open"
+        if [ "$scenario" = reassigned ]; then
+          assert_present "$case_dir/pool/1/.fm-slot-owner" 'cleanup erased another task claim'
+          [ "$(git -C "$case_dir/wt" rev-parse HEAD)" = "$head" ] || fail 'cleanup moved another task branch'
+          assert_grep "$case_dir/project" "$case_dir/proof-repos" 'reassigned slot was used for proof'
+        elif [ "$scenario" = absent ]; then
+          assert_grep "$case_dir/project" "$case_dir/proof-repos" 'missing copy did not use project evidence'
+        else
+          assert_grep "$case_dir/wt" "$case_dir/proof-repos" 'owned copy was not used for proof'
+        fi
+        ;;
+      *)
+        expect_code 1 "$rc" "$scenario ancestry evidence"
+        assert_grep 'not verifiably merged at the recorded head' "$case_dir/stderr" 'missing evidence lacked normal refusal'
+        assert_refusal_retained_task_state "$case_dir" "$scenario" "$head"
+        [ "$(backlog_row_state "$case_dir")" = in_flight ] || fail "$scenario refusal closed task"
+        [ ! -s "$case_dir/abort-log" ] || fail "$scenario refusal aborted parked run"
+        case "$scenario" in
+          ancestry-timeout) assert_present "$case_dir/ancestry-started" 'ancestry timeout was not exercised' ;;
+          api-timeout) assert_present "$case_dir/api-started" 'API timeout was not exercised' ;;
+        esac
+        ;;
+    esac
+    [ ! -s "$case_dir/fetch-log" ] || fail "$scenario cleanup fetched ancestry evidence"
+  done
+  pass 'GitHub merge containment uses bounded local evidence and preserves tasks when evidence is unavailable'
+}
+
 test_ado_pushed_but_active_pr_refuses_teardown() {
   local case_dir rc url head reported_head real_tasks_axi show
   case_dir=$(make_case ado-pushed-active)
@@ -4838,6 +4940,12 @@ test_retained_sources_still_reach_the_ordinary_refusal() {
   pass "present required sources still reach the ordinary teardown refusal"
 }
 
+if [ "${1:-}" = --github-recorded-pr ]; then
+  test_github_recorded_pr_landed_gate
+  test_github_merge_commit_evidence
+  exit 0
+fi
+
 test_missing_startup_source_refuses_before_cleanup
 test_unreadable_startup_source_refuses_before_cleanup
 test_missing_adapter_sibling_refuses_before_cleanup
@@ -4853,6 +4961,7 @@ test_local_only_merged_to_local_main_allows
 test_no_mistakes_origin_remote_allows
 test_no_mistakes_truly_unpushed_refuses
 test_github_recorded_pr_landed_gate
+test_github_merge_commit_evidence
 test_ado_pushed_but_active_pr_refuses_teardown
 test_local_only_force_overrides_unpushed
 test_secondmate_pr_registration_publishes_ready_line

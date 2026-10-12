@@ -1524,10 +1524,10 @@ ensure_commit_object() {
 # REST merged flag, since state=closed alone also describes an abandoned PR.
 # The gh-axi base64 envelope preserves the typed JSON without TOON truncation.
 recorded_github_pr_is_landed() {
-  local response encoded json expected head merge proof_repo commit
+  local response encoded json expected head merge proof_repo
   TEARDOWN_GITHUB_PR_STATE=unreadable
   fm_pr_url_parse "$PR_URL" && [ "$FM_PR_PROVIDER" = github ] || return 1
-  response=$(gh-axi api GET "/repos/$FM_PR_OWNER/$FM_PR_REPO/pulls/$FM_PR_NUMBER" \
+  response=$(fm_run_timed 10 gh-axi api GET "/repos/$FM_PR_OWNER/$FM_PR_REPO/pulls/$FM_PR_NUMBER" \
     --jq '{number, state, merged, head: .head.sha, merge_commit_sha} | @base64' --full 2>/dev/null) || return 1
   printf '%s\n' "$response" | awk '/^  truncated: / {if ($2=="false") found=1} END {exit !found}' || return 1
   encoded=$(printf '%s\n' "$response" | awk '/^  body: / {sub(/^  body: /, ""); print; exit}')
@@ -1552,13 +1552,8 @@ recorded_github_pr_is_landed() {
     proof_repo=$PROJ
   fi
   [ -d "$proof_repo" ] || return 1
-  for commit in "$expected" "$merge"; do
-    if ! git -C "$proof_repo" cat-file -e "$commit^{commit}" 2>/dev/null; then
-      git -C "$proof_repo" fetch --quiet origin "$commit" >/dev/null 2>&1 || return 1
-      git -C "$proof_repo" cat-file -e "$commit^{commit}" 2>/dev/null || return 1
-    fi
-  done
-  git -C "$proof_repo" merge-base --is-ancestor "$expected" "$merge" 2>/dev/null
+  fm_run_timed 10 env GIT_NO_LAZY_FETCH=1 git -C "$proof_repo" \
+    merge-base --is-ancestor "$expected" "$merge" 2>/dev/null
 }
 
 patch_id_for_commit() {
