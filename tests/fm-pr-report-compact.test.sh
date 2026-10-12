@@ -8,6 +8,11 @@ failures=0
 TEST_DIR=$(mktemp -d)
 trap 'rm -rf "$TEST_DIR"' EXIT
 
+# Exercise the vendored interface with only the executable, no sibling libraries.
+mkdir -p "$TEST_DIR/standalone"
+cp "$TOOL" "$TEST_DIR/standalone/fm-pr-report-compact"
+TOOL="$TEST_DIR/standalone/fm-pr-report-compact"
+
 fail() { echo "FAIL: $1" >&2; failures=$((failures + 1)); }
 
 ATTESTATION='<!-- no-mistakes-pipeline-attestation:v1 {"head_sha":"d4aeca250cf6e5927915d23a55a7b51c2aac2d34","steps":[{"step":"intent","status":"completed"},{"step":"review","status":"completed"},{"step":"test","status":"completed"},{"step":"pr","status":"running"},{"step":"ci","status":"pending"}]} -->'
@@ -126,6 +131,26 @@ empty_out=$(printf '%s' "$small" | "$TOOL" --stdin --nm-skip '') || \
   fail "explicit empty posture must accept passed steps"
 [ "$empty_out" = "$new_out" ] || fail "empty and omitted posture must normalize identically"
 invalid_skips=(intent review test pr ci lint-extra 'lint,ci' 'lint,lint' 'lint,' ',lint' Lint ' lint' 'lint ')
+# fm_nm_skip_valid owns the rule; the standalone counterpart must agree with it.
+for skip_value in '' lint "${invalid_skips[@]}" $'lint\n' $'\tlint'; do
+  owner_status=0
+  bash -c '. "$1"; fm_nm_skip_valid "$2" fm-pr-report-compact' \
+    _ "$ROOT/bin/fm-dod-lib.sh" "$skip_value" \
+    > "$TEST_DIR/owner.stdout" 2> "$TEST_DIR/owner.stderr" || owner_status=$?
+  tool_status=0
+  printf '%s' "$small" | "$TOOL" --stdin --nm-skip "$skip_value" \
+    > "$TEST_DIR/counterpart.stdout" 2> "$TEST_DIR/counterpart.stderr" || tool_status=$?
+  if [ "$owner_status" -eq 0 ]; then
+    [ "$tool_status" -eq 0 ] || fail "standalone rule must accept owner-approved skip '$skip_value'"
+    [ "$(cat "$TEST_DIR/counterpart.stdout")" = "$new_out" ] || \
+      fail "owner-approved skip must preserve normalized passed steps"
+  else
+    [ "$tool_status" -eq 2 ] || fail "standalone rule must reject owner-refused skip '$skip_value' with exit 2"
+    [ ! -s "$TEST_DIR/counterpart.stdout" ] || fail "owner-refused skip must emit no body"
+  fi
+  cmp -s "$TEST_DIR/owner.stderr" "$TEST_DIR/counterpart.stderr" || \
+    fail "standalone rule must preserve owner diagnostic for skip '$skip_value'"
+done
 for invalid_skip in "${invalid_skips[@]}"; do
   invalid_body=${skipped_body/"$lint_step"/"{\"step\":\"$invalid_skip\",\"status\":\"skipped\"}"}
   if printf '%s' "$invalid_body" | "$TOOL" --stdin --nm-skip "$invalid_skip" \
