@@ -1,0 +1,13 @@
+### AFTER (target 92c68ff) workflow step, isolated npm prefix
+set -eu
+# Pi 1.2.0 adds custom before_agent_start events without prompt.
+# Follow-up: validate user/custom startup handling before lifting this pin.
+npm install -g @earendil-works/pi-coding-agent@1.1.0
+npm ls -g --depth 0 @earendil-works/pi-coding-agent
+--- output:
+
+added 119 packages in 4s
+/tmp/fm-test-pinpi.aTSxdi/pin/lib
+└── @earendil-works/pi-coding-agent@1.1.0
+
+exit=0

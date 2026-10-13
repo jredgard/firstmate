@@ -1,0 +1,3 @@
+$ FM_PI_PACKAGE_DIR=<pinned-prefix>/lib/node_modules/@earendil-works/pi-coding-agent bash tests/fm-pi-primary-types.test.sh   # tsc Version 7.0.2
+ok - tracked Pi extensions pass strict no-emit typecheck against Pi 1.1.0
+exit=0

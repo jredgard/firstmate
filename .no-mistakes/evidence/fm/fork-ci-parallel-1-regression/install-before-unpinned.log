@@ -1,0 +1,11 @@
+### BEFORE (base bf552e25) workflow step, isolated npm prefix
+set -eu
+npm install -g @earendil-works/pi-coding-agent
+npm ls -g --depth 0 @earendil-works/pi-coding-agent
+--- output:
+
+added 118 packages in 2s
+/tmp/fm-test-pinpi.aTSxdi/latest/lib
+└── @earendil-works/pi-coding-agent@1.2.0
+
+exit=0

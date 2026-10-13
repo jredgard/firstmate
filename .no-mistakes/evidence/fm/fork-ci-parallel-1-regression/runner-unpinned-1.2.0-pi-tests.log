@@ -1,0 +1,11 @@
+### Same runner invocation, Pi from the BASE (unpinned) workflow step -> coherent 1.2.0
+FM_TEST_BEGIN 2026-10-13T07:39:46Z tests/fm-pi-primary-types.test.sh family=pure-contract-unit expected_gate_skip=none
+../../../../../../tmp/fm-test-run.DpSyUR/w1/tmp/fm-pi-primary-types.KouUcd/fm-branch-supervision.ts(1684,26): error TS2339: Property 'prompt' does not exist on type 'BeforeAgentStartEvent'.
+../../../../../../tmp/fm-test-run.DpSyUR/w1/tmp/fm-pi-primary-types.KouUcd/fm-primary-pi-watch.ts(1203,35): error TS2339: Property 'prompt' does not exist on type 'BeforeAgentStartEvent'.
+FM_TEST_END 2026-10-13T07:39:47Z tests/fm-pi-primary-types.test.sh exit=1 duration_ms=626 gate_skip=false
+FM_TEST_BEGIN 2026-10-13T07:39:47Z tests/fm-calm-pi-extension.test.sh family=pure-contract-unit expected_gate_skip=none
+not ok - Pi follow-up loaded-on case (loaded_on) did not reach the ready composer
+FM_TEST_END 2026-10-13T07:39:57Z tests/fm-calm-pi-extension.test.sh exit=1 duration_ms=10495 gate_skip=false
+FM_TEST_BEGIN 2026-10-13T07:39:57Z tests/fm-pi-branch-extension.test.sh family=standalone expected_gate_skip=none
+FM_TEST_END 2026-10-13T07:40:38Z tests/fm-pi-branch-extension.test.sh exit=0 duration_ms=40452 gate_skip=false
+FM_TEST_SUMMARY total=3 failed=2 skipped_gate=0 duration_ms=51797

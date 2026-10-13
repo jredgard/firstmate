@@ -1,0 +1,41 @@
+### pinned
+npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+/tmp/fm-pi-ci.N9178F/pinned-prefix/lib
+└── @earendil-works/pi-coding-agent@1.1.0
+
+/pinned-prefix/lib/node_modules/@earendil-works/pi-coding-agent/package.json @earendil-works/pi-coding-agent 1.1.0
+/pinned-prefix/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/chord/package.json @earendil-works/chord 1.1.0
+/pinned-prefix/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-agent-core/package.json @earendil-works/pi-agent-core 1.1.0
+/pinned-prefix/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/package.json @earendil-works/pi-ai 1.1.0
+/pinned-prefix/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-codemode/package.json @earendil-works/pi-codemode 1.1.0
+/pinned-prefix/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-mcp/package.json @earendil-works/pi-mcp 1.1.0
+/pinned-prefix/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-telemetry/package.json @earendil-works/pi-telemetry 1.1.0
+/pinned-prefix/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/package.json @earendil-works/pi-tui 1.1.0
+/pinned-prefix/lib/node_modules/@earendil-works/pi-coding-agent/package.json @earendil-works/pi-coding-agent 1.1.0
+### serial
+npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+/tmp/fm-pi-ci.N9178F/serial-prefix/lib
+└── @earendil-works/pi-coding-agent@1.1.0
+
+/serial-prefix/lib/node_modules/@earendil-works/pi-coding-agent/package.json @earendil-works/pi-coding-agent 1.1.0
+/serial-prefix/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/chord/package.json @earendil-works/chord 1.1.0
+/serial-prefix/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-agent-core/package.json @earendil-works/pi-agent-core 1.1.0
+/serial-prefix/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/package.json @earendil-works/pi-ai 1.1.0
+/serial-prefix/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-codemode/package.json @earendil-works/pi-codemode 1.1.0
+/serial-prefix/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-mcp/package.json @earendil-works/pi-mcp 1.1.0
+/serial-prefix/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-telemetry/package.json @earendil-works/pi-telemetry 1.1.0
+/serial-prefix/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/package.json @earendil-works/pi-tui 1.1.0
+/serial-prefix/lib/node_modules/@earendil-works/pi-coding-agent/package.json @earendil-works/pi-coding-agent 1.1.0
+### base
+npm warn install-scripts Run `npm install -g --allow-scripts=@google/genai,protobufjs` to allow these scripts once, or `npm config set allow-scripts=@google/genai,protobufjs --location=user` to allow them for all global installs.
+/tmp/fm-pi-ci.N9178F/base-prefix/lib
+└── @earendil-works/pi-coding-agent@1.2.0
+
+/base-prefix/lib/node_modules/@earendil-works/pi-coding-agent/package.json @earendil-works/pi-coding-agent 1.2.0
+/base-prefix/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-agent-core/package.json @earendil-works/pi-agent-core 1.2.0
+/base-prefix/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai/package.json @earendil-works/pi-ai 1.2.0
+/base-prefix/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-codemode/package.json @earendil-works/pi-codemode 1.2.0
+/base-prefix/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-mcp/package.json @earendil-works/pi-mcp 1.2.0
+/base-prefix/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-telemetry/package.json @earendil-works/pi-telemetry 1.2.0
+/base-prefix/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/package.json @earendil-works/pi-tui 1.2.0
+/base-prefix/lib/node_modules/@earendil-works/pi-coding-agent/package.json @earendil-works/pi-coding-agent 1.2.0

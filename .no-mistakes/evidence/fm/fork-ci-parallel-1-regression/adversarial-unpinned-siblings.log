@@ -1,0 +1,14 @@
+$ npm install -g @earendil-works/pi-coding-agent@1.1.0   # first line of the step only, no sibling pin
+npm warn install-scripts
+npm warn install-scripts Run `npm install -g --allow-scripts=@google/genai,protobufjs` to allow these scripts once, or `npm config set allow-scripts=@google/genai,protobufjs --location=user` to allow them for all global installs.
+  @earendil-works/chord 1.2.0
+  @earendil-works/pi-agent-core 1.2.0
+  @earendil-works/pi-ai 1.2.0
+  @earendil-works/pi-codemode 1.2.0
+  @earendil-works/pi-mcp 1.2.0
+  @earendil-works/pi-telemetry 1.2.0
+  @earendil-works/pi-tui 1.2.0
+$ node -e "await import(pi-coding-agent/dist/index.js)"
+SyntaxError: The requested module '@earendil-works/pi-codemode/declarations' does not provide an export named 'MCP_TYPESCRIPT_PREAMBLE'
+$ pi --version
+1.1.0

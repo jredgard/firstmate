@@ -1,0 +1,12 @@
+### prefix=pin pi-coding-agent=1.1.0 pi-codemode=1.2.0
+$ pi --version
+1.1.0
+exit=
+$ node -e import(dist/index.js)
+SyntaxError: The requested module '@earendil-works/pi-codemode/declarations' does not provide an export named 'MCP_TYPESCRIPT_PREAMBLE'
+### prefix=latest pi-coding-agent=1.2.0 pi-codemode=1.2.0
+$ pi --version
+1.2.0
+exit=
+$ node -e import(dist/index.js)
+import ok

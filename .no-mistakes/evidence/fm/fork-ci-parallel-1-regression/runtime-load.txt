@@ -1,0 +1,12 @@
+== pinned import SDK:
+ok, exports: 156
+== pinned pi --version:
+1.1.0
+== serial import SDK:
+ok, exports: 156
+== serial pi --version:
+1.1.0
+== base import SDK:
+ok, exports: 156
+== base pi --version:
+1.2.0

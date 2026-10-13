@@ -1,0 +1,3 @@
+### tests/fm-pi-primary-types.test.sh with npm global prefix = pin (npm root -g -> /tmp/fm-test-pinpi.aTSxdi/pin/lib/node_modules)
+ok - tracked Pi extensions pass strict no-emit typecheck against Pi 1.1.0
+exit=0

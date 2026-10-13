@@ -1,0 +1,13 @@
+=== job tests-portable-parallel-1 ===
+set -eu
+# Pi 1.2.0 adds custom before_agent_start events without prompt.
+# Follow-up: validate user/custom startup handling before lifting this pin.
+npm install -g @earendil-works/pi-coding-agent@1.1.0
+npm ls -g --depth 0 @earendil-works/pi-coding-agent
+
+=== job tests-portable-serial ===
+set -eu
+# Keep the same last-known-good Pi version as the parallel typecheck.
+npm install -g @earendil-works/pi-coding-agent@1.1.0
+npm ls -g --depth 0 @earendil-works/pi-coding-agent
+
