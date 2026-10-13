@@ -7,7 +7,7 @@
 # safeguards: PR runs supersede within one PR while main pushes are never
 # cancelled, and every CI job carries a finite hang tripwire drawn from the
 # three-tier timeout policy that docs/fm-test-portable-shards.md "Timeouts"
-# owns (fast, normal, heavy), so no job drifts back to a one-off number.
+# owns (fast, normal, heavy), with one measured supervision-host exception.
 #
 # The workflow is parsed as YAML and its concurrency expressions are resolved
 # against simulated pull_request and push contexts, so the assertions describe
@@ -65,9 +65,17 @@ puts [interpolate.call(concurrency.fetch("group")),
 }
 
 job_timeout() {
+  # GitHub expressions are literal input to Ruby, not shell expansions.
+  # shellcheck disable=SC2016
   ruby -ryaml -e '
-puts YAML.load_file(ARGV[0]).fetch("jobs").fetch(ARGV[1]).fetch("timeout-minutes", "none")
-' "$CI_WORKFLOW" "$1"
+job = YAML.load_file(ARGV[0]).fetch("jobs").fetch(ARGV[1])
+timeout = job.fetch("timeout-minutes", "none")
+if ARGV[1] == "tests-portable-serial" && timeout == "${{ matrix.timeout || 30 }}"
+  include_row = job.fetch("strategy").fetch("matrix").fetch("include").find { |row| row["shard"] == ARGV[2].to_i }
+  timeout = include_row ? include_row.fetch("timeout", 30) : 30
+end
+puts timeout
+' "$CI_WORKFLOW" "$1" "${2:-1}"
 }
 
 # Tier membership is the executable inventory of the timeout policy: a new job
@@ -135,9 +143,19 @@ test_main_pushes_are_never_cancelled() {
 
 test_every_job_has_a_finite_timeout() {
   local reported
+  # GitHub expressions are literal input to Ruby, not shell expansions.
+  # shellcheck disable=SC2016
   reported=$(ruby -ryaml -e '
 YAML.load_file(ARGV[0]).fetch("jobs").each do |name, job|
   timeout = job["timeout-minutes"]
+  if name == "tests-portable-serial" && timeout == "${{ matrix.timeout || 30 }}"
+    matrix = job.fetch("strategy").fetch("matrix")
+    values = matrix.fetch("shard").map do |shard|
+      row = matrix.fetch("include").find { |entry| entry["shard"] == shard }
+      row ? row.fetch("timeout", 30) : 30
+    end
+    next if values.all? { |v| v.is_a?(Integer) && v > 0 }
+  end
   next if timeout.is_a?(Integer) && timeout > 0
   puts "#{name}: #{timeout.inspect}"
 end
@@ -146,8 +164,8 @@ end
   pass "every ci.yml job carries a finite timeout"
 }
 
-# Every job sits in exactly one tier, and the workflow carries exactly three
-# distinct job-level timeouts: one per tier, no one-off numbers.
+# Every ordinary job sits in exactly one tier; only the dedicated host shard
+# has a measured exception to the normal value.
 test_every_job_belongs_to_exactly_one_timeout_tier() {
   local expected actual distinct
   # shellcheck disable=SC2086
@@ -160,7 +178,7 @@ test_every_job_belongs_to_exactly_one_timeout_tier() {
   distinct=$(for job in $expected; do job_timeout "$job"; done | LC_ALL=C sort -u | wc -l | tr -d ' ')
   [ "$distinct" = 3 ] \
     || fail "ci.yml must carry exactly three distinct job timeouts (fast, normal, heavy), got $distinct"
-  pass "every ci.yml job belongs to one of the three timeout tiers"
+  pass "every ci.yml job belongs to a timeout tier with the dedicated host exception"
 }
 
 # Fast tier: seconds-long checks share one short tripwire in the 5-10 minute band.
@@ -226,7 +244,8 @@ root = ARGV[1]
 serial = jobs.fetch("tests-portable-serial").fetch("strategy")
 raise "serial failures must not cancel other shards" unless serial.fetch("fail-fast") == false
 matrix = serial.fetch("matrix")
-raise "unexpected serial dimensions" unless matrix.keys == ["shard"]
+raise "unexpected serial dimensions" unless matrix.keys.sort == ["include", "shard"]
+raise "only the host shard may override the normal timeout" unless matrix.fetch("include") == [{"shard" => 2, "timeout" => 45}]
 shards = matrix.fetch("shard")
 lanes, status = Open3.capture2(File.join(root, "bin/fm-test-run.sh"), "--list-lanes")
 raise "cannot list runner lanes" unless status.success?
@@ -249,6 +268,20 @@ RUBY
   pass "CI matrices cover every executable serial lane and canonical lint root exactly once"
 }
 
+test_dedicated_host_shard_has_measured_timeout_margin() {
+  local normal host scripts
+  normal=$(job_timeout tests-portable-serial 1) || fail "cannot resolve normal shard timeout"
+  host=$(job_timeout tests-portable-serial 2) || fail "cannot resolve host shard timeout"
+  [ "$normal" = 30 ] && [ "$host" = 45 ] \
+    || fail "serial timeouts must be 30 minutes except the 45-minute host shard"
+  scripts=$(bash "$ROOT/bin/fm-test-run.sh" --list --lane portable-serial-2of9) \
+    || fail "cannot list dedicated host shard"
+  [ "$scripts" = tests/fm-supervision-host.test.sh ] \
+    || fail "extended timeout must belong exclusively to the supervision-host suite: $scripts"
+  pass "only the dedicated supervision-host shard gets the measured 45-minute timeout"
+}
+
+test_dedicated_host_shard_has_measured_timeout_margin
 test_ci_matrices_match_executable_partitions
 test_pr_pushes_supersede_within_one_pr
 test_separate_prs_do_not_cancel_each_other
