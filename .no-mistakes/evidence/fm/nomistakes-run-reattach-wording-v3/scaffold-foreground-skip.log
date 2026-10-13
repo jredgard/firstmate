@@ -1,0 +1,2 @@
+$ FM_HOME=$LAB bin/fm-brief.sh rr-foreground-skip demo-proj --mode no-mistakes --nm-skip lint
+scaffolded: /tmp/fm-lab.VEmkPl/data/rr-foreground-skip/brief.md (ship, mode=no-mistakes; replace {TASK} and {FIRSTMATE_SPEC})

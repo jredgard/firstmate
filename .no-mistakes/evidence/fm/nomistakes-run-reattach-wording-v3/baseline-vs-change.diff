@@ -1,0 +1,58 @@
+22c22
+< 1. First action: create your branch: `git checkout -b fm/base-fg-nm --`
+---
+> 1. First action: create your branch: `git checkout -b fm/rr-foreground-no-mistakes --`
+27c27
+< 2. Keep project edits inside this worktree; keep proof and scratch output outside it, under `/tmp/fm-lab.VEmkPl/data/base-fg-nm/` or a temporary directory.
+---
+> 2. Keep project edits inside this worktree; keep proof and scratch output outside it, under `/tmp/fm-lab.VEmkPl/data/rr-foreground-no-mistakes/` or a temporary directory.
+32c32
+<    `echo "{state} [at=<epoch>]: {one short line}" >> '/tmp/fm-lab.VEmkPl/state/base-fg-nm.status' && { [ ! -e '/tmp/fm-lab.VEmkPl/config/fleet-ledger' ] || '/tmp/fm-base.Wv1V6r/bin/fm-fleet-ledger.sh' appended '/tmp/fm-lab.VEmkPl/config' '/tmp/fm-lab.VEmkPl/state/base-fg-nm.status' >/dev/null 2>&1 || true; }`
+---
+>    `echo "{state} [at=<epoch>]: {one short line}" >> '/tmp/fm-lab.VEmkPl/state/rr-foreground-no-mistakes.status' && { [ ! -e '/tmp/fm-lab.VEmkPl/config/fleet-ledger' ] || '/home/johannesr/.no-mistakes/worktrees/e0341a3b611a/01M4T991P4Q4YB00Q9R9KACK4Q/bin/fm-fleet-ledger.sh' appended '/tmp/fm-lab.VEmkPl/config' '/tmp/fm-lab.VEmkPl/state/rr-foreground-no-mistakes.status' >/dev/null 2>&1 || true; }`
+56,57c56,57
+<    For a no-mistakes ask-user gate specifically, escalate all ask-user findings as one event plus one snapshot file, using that same shape even when the gate holds only a single ask-user finding: write only the ask-user findings, verbatim and unparaphrased (id, severity, file, line, description, authority), to `/tmp/fm-lab.VEmkPl/data/base-fg-nm/nm-<run>-findings.txt`, then report the gate with
+<    `needs-decision [at=<epoch>] [key=nm-<run>-<step>]: ask-user findings=<id1>,<id2>,... file=/tmp/fm-lab.VEmkPl/data/base-fg-nm/nm-<run>-findings.txt`
+---
+>    For a no-mistakes ask-user gate specifically, escalate all ask-user findings as one event plus one snapshot file, using that same shape even when the gate holds only a single ask-user finding: write only the ask-user findings, verbatim and unparaphrased (id, severity, file, line, description, authority), to `/tmp/fm-lab.VEmkPl/data/rr-foreground-no-mistakes/nm-<run>-findings.txt`, then report the gate with
+>    `needs-decision [at=<epoch>] [key=nm-<run>-<step>]: ask-user findings=<id1>,<id2>,... file=/tmp/fm-lab.VEmkPl/data/rr-foreground-no-mistakes/nm-<run>-findings.txt`
+63a64,68
+>      Start a new run with `no-mistakes axi run --intent` only when no active run owns your current branch.
+>      Never start a second run while one owns the branch.
+>      A drive call whose wait elapsed, or whose waiting process was killed or timed out, has not by itself failed the run: reattach with `no-mistakes axi run --wait <duration>` using this brief's wait style and any required per-run skip flags.
+>      Reattachment waits on the existing run; it does not start another one.
+>      A `respond` already sent its answer before waiting: never resend that same response to reattach, because it could answer the next gate without you reading it.
+69,72c74,76
+<      Only after ruling out socket refusal, if the run is still running or fixing, reattach and keep
+<      going. A drive-call error, timeout, slow read, or generic unreachability is NOT a daemon error:
+<      the daemon accepts `respond` immediately and runs the round in the background, so a killed or
+<      timed-out call was only waiting for a read while the run kept working.
+---
+>      If a drive call reports an error or unreachability, check daemon health and current run state with those commands before reattaching.
+>      After ruling out socket refusal, reattach if the run is running or fixing; if it is at a gate, read that gate before sending a new response; if it is finished, read its outcome.
+>      A timeout, slow read, or generic unreachability alone is NOT a daemon error: the daemon accepts `respond` immediately and runs the round in the background, so a killed or timed-out waiting call can leave the run working.
+92,93c96,98
+< When the bound passes with nothing changed, run the same blocking command again, with no status check in between.
+< The one exception is `respond`: it sent its answer before it began waiting, so reattach with `no-mistakes axi run --wait` instead, and never send the same `respond` again, because it would answer whichever gate parks next without you reading it.
+---
+> When the bound passes with nothing changed, repeat a non-pipeline blocking command; for a pipeline drive call, follow rule 7's run-versus-reattach guidance.
+> The one exception is `respond`: it sent its answer before it began waiting, so follow rule 7 to reattach with `no-mistakes axi run --wait <duration>` instead.
+> Never send the same `respond` again, because it would answer whichever gate parks next without you reading it.
+97,98c102,103
+< Firstmate steers you through durable message files in '/tmp/fm-lab.VEmkPl/state/base-fg-nm.inbox'.
+< When a terminal message says an instruction is waiting there - and at any natural checkpoint when you are unsure - list '/tmp/fm-lab.VEmkPl/state/base-fg-nm.inbox'/*.msg, read and act on each message in numeric order, then acknowledge each handled message by moving it: `mv '/tmp/fm-lab.VEmkPl/state/base-fg-nm.inbox'/NNN.msg '/tmp/fm-lab.VEmkPl/state/base-fg-nm.inbox'/handled/`.
+---
+> Firstmate steers you through durable message files in '/tmp/fm-lab.VEmkPl/state/rr-foreground-no-mistakes.inbox'.
+> When a terminal message says an instruction is waiting there - and at any natural checkpoint when you are unsure - list '/tmp/fm-lab.VEmkPl/state/rr-foreground-no-mistakes.inbox'/*.msg, read and act on each message in numeric order, then acknowledge each handled message by moving it: `mv '/tmp/fm-lab.VEmkPl/state/rr-foreground-no-mistakes.inbox'/NNN.msg '/tmp/fm-lab.VEmkPl/state/rr-foreground-no-mistakes.inbox'/handled/`.
+104c109
+< A correction edits only the wrong text: do not run `/tmp/fm-base.Wv1V6r/bin/fm-ensure-agents-md.sh`, create either file, or add sections, headings, or pointers alongside it.
+---
+> A correction edits only the wrong text: do not run `/home/johannesr/.no-mistakes/worktrees/e0341a3b611a/01M4T991P4Q4YB00Q9R9KACK4Q/bin/fm-ensure-agents-md.sh`, create either file, or add sections, headings, or pointers alongside it.
+108c113
+< Ship branch: fm/base-fg-nm
+---
+> Ship branch: fm/rr-foreground-no-mistakes
+135c140
+< Whenever a drive call returns without a gate or an outcome - its own wait elapsed, or it was killed or timed out - that is not a failure: reattach at once by re-running `no-mistakes axi run` without flags, and issue the same foreground call again, one at a time, until a gate or outcome comes back; once checks are green it returns `checks-passed` immediately, and if it refuses because no run is active, read the finished outcome from `no-mistakes axi status`.
+---
+> Whenever a drive call returns without a gate or an outcome, follow rule 7's run-versus-reattach guidance and daemon-error checks to decide whether to reattach; when reattaching, use `no-mistakes axi run` with only a bounded `--wait` and issue the same foreground call again, one at a time, until a gate or outcome comes back; once checks are green it returns `checks-passed` immediately, and if it refuses because no run is active, read the finished outcome from `no-mistakes axi status`.

@@ -1,0 +1,2 @@
+$ FM_HOME=$LAB bin/fm-brief.sh rr-background-local-only demo-proj --mode local-only
+scaffolded: /tmp/fm-lab.VEmkPl/data/rr-background-local-only/brief.md (ship, mode=local-only; replace {TASK} and {FIRSTMATE_SPEC})

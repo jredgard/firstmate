@@ -1,0 +1,2 @@
+$ FM_HOME=$LAB bin/fm-brief.sh rr-foreground-scout demo-proj --scout
+scaffolded: /tmp/fm-lab.VEmkPl/data/rr-foreground-scout/brief.md (scout; replace {TASK} and {FIRSTMATE_SPEC})

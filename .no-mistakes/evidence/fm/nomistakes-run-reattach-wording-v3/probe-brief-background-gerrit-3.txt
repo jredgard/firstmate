@@ -1,0 +1,9 @@
+**Q1.** Exact next command (run backgrounded, as before):
+
+`no-mistakes axi run --skip push,pr,ci --wait 9m`
+
+Citing the brief: "A drive call whose wait elapsed, or whose waiting process was killed or timed out, has not by itself failed the run: reattach with `no-mistakes axi run --wait <duration>` using this brief's wait style and any required per-run skip flags. Reattachment waits on the existing run; it does not start another one." It also directs: "when reattaching, use `no-mistakes axi run` with `--skip push,pr,ci` and a bounded `--wait`, backgrounded the same way; if it refuses because no run is active, read the finished outcome from `no-mistakes axi status`."
+
+**Q2.** Exact next command: reattach with `no-mistakes axi run --skip push,pr,ci --wait 9m` (backgrounded) — **not** `no-mistakes axi respond` again.
+
+You may **not** re-send that same respond call. Citing the brief: "A `respond` already sent its answer before waiting: never resend that same response to reattach, because it could answer the next gate without you reading it." The same timeout logic applies — "A timeout, slow read, or generic unreachability alone is NOT a daemon error: the daemon accepts `respond` immediately and runs the round in the background, so a killed or timed-out waiting call can leave the run working" — so the fix response was almost certainly already accepted; reattach via `axi run` to observe the resulting gate/outcome instead.

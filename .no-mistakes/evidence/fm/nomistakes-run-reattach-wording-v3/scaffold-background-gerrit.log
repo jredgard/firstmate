@@ -1,0 +1,2 @@
+$ FM_HOME=$LAB bin/fm-brief.sh rr-background-gerrit demo-proj --mode no-mistakes --forge gerrit
+scaffolded: /tmp/fm-lab.VEmkPl/data/rr-background-gerrit/brief.md (ship, mode=no-mistakes forge=gerrit shape=squash; replace {TASK} and {FIRSTMATE_SPEC})

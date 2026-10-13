@@ -1,0 +1,14 @@
+**Q1.** Run: `no-mistakes axi run` (no flags).
+Cite: "Whenever a drive call returns without a gate or an outcome - its own wait elapsed, or it was killed or timed out - that is not a failure: reattach at once by re-running `no-mistakes axi run` without flags, and issue the same foreground call again, one at a time, until a gate or outcome comes back."
+
+**Q2.** Run: `no-mistakes axi run --wait <duration>` (do not resend `respond`).
+Cite: "The one exception is `respond`: it sent its answer before it began waiting, so reattach with `no-mistakes axi run --wait` instead, and never send the same `respond` again, because it would answer whichever gate parks next without you reading it." This is reinforced by: "A killed or timed-out call is never evidence the daemon died... Reattach and keep going rather than reporting the pipeline blocked."
+
+**Q3.** First run `no-mistakes daemon status` and `no-mistakes axi status`.
+Cite: "Before you append `blocked:` about the pipeline, run `no-mistakes daemon status` and `no-mistakes axi status`. If the daemon socket refuses connections or is missing, append `blocked [at=<epoch>]: {the daemon error}` and stop even when the local run record still says running or fixing, because that record can be stale after the daemon exits." So: if daemon status confirms the socket is down, append `blocked:` and stop — never reattach for a genuine daemon failure (that's shared infra only firstmate touches). If instead daemon status shows the daemon reachable (socket refusal ruled out) and `axi status` shows the run parked at a gate, that's not a block — per "Only after ruling out socket refusal, if the run is still running or fixing, reattach and keep going," you reattach and handle the gate normally (respond, or escalate if it's ask-user).
+
+**Q4.** No — must not start a second `--intent` run; reattach to the existing one instead.
+Cite: "Drive the run with ONE foreground `no-mistakes axi run` and let it block," and "Do not hand-edit, commit, or fix findings yourself while a run is active - the pipeline applies every fix." Reattachment is always done "without flags" (no new `--intent`), per the Q1 passage.
+
+**Q5.** CONTRADICTION: no.
+I don't find two passages that conflict on *when* to start a new run versus reattach — the brief is consistent that `--intent` is used exactly once to start the run ("Drive the run with ONE foreground `no-mistakes axi run`"), and every subsequent call in every scenario (elapsed wait, kill/timeout, no-gate return, or a timed-out `respond`) is framed as reattaching, never as starting a fresh run — e.g. "reattach at once by re-running `no-mistakes axi run` without flags" and "reattach with `no-mistakes axi run --wait` instead" both describe reattachment, just phrased for different triggers (a bare drive-call timeout vs. a `respond` timeout), not a contradiction between starting-new and reattaching.

@@ -1,0 +1,8 @@
+**Q1.** Run (backgrounded, same as before):
+`no-mistakes axi run --skip push,pr,ci --wait 9m`
+
+Per the Definition of done: "Whenever a drive call returns without a gate or an outcome, follow rule 7's run-versus-reattach guidance... when reattaching, use `no-mistakes axi run` with `--skip push,pr,ci` and a bounded `--wait`, backgrounded the same way." Rule 7 also confirms this is not a failure: "A drive call whose wait elapsed, or whose waiting process was killed or timed out, has not by itself failed the run: reattach with `no-mistakes axi run --wait <duration>` using this brief's wait style and any required per-run skip flags." This reattaches to the existing run rather than starting a new one ("Reattachment waits on the existing run; it does not start another one").
+
+**Q2.** Next command: `no-mistakes axi run --skip push,pr,ci --wait 9m` (backgrounded) — reattach, do **not** re-send the `respond`.
+
+Per rule 7: "A `respond` already sent its answer before waiting: never resend that same response to reattach, because it could answer the next gate without you reading it." A killed/timed-out call is not evidence the round failed — "the daemon accepts `respond` immediately and runs the round in the background, so a killed or timed-out waiting call can leave the run working." So the correct move is to reattach with `axi run --wait`, not to repeat the `respond`.

@@ -1,0 +1,11 @@
+Based solely on the brief text (no tools used):
+
+**Q1.** First run `no-mistakes daemon status` and `no-mistakes axi status` (rule 7: checks before deciding to reattach/block). If no daemon error, reattach with `no-mistakes axi run --wait <duration>` (bounded, no `--intent`), issuing the same foreground call again — per the guidance that "a drive call whose wait elapsed... has not by itself failed the run" and reattachment only waits on the existing run.
+
+**Q2.** Do not resend the `respond` call — the brief says "never resend that same response to reattach, because it could answer the next gate without you reading it." Instead, check `no-mistakes daemon status` / `no-mistakes axi status`, then reattach with `no-mistakes axi run --wait <duration>` ("A killed or timed-out call is never evidence the daemon died... Reattach and keep going rather than reporting the pipeline blocked").
+
+**Q3.** First run `no-mistakes daemon status` and `no-mistakes axi status`. If the daemon socket refuses connections or is missing, append `blocked [at=<epoch>]: {the daemon error}` and stop immediately — never reattach in that case ("even when the local run record still says running or fixing, because that record can be stale"). If instead status shows the run parked at a gate (and the daemon is fine), read that gate before sending a new response — do not just reattach/respond blindly ("if it is at a gate, read that gate before sending a new response").
+
+**Q4.** No. Rule 7: "Start a new run with `no-mistakes axi run --intent` only when no active run owns your current branch. Never start a second run while one owns the branch."
+
+**Q5.** CONTRADICTION: no. The run-vs-reattach passages in rule 7 ("Start a new run... only when no active run owns your current branch... reattach with `no-mistakes axi run --wait <duration>`...") and in the drive-call guidance ("follow rule 7's run-versus-reattach guidance... when reattaching, use `no-mistakes axi run` with only a bounded `--wait`...") are consistent with each other — both say reattach via a bounded `--wait` call without `--intent`, and both forbid starting a second run while one owns the branch.

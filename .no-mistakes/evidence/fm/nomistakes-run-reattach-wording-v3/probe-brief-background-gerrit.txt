@@ -1,0 +1,20 @@
+**Q1.**
+Exact next command (run these in order, per the brief):
+
+1. `no-mistakes daemon status`
+2. `no-mistakes axi status`
+
+— the brief requires this before any pipeline-block judgment: *"Before you append `blocked:` about the pipeline, run `no-mistakes daemon status` and `no-mistakes axi status`."* If those show the socket is refusing/missing, that's a real `blocked:`. Otherwise, since *"A drive call whose wait elapsed... has not by itself failed the run: reattach with `no-mistakes axi run --wait <duration>` using this brief's wait style and any required per-run skip flags. Reattachment waits on the existing run; it does not start another one,"* the actual reattach command is:
+
+`no-mistakes axi run --skip push,pr,ci --intent "..." --wait 9m &` (backgrounded again, with a `paused:` status line declared before waiting, per the status-reporting rule).
+
+If that reattach call instead reports no run is active, the brief says: *"if it refuses because no run is active, read the finished outcome from `no-mistakes axi status`."*
+
+**Q2.**
+You may **not** resend that same `respond` call. The brief is explicit: *"A `respond` already sent its answer before waiting: never resend that same response to reattach, because it could answer the next gate without you reading it."*
+
+Exact next command: same as Q1 — first `no-mistakes daemon status` and `no-mistakes axi status` to confirm the daemon is healthy (*"If the daemon socket refuses connections or is missing, append `blocked:`... even when the local run record still says running or fixing"*), then reattach with:
+
+`no-mistakes axi run --skip push,pr,ci --wait 9m &`
+
+per: *"reattach with `no-mistakes axi run --wait <duration>` using this brief's wait style and any required per-run skip flags"* — using `axi run` to reattach, never resending the killed `respond`.

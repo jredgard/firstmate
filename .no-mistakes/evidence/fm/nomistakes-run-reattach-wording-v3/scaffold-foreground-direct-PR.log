@@ -1,0 +1,2 @@
+$ FM_HOME=$LAB bin/fm-brief.sh rr-foreground-direct-PR demo-proj --mode direct-PR
+scaffolded: /tmp/fm-lab.VEmkPl/data/rr-foreground-direct-PR/brief.md (ship, mode=direct-PR; replace {TASK} and {FIRSTMATE_SPEC})
