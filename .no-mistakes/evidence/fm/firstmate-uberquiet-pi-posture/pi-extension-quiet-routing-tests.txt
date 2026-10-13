@@ -1,0 +1,13 @@
+### head 8660220: targeted Pi branch-extension tests (real fm-afk-contract.sh + real outcome store)
+ok - under the away-posture record the wake carries the verbatim read-back tail, claims every row, opens no processing turn, cancels a pending request, and presents the accumulated rows after archive
+ok - quiet outcomes process now across restart, wordless quiet stays attended, and quiet words claim safe rows and report merges immediately
+ok - Pi branch: an unchanged held outcome reaches the captain once across cadences, and a later red check on the task still does
+ok - an accepted away-only wake rejects after archive, while a drained task-local wake stays a quiet no-op
+
+### head 8660220: Pi watcher routing
+ok - away routing follows recorded authority while broken queues and watcher-failure alarms reach main
+ok - quiet routing follows recorded authority while broken queues and watcher-failure alarms reach main
+ok - quiet-empty routing follows recorded authority while broken queues and watcher-failure alarms reach main
+
+### base 238b36a extension under head's test_quiet_record_reports_now_and_routes_by_words
+Error: wordless quiet held its captain outcome  (expected exit 0, got 1)

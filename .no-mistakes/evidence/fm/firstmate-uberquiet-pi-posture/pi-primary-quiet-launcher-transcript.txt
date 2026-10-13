@@ -1,0 +1,151 @@
+harness detected by bin/fm-harness.sh inside this Pi pane: pi
+FM_HOME=/tmp/fm-lab.Wo6i2w  PI_CODING_AGENT=true  FM_TEST_SEAM=unset
+
+### 1. /quiet without words: quiet-check on a Pi home with no record
+$ bin/fm-afk-launch.sh quiet-check
+Quiet mode needs nothing on this home: the ordinary supervision session already handles the wakes it can while the captain is present, never opens a turn here for a routine outcome, and hands this conversation only what needs it; enter quiet mode with words to record them without a daemon.
+[exit 0]
+
+### 2. /quiet with words: quiet enter records them (previously refused with exit 3 on Pi)
+$ bin/fm-afk-launch.sh enter --words merge green PRs for task-a
+Quiet mode recorded at 2026-10-13T11:38:54Z: you are present, so nothing waits for your return; recorded words carry the authority described in bin/fm-branch-prompt.sh Postures, and without words merge authority stays attended. Only an explicit /quiet off ends it.
+Quiet mode (recorded):
+  entered: 2026-10-13T11:38:54Z
+  holds: none - you are present, so nothing waits for your return; recorded words carry the authority described in bin/fm-branch-prompt.sh Postures, and without words merge authority stays attended.
+  your words (verbatim):
+    merge green PRs for task-a
+[exit 0]
+record present: yes; daemon flag state/.afk present: no
+$ bin/fm-afk-contract.sh mode
+quiet
+[exit 0]
+$ bin/fm-afk-contract.sh words
+merge green PRs for task-a[exit 0]
+$ bin/fm-afk-contract.sh authority-present
+[exit 0]
+$ bin/fm-afk-contract.sh readback
+Quiet mode (recorded):
+  entered: 2026-10-13T11:38:54Z
+  holds: none - you are present, so nothing waits for your return; recorded words carry the authority described in bin/fm-branch-prompt.sh Postures, and without words merge authority stays attended.
+  your words (verbatim):
+    merge green PRs for task-a
+[exit 0]
+
+### 3. quiet-check now reports the live quiet record
+$ bin/fm-afk-launch.sh quiet-check
+Quiet mode recorded on this home: the supervision session reads its words; the captain is present, outcomes reach this conversation now, and no daemon is launched.
+[exit 0]
+
+### 4. /quiet refresh with new words (FM_AFK_MODE=quiet kept)
+$ bin/fm-afk-launch.sh enter --words merge task-b when green
+fm-afk-contract: replaced the earlier quiet mode; its record is archived at /tmp/fm-lab.Wo6i2w/state/afk-contracts/1791891534-superseded-1791891534.afk-contract
+Quiet mode recorded at 2026-10-13T11:38:54Z: you are present, so nothing waits for your return; recorded words carry the authority described in bin/fm-branch-prompt.sh Postures, and without words merge authority stays attended. Only an explicit /quiet off ends it.
+Quiet mode (recorded):
+  entered: 2026-10-13T11:38:54Z
+  holds: none - you are present, so nothing waits for your return; recorded words carry the authority described in bin/fm-branch-prompt.sh Postures, and without words merge authority stays attended.
+  your words (verbatim):
+    merge task-b when green
+[exit 0]
+$ bin/fm-afk-contract.sh mode
+quiet
+[exit 0]
+$ bin/fm-afk-contract.sh words
+merge task-b when green[exit 0]
+
+### 5. a daemon start on Pi refuses and preserves the quiet record
+$ bin/fm-afk-launch.sh start-native
+fm-afk-launch: the away daemon is no longer launched on pi; the away-posture record is the posture there (run bin/fm-afk-launch.sh enter and stop)
+[exit 1]
+record still quiet: quiet; state/.afk present: no
+
+### 6. explicit /quiet off: bin/fm-afk-return.sh
+$ bin/fm-afk-return.sh
+fm-afk-launch: away-posture record archived at /tmp/fm-lab.Wo6i2w/state/afk-contracts/1791891534.afk-contract
+fm-afk-launch: away mode stopped; no daemon terminal was running, .afk cleared, and the posture record archived
+=== Return brief (away 2026-10-13T11:38:54Z -> 2026-10-13T11:38:55Z, 1s) ===
+Supervisor health:
+  - GAP: the watcher beat was 999999s old at return (grace 300s)
+Your instructions:
+  your words superseded at unknown:
+    merge green PRs for task-a
+  your words at entry:
+    merge task-b when green
+  the away session took no action under them.
+Waiting on you:
+  (nothing)
+Tried and failed, or could not be fixed:
+  (nothing)
+Landed, cleanup due:
+  (nothing)
+Handled while away:
+  0 outcome(s) handled by the away session (0 routine, 0 escalated above)
+  (no routine outcomes recorded in the store for this window)
+Cost: 0 supervision outcome(s) recorded (0 routine, 0 captain); 0 task(s) live at return.
+catch-up health: GAP: the watcher beat was 999999s old at return (grace 300s)
+fm-afk-return: catch-up clear; ordinary captain work may proceed
+[exit 0]
+record present after exit: no
+afk-contracts
+
+### 7. wordless quiet: enter without words records a quiet record with no authority
+$ bin/fm-afk-launch.sh enter
+Quiet mode recorded at 2026-10-13T11:38:55Z: you are present, so nothing waits for your return; recorded words carry the authority described in bin/fm-branch-prompt.sh Postures, and without words merge authority stays attended. Only an explicit /quiet off ends it.
+Quiet mode (recorded):
+  entered: 2026-10-13T11:38:55Z
+  holds: none - you are present, so nothing waits for your return; recorded words carry the authority described in bin/fm-branch-prompt.sh Postures, and without words merge authority stays attended.
+  your words: (none)
+[exit 0]
+$ bin/fm-afk-contract.sh mode
+quiet
+[exit 0]
+$ bin/fm-afk-contract.sh authority-present
+[exit 1]
+$ bin/fm-afk-return.sh
+fm-afk-launch: away-posture record archived at /tmp/fm-lab.Wo6i2w/state/afk-contracts/1791891535.afk-contract
+fm-afk-launch: away mode stopped; no daemon terminal was running, .afk cleared, and the posture record archived
+=== Return brief (away 2026-10-13T11:38:55Z -> 2026-10-13T11:38:55Z, 0s) ===
+Supervisor health:
+  - GAP: the watcher beat was 999999s old at return (grace 300s)
+Your instructions:
+  (no away instructions recorded)
+  the away session took no action under them.
+Waiting on you:
+  (nothing)
+Tried and failed, or could not be fixed:
+  (nothing)
+Landed, cleanup due:
+  (nothing)
+Handled while away:
+  0 outcome(s) handled by the away session (0 routine, 0 escalated above)
+  (no routine outcomes recorded in the store for this window)
+Cost: 0 supervision outcome(s) recorded (0 routine, 0 captain); 0 task(s) live at return.
+catch-up health: GAP: the watcher beat was 999999s old at return (grace 300s)
+fm-afk-return: catch-up clear; ordinary captain work may proceed
+[exit 0]
+
+### 8. adversarial: an away record is live; /quiet must not replace it
+$ bin/fm-afk-launch.sh enter --words away: merge nothing
+Away posture recorded at 2026-10-13T11:38:56Z: hold-for-return only. No phone channel is configured; anything that needs you waits for your return. Your away instructions are recorded verbatim; the away session will carry them out where it can, and anything it is unsure of, or that needs you, waits for your return. Destructive, irreversible, and security-sensitive actions are never pre-authorizable, whatever the words say. Expected return: not given. Spend cap: 4 concurrent workers.
+Away posture (recorded):
+  entered: 2026-10-13T11:38:56Z
+  expected return: not given
+  spend cap: 4 concurrent workers
+  reach: hold-for-return only. No phone channel is configured; anything that needs you waits for your return.
+  your words (verbatim):
+    away: merge nothing
+[exit 0]
+$ bin/fm-afk-contract.sh mode
+away
+[exit 0]
+$ bin/fm-afk-launch.sh quiet-check
+Quiet mode starts nothing on this home while its away record (state/.afk-contract) is live: the captain has returned, so run the /afk return (bin/fm-afk-return.sh), pass its catch-up gate, then run quiet-check again.
+[exit 2]
+$ bin/fm-afk-launch.sh enter --words quiet replacement attempt
+fm-afk-launch: quiet mode refuses while this home's away record (state/.afk-contract) is live; run the /afk return (bin/fm-afk-return.sh) and pass its catch-up gate, then run bin/fm-afk-launch.sh quiet-check
+[exit 3]
+$ bin/fm-afk-contract.sh mode
+away
+[exit 0]
+$ bin/fm-afk-contract.sh words
+away: merge nothing[exit 0]
+SEQ_DONE

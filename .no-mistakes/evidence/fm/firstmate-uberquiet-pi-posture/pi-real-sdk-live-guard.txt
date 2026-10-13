@@ -1,0 +1,17 @@
+### head 8660220: real Pi SDK 0.87.1 live guard with only the unrelated model-pin probe removed
+ok - real Pi SDK 0.87.1 accepts the branch session construction and preserves an unpromptable wake
+ok - real Pi SDK 0.87.1 rejects a post-construction 429 to watcher-owned main delivery without losing its durable row
+ok - real Pi SDK 0.87.1 reports its own supported effort levels and applies an explicit branch effort over a reopened session's recorded level
+ok - real Pi SDK 0.87.1 immediately renders appendEntry in the active transcript, persists it across reopen, and excludes it from model context
+ok - real Pi SDK 0.87.1 queues a streaming-time watcher wake without before_agent_start, keeps the successor chain, and surfaces consumption of both follow-ups
+ok - real Pi SDK 0.87.1 processes quiet outcomes now, strips only away processing context, suppresses only empty or exact-repeat retry finals, and keeps outcomes retryable
+rc=0
+
+### full live guard, head and base 238b36a alike: model-pin precedence probe fails (pre-existing, unrelated)
+        ^
+
+Error: an unpinned reopen did not restore the session's own model: claude-opus-4-8
+    at file:///tmp/fmsel/base/[eval1]:52:9
+
+Node.js v24.21.0
+rc=1

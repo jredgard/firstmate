@@ -1,0 +1,12 @@
+harness: pi  FM_HOME=/tmp/fm-lab.Wo6i2w
+record before: absent
+### BASE 238b36a launcher: FM_AFK_MODE=quiet enter --words 'merge green PRs'
+fm-afk-launch: quiet mode records nothing on a pi primary: the attended branch reads no quiet record there, so a quiet enter refuses before writing (the quiet skill's step 0 enters nothing on Pi)
+[exit 3]
+record after base: absent
+### HEAD 8660220 launcher: FM_AFK_MODE=quiet enter --words 'merge green PRs'
+Quiet mode recorded at 2026-10-13T11:42:07Z: you are present, so nothing waits for your return; recorded words carry the authority described in bin/fm-branch-prompt.sh Postures, and without words merge authority stays attended. Only an explicit /quiet off ends it.
+[exit 141]
+record after head: present; mode=quiet
+explicit exit -> record absent
+note: the head step's [exit 141] is SIGPIPE from the validator's own '| head -1' truncation, not the launcher; the unpiped head run in pi-primary-quiet-launcher-transcript.txt step 2 exits 0.
