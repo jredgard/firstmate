@@ -979,10 +979,10 @@ EOF
   if [ "$TURN_POSTURE" = away ]; then
     cat >> "$WAKE_FILE" <<'INSTRUCTIONS'
 
-HOST MAIN HANDBACK: Use bin/fm-branch-report.sh --main-action dispatch for a new lane terminal event, teardown due or completed, or a newly freed slot, including cleanup discovered on heartbeat.
+HOST MAIN HANDBACK: Use bin/fm-branch-report.sh --main-action dispatch for a new lane terminal event (done or failed), teardown due or completed, or a newly freed slot, including cleanup discovered on heartbeat.
 Use --main-action decision for new needs-decision or blocked events you do not answer yourself; MAIN applies ask-user-authority and the recorded words.
 Use --main-action captain-hold only when the call genuinely requires the captain; it stays held for return.
-The report's default auto detects newly presented done, needs-decision and blocked signal events, merge-landed wakes and removed scoped task records; standing task status never triggers a handback. Use --main-action none to skip decision detection when no MAIN work remains.
+The report's default auto detects newly presented done or failed, needs-decision and blocked signal events, merge-landed wakes and removed scoped task records; standing task status never triggers a handback.
 Report every event separately, acknowledge only the granted rows, release leases, and end the turn; MAIN handles the durable handback under the same away record and then parks again.
 INSTRUCTIONS
   fi
@@ -1231,13 +1231,13 @@ while :; do
       "$(turn_outcome_lookup_warning)"
   fi
   if [ "$TURN_POSTURE" = away ] && fm_afk_contract_away_present "$STATE"; then
-    MAIN_ACTIONS=$(awk -F '\t' -v turn="$LAST_TURN" \
-      '$1 == turn && ($5 == "dispatch" || $5 == "decision") { printf "%s%s", sep, $5 " for " $4 " (outcome " $2 ")"; sep="; " }' "$RECEIPTS")
-    if [ -n "$MAIN_ACTIONS" ]; then
+    MAIN_HANDBACKS=$(pending_main_handbacks) \
+      || exit_to_main "away handback queue could not be read; drain and reconcile before parking again"
+    if [ -n "$MAIN_HANDBACKS" ]; then
       # All originally granted rows were acknowledged before handle_wake
       # returned success. MAIN drains only the new lane handback rows.
       ARM_TEXT=
-      exit_to_main "away handback: $MAIN_ACTIONS; drain the durable handback, handle the ordinary lifecycle under the existing away record, then park again"
+      exit_to_main "away handback: $MAIN_HANDBACKS; handle this lane under the existing away record, then park again"
     fi
   fi
   # Attended captain outcomes are main's to process; away they wait for the

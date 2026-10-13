@@ -17,21 +17,21 @@
 # Usage:
 #   fm-branch-report.sh --task <id|fleet> --verdict routine|captain \
 #       --summary <text> [--silent true|false] [--wake <text>] \
-#       [--main-action auto|none|dispatch|decision|captain-hold]
+#       [--main-action auto|dispatch|decision|captain-hold]
 #
 # The verdict criteria are owned by bin/fm-branch-prompt.sh ("Verdict: routine
 # or captain"); --silent true is legal only for a routine outcome.
 # --wake defaults to the wake reason the host recorded for the turn.
 # --main-action applies only to an away host turn while still away. auto
-# (the default) hands a merge-landed wake, a newly presented done event, or a
+# (the default) hands a merge-landed wake, a newly presented done or failed event, or a
 # removed scoped task record to MAIN for dispatch, and a newly presented
 # needs-decision or blocked event that remains open for decision handling.
 # The turn record captures unread signal events before the engine drains them.
 # dispatch also names cleanup or a worker stopped as idle after readiness,
 # including an action found on heartbeat; decision names input the engine
 # declines; captain-hold explicitly leaves a genuinely captain-owned call for
-# return. none skips decision detection for a handled event with no MAIN work.
-# New terminal events hand back even when captain-hold or none was requested;
+# return.
+# New terminal events hand back even when captain-hold was requested;
 # standing lane status never triggers a handback.
 # A derived dispatch handback is queued once per turn and task; an explicit
 # dispatch or decision always queues its own.
@@ -103,7 +103,7 @@ SUMMARY=$(printf '%s' "$SUMMARY" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
 case "$TASK" in ''|*[!A-Za-z0-9._-]*) usage ;; esac
 case "$VERDICT" in routine|captain) ;; *) VERDICT= ;; esac
 case "$SILENT" in true|false) ;; *) usage ;; esac
-case "$MAIN_ACTION" in auto|none|dispatch|decision|captain-hold) ;; *) usage ;; esac
+case "$MAIN_ACTION" in auto|dispatch|decision|captain-hold) ;; *) usage ;; esac
 if [ "$SILENT" = true ]; then
   case "$MAIN_ACTION" in dispatch|decision) usage ;; esac
 fi
@@ -152,35 +152,51 @@ if [ "$(turn_field posture)" = away ] && fm_afk_contract_away_present "$STATE"; 
   . "$SCRIPT_DIR/fm-classify-lib.sh"
   ACTION=$MAIN_ACTION
   STATUS="$STATE/$TASK.status"
-  TERMINAL=0
-  case "$(turn_field wake)" in 'check: merge landed: '"$TASK"' '*) TERMINAL=1 ;; esac
+  TRIGGER=''
+  case "$ACTION" in
+    dispatch) TRIGGER=teardown ;;
+    decision) TRIGGER=$(turn_field wake) ;;
+  esac
+  TERMINAL_EVENT=''
+  case "$(turn_field wake)" in 'check: merge landed: '"$TASK"' '*) TERMINAL_EVENT='merge landed' ;; esac
   EVENTS=$(awk -F '\t' -v task="$TASK" '$1 == "event=" task { sub(/^[^\t]*\t/, ""); print }' "$TURN_FILE")
   if [ "$TASK" != fleet ]; then
     while IFS= read -r EVENT; do
-      if [ "$(status_line_verb "$EVENT")" = "done" ]; then TERMINAL=1; fi
+      VERB=$(status_line_verb "$EVENT")
+      case "$VERB" in "done"|failed) TERMINAL_EVENT=$VERB ;; esac
     done <<EOF
 $EVENTS
 EOF
     case " $(turn_field tasks) " in
-      *" $TASK "*) [ -e "$STATE/$TASK.meta" ] || TERMINAL=1 ;;
+      *" $TASK "*) [ -e "$STATE/$TASK.meta" ] || TERMINAL_EVENT=teardown ;;
     esac
   fi
-  if [ "$TERMINAL" -eq 1 ] && [ "$ACTION" != decision ]; then
+  [ -z "$TERMINAL_EVENT" ] || TRIGGER=$TERMINAL_EVENT
+  if [ -n "$TERMINAL_EVENT" ] && [ "$ACTION" != decision ]; then
     ACTION=dispatch
     if [ "$MAIN_ACTION" != dispatch ] && [ -f "$RECEIPTS" ] \
       && awk -F '\t' -v turn="$TURN" -v task="$TASK" \
         '$1 == turn && $4 == task && $5 == "dispatch" { found=1 } END { exit !found }' "$RECEIPTS"; then
       ACTION=none
     fi
-  elif [ "$ACTION" = auto ]; then
-    ACTION=none
+  elif [ "$ACTION" = auto ] || [ "$ACTION" = decision ]; then
+    [ "$ACTION" != auto ] || ACTION=none
     OPEN=$(status_open_decisions "$STATUS")
+    if [ "$MAIN_ACTION" = decision ]; then
+      while IFS=$'\t' read -r KEY VERB _; do
+        [ -z "$VERB" ] || TRIGGER="$VERB [key=$KEY]"
+      done <<EOF
+$OPEN
+EOF
+    fi
     while IFS= read -r EVENT; do
       VERB=$(status_line_verb "$EVENT")
       case "$VERB" in needs-decision|blocked) ;; *) continue ;; esac
       KEY=$(_fm_decision_key "$EVENT") || continue
       DECISION=$(printf '%s\t%s\t%s' "$KEY" "$VERB" "$(status_line_note "$EVENT")")
-      case $'\n'"$OPEN"$'\n' in *$'\n'"$DECISION"$'\n'*) ACTION=decision ;; esac
+      case $'\n'"$OPEN"$'\n' in
+        *$'\n'"$DECISION"$'\n'*) ACTION=decision; TRIGGER="$VERB [key=$KEY]" ;;
+      esac
     done <<EOF
 $EVENTS
 EOF
@@ -198,7 +214,7 @@ case "$ACTION" in
     # shellcheck source=bin/fm-wake-lib.sh
     . "$SCRIPT_DIR/fm-wake-lib.sh"
     fm_wake_append check "supervision-host-handback:$SEQ" \
-      "check: supervision-host handback: $ACTION for $TASK (outcome $SEQ): $SUMMARY" || {
+      "check: supervision-host handback: $ACTION for $TASK (outcome $SEQ), event $TRIGGER: $SUMMARY" || {
       echo "recorded seq $SEQ, but its MAIN handback could not be queued" >&2
       exit 1
     }
