@@ -81,9 +81,10 @@
 # releases the branch's leases and grant, and counts the wake handled only
 # when that turn exited cleanly, recorded a durable report
 # (bin/fm-branch-report.sh), and left none of its granted rows in the wake
-# queue. A handled away wake with a dispatch or decision receipt exits to MAIN
-# with a supervision-host: away handback reason after releasing its leases;
-# bin/fm-branch-report.sh owns the action classification and durable check row.
+# queue. A handled away wake that leaves a queued supervision-host-handback
+# check row exits to MAIN with a supervision-host: away handback reason naming
+# those rows' payloads after releasing its leases; bin/fm-branch-report.sh owns
+# the action classification and durable check row.
 # A queued handback is never offered to another engine turn. Other handled
 # away outcomes wait in the store for the return drain's BRANCH OUTCOMES section.
 # A handled

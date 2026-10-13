@@ -23,10 +23,11 @@
 # or captain"); --silent true is legal only for a routine outcome.
 # --wake defaults to the wake reason the host recorded for the turn.
 # --main-action applies only to an away host turn while still away. auto
-# (the default) hands a merge-landed wake, a newly presented done or failed event, or a
-# removed scoped task record to MAIN for dispatch, and a newly presented
-# needs-decision or blocked event that remains open for decision handling.
-# The turn record captures unread signal events before the engine drains them.
+# (the default) hands a granted merge-landed check for the task, a newly
+# presented done or failed event, or a removed scoped task record to MAIN for
+# dispatch, and a newly presented needs-decision or blocked event that remains
+# open for decision handling. The turn record captures every granted check
+# payload and unread signal event before the engine drains them.
 # dispatch also names cleanup or a worker stopped as idle after readiness,
 # including an action found on heartbeat; decision names input the engine
 # declines; captain-hold explicitly leaves a genuinely captain-owned call for
@@ -37,7 +38,9 @@
 # dispatch or decision always queues its own.
 # A handback is a durable check row keyed supervision-host-handback:<seq>,
 # published before acknowledgement, plus a fifth receipt column naming its
-# action. The host exits to MAIN after releasing the turn's leases; a later
+# action. Its payload names the lane and triggering event: done, failed, merge
+# landed, teardown, or the open decision's verb and key (else decision); a
+# terminal event never relabels an explicit decision. The host exits to MAIN after releasing the turn's leases; a later
 # park passes that queued row to MAIN without offering it to another engine.
 # Outcomes remain unprocessed for the return brief; this adds no merge or
 # dispatch authority and changes no spend limit.
