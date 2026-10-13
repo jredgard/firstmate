@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { runCommandAsync } from "./fm-async-exec.ts";
 
 // Shared wake-dispatch handshake between the Pi watcher extension (the
@@ -20,13 +21,13 @@ import { runCommandAsync } from "./fm-async-exec.ts";
 //
 // Postures (docs/pi-supervision-branch.md "Postures"). The away-posture record
 // state/.afk-contract (owner: bin/fm-afk-contract.sh) is the posture; it is
-// read as a file at every routing decision, never inferred from chat. While
-// it exists the branch takes EVERY actionable row - check rows, decision-owned
-// rows, and heartbeat rows included - and main is offered nothing the branch
+// read through its owner at every routing decision, never inferred from chat.
+// With recorded authority the branch takes EVERY actionable row - check rows,
+// decision-owned rows, and heartbeat rows included - and main is offered nothing the branch
 // can take. The two vetoes that describe a broken queue stay vetoes in both
 // postures, and such a wake, like every watcher-failure alarm, still falls
 // back to main exactly as attended, because only main can repair supervision
-// itself; parking main is a cost measure, continuity is the safety property.
+// itself; away parks main, and quiet reports captain outcomes immediately.
 
 export const FM_BRANCH_DISPATCH_EVENT = "fm-branch-supervision:dispatch";
 
@@ -41,6 +42,30 @@ export function afkPostureRecordPresent(state: string): boolean {
   } catch {
     return false;
   }
+}
+
+// The record owner reads mode and word presence; TypeScript never parses
+// its schema or mandate. A mode read failure keeps away holds, just as the
+// owner's damaged-mode reading does. Permission checks still validate at
+// each action's gate.
+export async function recordedPosture(state: string): Promise<"attended" | "away" | "quiet"> {
+  if (!afkPostureRecordPresent(state)) return "attended";
+  const root = process.env.FM_ROOT_OVERRIDE || fileURLToPath(new URL("../../../", import.meta.url));
+  const script = join(root, "bin", "fm-afk-contract.sh");
+  const env = { ...process.env, FM_STATE_OVERRIDE: state };
+  const mode = await runCommandAsync("bash", [script, "mode"], { env });
+  if (mode.status !== 0 || mode.stdout.trim() !== "quiet") return "away";
+  return "quiet";
+}
+
+export async function recordedAuthorityPresent(state: string, posture: "attended" | "away" | "quiet"): Promise<boolean> {
+  if (posture === "away") return true;
+  if (posture === "attended") return false;
+  const root = process.env.FM_ROOT_OVERRIDE || fileURLToPath(new URL("../../../", import.meta.url));
+  const result = await runCommandAsync("bash", [join(root, "bin", "fm-afk-contract.sh"), "authority-present"], {
+    env: { ...process.env, FM_STATE_OVERRIDE: state },
+  });
+  return result.status === 0;
 }
 
 // The per-wake prompt every supervision-branch host sends: the Pi branch

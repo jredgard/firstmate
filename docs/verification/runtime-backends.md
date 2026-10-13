@@ -2205,6 +2205,30 @@ Evidence produced 2026-08-25 on macOS 26.5.2 arm64, Node v24.13.1:
   The guard passes a typed captain outcome and a plain rendered routine note through Pi's exported `convertToLlm`, proves that `customType` and `display` are not model-visible identity, and classifies the resulting provider text with `bin/fm-operational-input.sh`.
   This evidence explains the superseded model-relay path but is no longer the captain-delivery contract.
 
+### 2026-10-13 Pi quiet-record authority
+
+On Linux with Node v24.21.0 and Pi 0.87.1, the portable extension and launcher regressions passed:
+
+```sh
+bash bin/fm-test-run.sh tests/fm-pi-branch-extension.test.sh tests/fm-pi-watch-extension.test.sh tests/fm-pi-primary-types.test.sh tests/fm-afk-launch.test.sh
+```
+
+```text
+ok - quiet outcomes process now across restart, wordless quiet stays attended, and quiet words claim safe rows and report merges immediately
+ok - quiet routing follows recorded authority while broken queues and watcher-failure alarms reach main
+ok - quiet-empty routing follows recorded authority while broken queues and watcher-failure alarms reach main
+ok - under the away-posture record the wake carries the verbatim read-back tail, claims every row, opens no processing turn, cancels a pending request, and presents the accumulated rows after archive
+```
+
+The posture/retry probe in `tests/fm-pi-branch-live-e2e.test.sh` also passed through Pi's real ExtensionRunner and local intercepted provider stream, with no external model request:
+
+```text
+ok - real Pi SDK 0.87.1 processes quiet outcomes now, strips only away processing context, suppresses only empty or exact-repeat retry finals, and keeps outcomes retryable
+```
+
+The refresh command remains `FM_PI_BRANCH_LIVE_E2E=1 bash bin/fm-test-run.sh tests/fm-pi-branch-live-e2e.test.sh`.
+The full guard stopped at its earlier model-reopen precedence assertion on this machine (`an unpinned reopen did not restore the session's own model: claude-opus-4-8`); only the isolated posture/retry probe was verified beyond that point.
+
 ### 2026-08-28 Pi 0.84.4 SDK compatibility refresh
 
 The credential-free live guard and strict typecheck were rerun against the installed `@earendil-works/pi-coding-agent` 0.84.4 package after the Pi primary compatibility repair.

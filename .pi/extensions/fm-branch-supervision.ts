@@ -27,13 +27,13 @@
 // record state/.afk-contract (owner: bin/fm-afk-contract.sh) is read as a
 // file at the tail of every wake and at every captain-outcome presentation,
 // never inferred from chat and never placed in the byte-stable prompt prefix.
-// While it exists the branch takes every row the dispatcher offers, the
+// With recorded authority the branch takes every row the dispatcher offers, the
 // record's read-back is appended to the wake message so the branch knows the
 // posture and the recorded facts at execution time, captain-verdict outcomes
-// accumulate unprocessed in the store instead of opening the processing turn
-// on the parked main, and the guarded scripts pass the branch actor under
-// main's standing authority (bin/fm-lease-lib.sh). The first unmarked captain
-// message archives the record; the next run boundary then presents the
+// accumulate unprocessed only while away instead of opening the processing turn
+// on the parked main; quiet outcomes are processed now. The guarded scripts
+// pass the branch actor under main's standing authority (bin/fm-lease-lib.sh).
+// The first unmarked captain message archives an away record; the next run boundary then presents the
 // accumulated captain rows exactly as after any other gap.
 //
 // Prefix stability (the cache contract, owner: bin/fm-branch-prompt.sh
@@ -111,7 +111,9 @@ import {
 } from "./lib/fm-calm-visibility.ts";
 import {
   activateEligibleRowsOwner,
-  afkPostureRecordPresent,
+  recordedPosture,
+  recordedAuthorityPresent,
+  quietPostureTailFor,
   awayPostureTailFor,
   branchWakePrompt,
   deactivateEligibleRowsOwner,
@@ -1078,7 +1080,7 @@ export default function (pi: ExtensionAPI) {
     // the record is gone - the run boundary of the captain's return message,
     // or session start - starts with a fresh triggered budget and hands them
     // to main exactly as after any other gap.
-    if (afkPostureRecordPresent(state)) {
+    if (await recordedPosture(state) === "away") {
       processing = null;
       return true;
     }
@@ -1095,10 +1097,11 @@ export default function (pi: ExtensionAPI) {
     // The record is re-read immediately before the request would open: a
     // record that appeared during the encoding await cancels this request
     // rather than delivering it to a main that has just been parked.
-    if (afkPostureRecordPresent(state)) {
+    if (await recordedPosture(state) === "away") {
       processing = null;
       return true;
     }
+    if (!(await generationOwnsLock(expectedGeneration))) return false;
     if (processing?.pending) return true;
     if (!processing || processing.sequences !== sequences) {
       processing = { sequences, through, triggered: 0, pending: false, nextTurnQueued: false, visibleFinals: new Set() };
@@ -1461,14 +1464,14 @@ ${context.command}
     }
   }
 
-  // The away posture at the tail of a wake: the record's own read-back (the
+  // The recorded posture at the tail of a wake: the record's own read-back (the
   // captain's words verbatim, the spend cap, expected return, and reach line)
   // carried byte-for-byte, trailing blank lines included, plus the standing
   // rule for acting under it. Read per wake so the byte-stable prefix never
   // carries posture; a read-back that cannot be rendered still names the
   // posture, because the record's presence is the fact the guarded scripts
   // enforce either way.
-  async function awayPostureTail(): Promise<string> {
+  async function postureTailFor(posture: "away" | "quiet"): Promise<string> {
     let readback = "";
     try {
       const rendered = await runCommandAsync("bash", [afkContractScript, "readback"], { cwd: fmRoot, env: scriptEnv });
@@ -1476,7 +1479,7 @@ ${context.command}
     } catch {
       readback = "";
     }
-    return awayPostureTailFor(readback);
+    return posture === "quiet" ? quietPostureTailFor(readback) : awayPostureTailFor(readback);
   }
 
   function enqueueWake(message: string, acceptedGeneration: number, recoveryProbe = false, acceptedAwayOnly = false): Promise<void> {
@@ -1510,7 +1513,8 @@ ${context.command}
         // partition paragraph): the record is validated then may be archived
         // mid-operation; every relocated action revalidates at its own gate;
         // rows are store-first and the durable queue keeps them.
-        const afk = afkPostureRecordPresent(state);
+        const posture = await recordedPosture(state);
+        const afk = await recordedAuthorityPresent(state, posture);
         const scope = scopeForUnreadWake(state, heartbeat, afk);
         // A newly-arrived main-owned (check-kind) row never bounces this
         // whole recheck back to main - scopeForUnreadWake excludes it from
@@ -1545,14 +1549,14 @@ ${context.command}
         const reportRevisionBeforePrompt = durableReportRevision;
         const entryOffset = sessionManager.getEntries().length;
         // A claimed check row names no task, so a prompt carrying one is not
-        // scoped by task (only possible in the away posture).
+        // scoped by task (possible while away or under quiet words).
         wakeTaskScope = heartbeat || scope.checkSeqs.length > 0 || scope.heartbeatSeqs.length > 0
           ? null
           : { rows: [...scope.eligibleSeqs], tasks: new Set(scope.eligibleTasks) };
         // Same residual: archive during snapshot publish or read-back still
         // lets this prompt proceed; the guarded scripts revalidate, and the
         // durable queue keeps every row (bin/fm-lease-lib.sh role-partition).
-        const postureTail = afk ? await awayPostureTail() : "";
+        const postureTail = afk && posture !== "attended" ? await postureTailFor(posture) : "";
         try {
           await session.prompt(branchWakePrompt(message, "fm_branch_report", postureTail));
         } finally {
@@ -1739,8 +1743,9 @@ ${context.command}
       },
     };
   });
-  pi.on?.("context", (event, ctx) => {
-    if (!afkPostureRecordPresent(state)) return;
+  pi.on?.("context", async (event, ctx) => {
+    const contextGeneration = generation;
+    if (await recordedPosture(state) !== "away" || generation !== contextGeneration) return;
     const messages = event.messages ?? [];
     const kept = messages.filter((message) => !isProcessingCustomMessage(message));
     if (kept.length === messages.length) return;

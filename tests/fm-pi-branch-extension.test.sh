@@ -2204,6 +2204,87 @@ EOF
   pass "under the away-posture record the wake carries the verbatim read-back tail, claims every row, opens no processing turn, cancels a pending request, and presents the accumulated rows after archive"
 }
 
+# Quiet records preserve attended outcome processing, including across a
+# restart; words additionally let Pi claim check/decision rows. The record
+# owner and the durable outcome store are executed, not imitated.
+test_quiet_record_reports_now_and_routes_by_words() {
+  local repo home out status
+  repo="$TMP_ROOT/quiet-root"
+  home="$TMP_ROOT/quiet-home"
+  mkdir -p "$home/state" "$home/config"
+  install_pi_branch_extension_fixture "$repo"
+  PLUGIN="$repo/.pi/extensions/fm-branch-supervision.ts" FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" \
+    DRIVER_PRELUDE="$DRIVER_PRELUDE" node --input-type=module > "$TMP_ROOT/node-output" 2>&1 <<'EOF'
+await eval(`(async () => { ${process.env.DRIVER_PRELUDE}; globalThis.__t = { fire, dispatch, settle, sentToMain, mainEntries, outcomeScript, defaultSessionCtx, home, realRoot, bus, makeOffer, mainTools }; })()`);
+const { fire, dispatch, settle, sentToMain, mainEntries, outcomeScript, defaultSessionCtx, home, realRoot, bus, makeOffer, mainTools } = globalThis.__t;
+import { spawnSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
+const record = (args, mode = "quiet") => {
+  const result = spawnSync("bash", [`${realRoot}/bin/fm-afk-contract.sh`, ...args], {
+    encoding: "utf8", env: { ...process.env, FM_AFK_MODE: mode, FM_HOME: home, FM_STATE_OVERRIDE: `${home}/state` },
+  });
+  if (result.status !== 0) throw new Error(`record failed: ${result.stderr}`);
+  return result.stdout;
+};
+const requests = () => sentToMain.filter((sent) => sent.message.customType === "fm-branch-process");
+record(["enter"]);
+await fire("session_start", {}, defaultSessionCtx);
+let finish;
+globalThis.__fmOnBranchPrompt = () => new Promise((resolve) => { finish = resolve; });
+const attended = dispatch("signal: branch-driver.status");
+await settle(() => (globalThis.__fmPrompts ?? []).length === 1, "quiet wordless prompt");
+if (globalThis.__fmPrompts[0].includes("POSTURE: QUIET")) throw new Error("wordless quiet emitted a recorded-authority marker");
+const session = globalThis.__fmSessions[0];
+const report = session.options.customTools.find((tool) => tool.name === "fm_branch_report");
+await report.execute("c1", { task: "branch-driver", verdict: "captain", summary: "decision needed while quiet without words" }, undefined, undefined, {});
+finish();
+await attended.settlement;
+if (requests().length !== 1) throw new Error("wordless quiet held its captain outcome");
+const pending = requests()[0].message;
+let aborted = false;
+const processingMessage = { role: "custom", ...pending };
+const context = await fire("context", { messages: [processingMessage] }, { ...defaultSessionCtx, abort() { aborted = true; } });
+if (aborted || context?.messages) throw new Error("quiet stripped or aborted an attended processing request");
+await fire("session_shutdown", {});
+await fire("session_start", {}, defaultSessionCtx);
+if (requests().length !== 2) throw new Error("quiet restart did not present an unprocessed captain outcome");
+const processed = mainTools.find((tool) => tool.name === "fm_branch_processed");
+const firstSeq = JSON.parse(outcomeScript(["list", "--recent", "1"])).seq;
+await processed.execute("ack", { through: firstSeq }, undefined, undefined, defaultSessionCtx);
+writeFileSync(`${home}/state/.wake-queue`, "1\t1\tcheck\tmain-only\tcheck: task-d.check.sh: PR merged\n");
+const wordless = makeOffer("check: task-d.check.sh: PR merged", [], false, true, true);
+bus.emit("fm-branch-supervision:dispatch", wordless);
+const refusal = await wordless.settlement.then(() => null, (error) => error);
+if (!(refusal instanceof Error)) throw new Error("wordless quiet claimed a main-only check row");
+writeFileSync(`${home}/state/task-d.meta`, readFileSync(`${home}/state/branch-driver.meta`, "utf8"));
+record(["enter", "--words", "merge task-d when green\n\n"]);
+writeFileSync(`${home}/state/.wake-queue`, "1\t1\tcheck\tmain-only\tcheck: task-d.check.sh: PR merged\n2\t2\tsignal\ttask-d.status\tneeds-decision: merge requested\n3\t3\theartbeat\theartbeat\theartbeat\n");
+const promptsBefore = globalThis.__fmPrompts.length;
+const authorized = makeOffer("check: task-d.check.sh: PR merged", [], false, true, true);
+bus.emit("fm-branch-supervision:dispatch", authorized);
+await settle(() => globalThis.__fmPrompts.length === promptsBefore + 1, "quiet authority prompt");
+const prompt = globalThis.__fmPrompts.at(-1);
+if (!prompt.includes("POSTURE: QUIET.") || prompt.includes("POSTURE: AWAY.")) throw new Error(`quiet words carried the wrong posture: ${prompt}`);
+if (!prompt.endsWith(`The record, verbatim:\n${record(["readback"])}`)) throw new Error("quiet lost verbatim read-back");
+if (readFileSync(`${home}/state/.branch-eligible-rows`, "utf8").trim().split("\n").join(",") !== "1,2,3") throw new Error("quiet words failed to claim all safe rows");
+const currentReport = globalThis.__fmSessions.at(-1).options.customTools.find((tool) => tool.name === "fm_branch_report");
+const before = requests().length;
+const result = await currentReport.execute("c2", { task: "fleet", verdict: "captain", summary: 'per your quiet instructions: "merge task-d when green": merged https://example.com/pr/2' }, undefined, undefined, {});
+if (result.isError) throw new Error(`quiet fleet report failed: ${JSON.stringify(result)}`);
+finish();
+await authorized.settlement;
+if (requests().length !== before + 1 || !requests().at(-1).message.content.includes("https://example.com/pr/2")) throw new Error("quiet-word merge was held until archive");
+const seq = JSON.parse(outcomeScript(["list", "--recent", "1"])).seq;
+if (!mainEntries.some((entry) => entry.customType === "fm-branch-visible-outcome" && entry.data.seq === seq)) throw new Error("quiet merge lost its durable visible entry");
+if (record(["mode"]).trim() !== "quiet") throw new Error("quiet outcome processing archived the record");
+process.exit(0);
+EOF
+  status=$?
+  out=$(cat "$TMP_ROOT/node-output")
+  expect_code 0 "$status" "quiet outcomes must report now and route by words: $out"
+  pass "quiet outcomes process now across restart, wordless quiet stays attended, and quiet words claim safe rows and report merges immediately"
+}
+
 # The 2026-09-25 away-window flood on the Pi report path: a held, green PR on a
 # finished task was re-escalated on every inactive-outcome cadence, because
 # the branch acknowledgement consumed the check row but left its
@@ -5975,6 +6056,7 @@ test_branch_dispatch_routes_secondmate_signal_by_new_span
 test_branch_cache_key_is_per_home_stable
 test_branch_default_on_heartbeat_afk_and_fallback
 test_away_record_parks_main_and_presents_after_archive
+test_quiet_record_reports_now_and_routes_by_words
 test_away_unchanged_held_outcome_reaches_the_captain_once_until_a_new_event
 test_away_only_wake_rejects_when_record_is_archived_before_drain
 test_away_claimed_heartbeat_on_a_task_wake_lifts_task_scoping

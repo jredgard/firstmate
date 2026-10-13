@@ -22,8 +22,7 @@ For captain-held rechecks under quiet, see [architecture](../../../docs/architec
 ## What it does
 
 0. **First check whether quiet mode needs anything here.**
-   On Pi or pi-signed, enter nothing: the attended branch already keeps routine wakes out of this conversation (the `afk` skill's step 2), and no quiet record is supported there (`bin/fm-afk-launch.sh enter` refuses in quiet mode before writing), so words typed with the command are not recorded; tell the captain so.
-   Everywhere else run `bin/fm-afk-launch.sh quiet-check`; its header's QUIET MODE owns what each result means.
+   Run `bin/fm-afk-launch.sh quiet-check`; its header's QUIET MODE owns what each result means.
    - Exit 0: without words or a live quiet record, enter nothing; with words, go to step 1 to record them without a daemon.
      If quiet-check reports a live quiet record, leave it active unless refreshing its words or explicitly exiting.
      Tell the captain in `AGENTS.md` section 9 language that supervision here already works that way: routine fleet events stay off this conversation, while decisions, failures, credentials, and review-ready work still reach them.
@@ -39,7 +38,7 @@ For captain-held rechecks under quiet, see [architecture](../../../docs/architec
    `FM_AFK_MODE=quiet` in the shell that invokes `bin/fm-afk-launch.sh enter`
    and `start` (or `start-native`), so the record notes quiet mode and
    `state/.afk`'s first line reads `quiet` instead of `away`.
-   On a ready attended-host home, record the words and launch no daemon; quiet-check reports the live record.
+   On Pi, pi-signed, or a ready attended-host home, record the words and launch no daemon; quiet-check reports the live record.
    On an unready host home, launch the daemon on the path
    this harness uses without the host; `start` and `start-native` take quiet
    mode from the record `enter` wrote.

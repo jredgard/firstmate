@@ -1098,8 +1098,8 @@ unit_daemon_quiet_entry_holds_nothing_for_a_return() {
 
 # /quiet where the attended supervision host runs is a statement: quiet-check
 # says quiet mode needs nothing, or that the session is paused while its
-# broken-session latch holds, and a quiet enter writes nothing. Without the
-# opt-in, or on Pi, quiet-check says nothing and quiet mode is the daemon's.
+# broken-session latch holds, and quiet words enter a record without a daemon.
+# Pi follows the same record entry through its ordinary supervision branch.
 unit_supervision_host_quiet_statement() {
   local st out rc key harness
   st=$(mktemp -d "${TMPDIR:-/tmp}/fm-afk-quiet.XXXXXX")
@@ -1113,14 +1113,28 @@ unit_supervision_host_quiet_statement() {
   out=$(quiet_in "$st" "$LAUNCH" quiet-check); rc=$?
   quiet_expect 0 'Quiet mode needs nothing on this home' "quiet-check on a claude home without config/supervision-host must say quiet mode needs nothing"
   printf 'claude\n' > "$st/config/supervision-host"
-  out=$(FM_TEST_HARNESS=pi quiet_in "$st" "$LAUNCH" quiet-check); rc=$?
-  [ "$rc" -eq 1 ] && [ -z "$out" ] || fail "quiet-check on a pi home must exit 1 silently (rc=$rc): $out"
   for harness in pi pi-signed; do
-    out=$(FM_TEST_HARNESS=$harness quiet_in "$st" env FM_AFK_MODE=quiet "$LAUNCH" enter --words "stay quiet"); rc=$?
-    if [ "$rc" -ne 3 ] || [ -e "$st/state/.afk-contract" ] \
-      || ! printf '%s' "$out" | grep -F "quiet mode records nothing on a $harness primary" >/dev/null; then
-      fail "$harness: a quiet enter must refuse before writing any record (rc=$rc): $out"
+    out=$(FM_TEST_HARNESS=$harness quiet_in "$st" "$LAUNCH" quiet-check); rc=$?
+    quiet_expect 0 'Quiet mode needs nothing on this home' "$harness: ordinary branch supervision should need no quiet daemon"
+    out=$(FM_TEST_HARNESS=$harness quiet_in "$st" env FM_AFK_MODE=quiet "$LAUNCH" enter --words "merge green PRs"); rc=$?
+    if [ "$rc" -ne 0 ] || [ ! -f "$st/state/.afk-contract" ] || [ -e "$st/state/.afk" ] \
+      || [ "$(quiet_in "$st" "$CONTRACT" mode)" != quiet ] \
+      || [ "$(quiet_in "$st" "$CONTRACT" words)" != 'merge green PRs' ]; then
+      fail "$harness: quiet enter must record its words without a daemon (rc=$rc): $out"
     fi
+    out=$(FM_TEST_HARNESS=$harness quiet_in "$st" "$LAUNCH" quiet-check); rc=$?
+    quiet_expect 0 'Quiet mode recorded on this home' "$harness: quiet-check must report its live quiet record"
+    out=$(FM_TEST_HARNESS=$harness quiet_in "$st" "$LAUNCH" start-native); rc=$?
+    [ "$rc" -eq 1 ] && [ -f "$st/state/.afk-contract" ] && [ ! -e "$st/state/.afk" ] \
+      && [ ! -e "$st/state/.afk-daemon-terminal" ] || fail "$harness: daemon refusal must preserve its quiet record (rc=$rc): $out"
+    FM_TEST_HARNESS=$harness quiet_in "$st" "$LAUNCH" stop >/dev/null || fail "$harness: quiet stop must archive its record"
+    FM_TEST_HARNESS=$harness quiet_in "$st" "$LAUNCH" enter --words "away instructions" >/dev/null || fail "$harness: away entry failed"
+    out=$(FM_TEST_HARNESS=$harness quiet_in "$st" "$LAUNCH" quiet-check); rc=$?
+    quiet_expect 2 'away record' "$harness: quiet-check must require the away return first"
+    out=$(FM_TEST_HARNESS=$harness quiet_in "$st" env FM_AFK_MODE=quiet "$LAUNCH" enter --words "quiet replacement"); rc=$?
+    [ "$rc" -eq 3 ] && [ "$(quiet_in "$st" "$CONTRACT" mode)" = away ] \
+      && [ "$(quiet_in "$st" "$CONTRACT" words)" = 'away instructions' ] || fail "$harness: quiet entry must preserve a live away record (rc=$rc): $out"
+    FM_TEST_HARNESS=$harness quiet_in "$st" "$LAUNCH" stop >/dev/null || fail "$harness: away stop failed"
   done
 
   for harness in claude cursor; do

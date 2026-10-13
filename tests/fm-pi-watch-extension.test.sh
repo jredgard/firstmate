@@ -1418,15 +1418,20 @@ EOF
 # vetoes (an unresolvable task-local row, a structurally invalid row) and every
 # watcher-failure alarm still reach main exactly as attended
 # (docs/pi-supervision-branch.md "Postures").
-test_pi_away_record_collapses_eligibility_and_keeps_vetoes_on_main() {
-  local repo home plugin log stop out status label expect reason queue
-  repo="$TMP_ROOT/pi-away-root"
-  home="$TMP_ROOT/pi-away-home"
+test_pi_away_record_collapses_eligibility_and_keeps_vetoes_on_main() {  # [away|quiet|quiet-empty]
+  local posture=${1:-away} repo home plugin log stop out status label expect reason queue f
+  repo="$TMP_ROOT/pi-record-$posture-root"
+  home="$TMP_ROOT/pi-record-$posture-home"
   mkdir -p "$repo/bin" "$home/state" "$home/config" "$home/projects/approved"
   install_pi_watch_extension_fixture "$repo"
   plugin="$repo/.pi/extensions/fm-primary-pi-watch.ts"
   printf 'project=%s/projects/approved\nwindow=fm-window\n' "$home" > "$home/state/task-a.meta"
-  FM_HOME="$home" "$ROOT/bin/fm-afk-contract.sh" enter >/dev/null || fail "away entry failed"
+  for f in fm-afk-contract.sh fm-classify-lib.sh fm-timeout-lib.sh; do cp "$ROOT/bin/$f" "$repo/bin/$f"; done
+  case "$posture" in
+    away) FM_HOME="$home" "$ROOT/bin/fm-afk-contract.sh" enter >/dev/null ;;
+    quiet) FM_AFK_MODE=quiet FM_HOME="$home" "$ROOT/bin/fm-afk-contract.sh" enter --words "merge green PRs" >/dev/null ;;
+    quiet-empty) FM_AFK_MODE=quiet FM_HOME="$home" "$ROOT/bin/fm-afk-contract.sh" enter >/dev/null ;;
+  esac || fail "$posture entry failed"
   [ -f "$home/state/.afk-contract" ] || fail "the away-posture record was not written"
   cat > "$repo/bin/fm-watch-arm.sh" <<'SH'
 #!/usr/bin/env bash
@@ -1445,8 +1450,9 @@ SH
   chmod +x "$repo/bin/fm-watch-arm.sh"
   while IFS='|' read -r label expect reason queue; do
     [ -n "$label" ] || continue
-    log="$TMP_ROOT/pi-away-$label.log"
-    stop="$TMP_ROOT/pi-away-$label.stop"
+    log="$TMP_ROOT/pi-record-$posture-$label.log"
+    stop="$TMP_ROOT/pi-record-$posture-$label.stop"
+    [ "$posture" != quiet-empty ] || expect=main
     out=$(PLUGIN="$plugin" FM_HOME="$home" FM_ROOT_OVERRIDE="$repo" FM_ARM_LOG="$log" FM_STOP_FILE="$stop" \
       FM_TEST_REASON="$reason" FM_TEST_QUEUE="$queue" FM_TEST_EXPECT="$expect" node --input-type=module 2>&1 <<'EOF'
 import { writeFileSync } from "node:fs";
@@ -1584,7 +1590,7 @@ EOF
   status=$?
   expect_code 0 "$status" "a watcher-failure alarm must still reach main under the record: $out"
   [ -z "$out" ] || fail "Pi away alarm test printed output: $out"
-  pass "under the away-posture record every actionable row is offered to the branch while broken-queue wakes and watcher-failure alarms still reach main"
+  pass "$posture routing follows recorded authority while broken queues and watcher-failure alarms reach main"
 }
 
 test_pi_handling_delivery_failure_is_typed_once() {
@@ -5211,6 +5217,8 @@ test_pi_heartbeat_is_not_ridden_into_main_by_a_co_present_needs_decision
 test_pi_heartbeat_restoration_failure_stays_on_main
 test_pi_watcher_failure_never_offered_to_branch
 test_pi_away_record_collapses_eligibility_and_keeps_vetoes_on_main
+test_pi_away_record_collapses_eligibility_and_keeps_vetoes_on_main quiet
+test_pi_away_record_collapses_eligibility_and_keeps_vetoes_on_main quiet-empty
 test_pi_handling_delivery_failure_is_typed_once
 test_pi_confirm_failure_retires_arm_with_distinct_watcher_pid
 test_pi_confirm_failure_spares_a_newer_arm
