@@ -1,0 +1,317 @@
+== BASH ==
+cat /home/johannesr/.claude/projects/-tmp-fm-labroot-x5ZiYQ/28996c75-e9fc-4f7d-981b-a034959b3615/tool-results/hook-fbec75bb-fcbc-46aa-969a-d40b3151e4c4-stdout.txt
+== RESULT ==
+================================================================================
+SESSION START - /tmp/fm-lab.BOR55F
+================================================================================
+
+LOCK
+--------------------------------------------------------------------------------
+lock acquired: harness pid 2549399
+
+BOOTSTRAP
+--------------------------------------------------------------------------------
+(silent - all good)
+
+WAKE QUEUE
+--------------------------------------------------------------------------------
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+================================================================================
+SUPERVISION OPERATING INSTRUCTIONS - primary harness: claude
+================================================================================
+Current state:
+- Lock: held by this session; this session owns normal supervision unless away mode says otherwise.
+- Away/quiet mode: inactive.
+- X mode: inactive; use the default watcher cadence.
+- Supervision host: on; it takes away-posture wakes and, where the dialog mirror is verified, eligible attended wakes itself, and hands the rest to you (protocol at the end of this block).
+- Ordinary wake: the Stop-owned auto-arm (bin/fm-claude-stop-autoarm.sh) already owns watcher continuity; drain and handle the wake, and do not arm another cycle yourself.
+
+Mode: Claude Stop-hook-owned supervision.
+
+When this session owns supervision and away mode is not active:
+1. Drain first with `bin/fm-wake-drain.sh`.
+   After handling all emitted wakes and reconciling open decisions and unread status lines, run the exact `--ack-through` command printed as `WAKE_ACK_REQUIRED`; until then the work remains durable for idempotent re-handling after interruption.
+2. Routine watcher arm and re-arm are owned by the Stop `asyncRewake` hook (`bin/fm-claude-stop-autoarm.sh`), never by you.
+   Every turn end while supervision is needed launches or attaches one home-scoped watcher cycle with no model command and no model tokens.
+   An actionable close wakes you through the hook's exit-2 rewake, delivered as a `Stop hook feedback` message.
+3. On a `Stop hook feedback` wake (`signal:`, `stale:`, `check:`, or `heartbeat`), run `bin/fm-wake-drain.sh` first and handle the wake.
+   Do not run `bin/fm-watch-arm.sh` after an ordinary wake; the next turn end re-arms automatically when supervision is still needed.
+   Do not invent a wake from an attach-status line alone; drain and act only on real wake records, the drain's `OPEN DECISIONS` and `UNREAD STATUS` entries, or a real watcher reason line.
+4. On the one `Stop hook feedback` automatic-mechanism failure notice (`firstmate watcher auto-arm FAILED ...`), drain, inspect the automatic mechanism failure, and do not turn the notice into a repeating manual-arm loop.
+5. If the Stop hook does not claim the home or reports an exhausted failure, inspect its registration and watcher star
+== TEXT ==
+Base directory for this skill: /tmp/fm-labroot.x5ZiYQ/.claude/skills/afk
+
+# afk
+
+Away mode is a POSTURE of the one supervision session, not a second architecture.
+Being away changes exactly two things: how the captain is informed, and what happens at a captain-owned decision point (hold for return, or the answer the captain's away words already gave).
+It never changes the authority set.
+The posture is a file, `state/.afk-contract`, written only by `bin/fm-afk-contract.sh` in the same turn as `/afk`; nothing infers the posture from chat.
+A record carrying quiet mode is not this posture: the captain is present, so none of this skill's holds for a return apply to it; `bin/fm-afk-contract.sh` AWAY OR QUIET owns its authority reading and the `quiet` skill owns entry.
+Typing `/afk` is itself the go: the captain may not look at the screen again, so entry never waits for a further human response, and no read-back gates it or asks for a go.
+Hold-for-return is the default and the only reach profile this release records: there is no phone channel, and the entry announcement says so aloud every time.
+
+## Entering: `/afk [words]`
+
+1. **Write the record first, in this same turn.**
+   Before any other work, run `bin/fm-afk-launch.sh enter --words-file <path> [--expected-return <UTC ISO 8601>] [--spend <n>]` (or `--words <text>`).
+   It writes `state/.afk-contract` at once, with no separate confirmation step, then prints the entry announcement and the record's read-back.
+   The words are the whole mandate: `bin/fm-afk-contract.sh` records them exactly as given, with no clause fields, verbs, ids, or merge-grant list, and by the captain's mandate no parser, tokenizer, classifier, or grammar reads them anywhere.
+   Read `bin/fm-afk-contract.sh --help` for the flags rather than memorizing them.
+   Plain `/afk` with no words is a valid entry with no mandate; the announcement says no instructions were recorded.
+   Re-invoking `/afk` while already away with no new words is a refresh and l
+== BASH ==
+echo "FM_HOME=$FM_HOME" && bin/fm-wake-drain.sh; echo "--- drain exit $? ---"; bin/fm-afk-contract.sh readback; echo "--- readback exit $? ---"
+== BASH ==
+bin/fm-startup-network.sh report; echo "--- report exit $? ---"; bin/fm-crew-state.sh demo 2>&1 | head -40; echo "--- crew-state exit $? ---"
+== BASH ==
+cat /tmp/fm-lab.BOR55F/state/demo.meta; echo "---status---"; cat /tmp/fm-lab.BOR55F/state/demo.status; echo "---tmux---"; tmux list-windows -a 2>&1 | grep -i demo; tmux capture-pane -p -t fm-demo 2>&1 | tail -15; echo "---worktree---"; ls -d /tmp/fm-lab.BOR55F/projects/* 2>&1; ls /tmp/fm-lab.BOR55F/data 2>&1
+== BASH ==
+env | grep -iE '^(TMUX|FM_)' ; echo "---tmux ls---"; tmux ls 2>&1; echo "---lab home---"; ls -la /tmp/fm-lab.BOR55F/ /tmp/fm-lab.BOR55F/state /tmp/fm-lab.BOR55F/data /tmp/fm-lab.BOR55F/config 2>&1; echo "---backend---"; bin/fm-backend.sh --help 2>&1 | head -20
+== RESULT ==
+TMUX_PANE=%0
+TMUX_TMPDIR=/tmp/fm-lab.BOR55F/tmux
+FM_HOME=/tmp/fm-lab.BOR55F
+TMUX=/tmp/fm-lab.BOR55F/tmux/tmux-1000/fm-lab,2549291,0
+---tmux ls---
+primary: 1 windows (created Tue Oct 13 09:54:16 2026)
+---lab home---
+/tmp/fm-lab.BOR55F/:
+total 4
+drwxr-xr-x    7 johannesr johannesr   160 13. Okt 09:52 .
+drwxrwxrwt 1809 root      root      59720 13. Okt 09:57 ..
+drwxr-xr-x    2 johannesr johannesr    80 13. Okt 09:55 config
+drwxr-xr-x    2 johannesr johannesr    40 13. Okt 09:52 data
+-rw-r--r--    1 johannesr johannesr    15 13. Okt 09:52 .fm-lab-home
+drwxr-xr-x    2 johannesr johannesr    40 13. Okt 09:52 projects
+drwxr-xr-x    3 johannesr johannesr   420 13. Okt 09:56 state
+drwxr-xr-x    3 johannesr johannesr    60 13. Okt 09:52 tmux
+
+/tmp/fm-lab.BOR55F/config:
+total 4
+drwxr-xr-x 2 johannesr johannesr  80 13. Okt 09:55 .
+drwxr-xr-x 7 johannesr johannesr 160 13. Okt 09:52 ..
+-rw------- 1 johannesr johannesr   5 13. Okt 09:55 startup-memory-budget
+-rw-r--r-- 1 johannesr johannesr   0 13. Okt 09:52 supervision-host
+
+/tmp/fm-lab.BOR55F/data:
+total 0
+drwxr-xr-x 2 johannesr johannesr  40 13. Okt 09:52 .
+drwxr-xr-x 7 johannesr johannesr 160 13. Okt 09:52 ..
+
+/tmp/fm-lab.BOR55F/state:
+total 64
+drwxr-xr-x 3 johannesr johannesr  420 13. Okt 09:56 .
+drwxr-xr-x 7 johannesr johannesr  160 13. Okt 09:52 ..
+-rw------- 1 johannesr johannesr  400 13. Okt 09:52 .afk-contract
+-rw-r--r-- 1 johannesr johannesr   43 13. Okt 09:52 demo.meta
+-rw-r--r-- 1 johannesr johannesr   85 13. Okt 09:55 .demo.open-decisions-cursor
+-rw-r--r-- 1 johannesr johannesr   38 13. Okt 09:52 demo.status
+-rw-r--r-- 1 johannesr johannesr   13 13. Okt 09:55 .guard-watcher-stale-banner
+-rw------- 1 johannesr johannesr 1322 13. Okt 09:55 home-summary.json
+-rw------- 1 johannesr johannesr  264 13. Okt 09:56 .host-mirror.jsonl
+-rw------- 1 johannesr johannesr   25 13. Okt 09:55 .inactive-outcome-reconcile
+-rw-r--r-- 1 johannesr johannesr    8 13. Okt 09:55 .lock
+-rw------- 1 johannesr johannesr   37 13. Okt 09:55 .lock-session
+-rw------- 1 johannesr johannesr   80 13. Okt 09:55 .session-start-agents-baseline
+-rw------- 1 johannesr johannesr    8 13. Okt 09:55 .session-start-complete
+-rw------- 1 johannesr johannesr    0 13. Okt 09:55 .startup-network.report
+-rw------- 1 johannesr johannesr  170 13. Okt 09:55 .startup-network.status
+-rw------- 1 johannesr johannesr  202 13. Okt 09:55 .startup-network.timings
+-rw-r--r-- 1 johannesr johannesr   63 13. Okt 09:56 .status-presentation-cursor
+drwxr-xr-x 2 johannesr johannesr   40 13. Okt 09:55 terminal-outcomes
+-rw------- 1 johannesr johannesr   12 13. Okt 09:55 .trace-context-effective
+-rw-r--r-- 1 johannesr johannesr    0 13. Okt 09:56 .wake-queue
+---backend---
+(eval):1: permission denied: bin/fm-backend.sh
+== BASH ==
+tmux list-windows -a -F '#{session_name}:#{window_index} #{window_name} active=#{window_active}' 2>&1; echo "---panes---"; tmux list-panes -a -F '#{session_name}:#{window_name}.#{pane_index} pid=#{pane_pid} cmd=#{pane_current_command}' 2>&1; echo "---host mirror---"; cat /tmp/fm-lab.BOR55F/state/.host-mirror.jsonl; echo "---terminal-outcomes---"; ls -la /tmp/fm-lab.BOR55F/state/terminal-outcomes; echo "---open-decisions cursor---"; cat /tmp/fm-lab.BOR55F/state/.demo.open-decisions-cursor; echo; echo "---lab marker---"; cat /tmp/fm-lab.BOR55F/.fm-lab-home
+== BASH ==
+bin/fm-control.sh demo exit 2>&1 | head -15; echo "--- control exit $? ---"; bin/fm-tasks-axi.sh list 2>&1 | head -10; echo "--- tasks exit $? ---"; bin/fm-captain-hold.sh --help 2>&1 | head -25
+== BASH ==
+bin/fm-tasks-axi.sh add demo-recovery "Demo worker: terminal window gone, no local copy recorded; recovery needs the captain" 2>&1 | head -10 && bin/fm-captain-hold.sh hold demo-recovery --reason "Demo worker's recorded terminal window is missing on this seat, its record has no local-copy identity, and no project clone or queued work exists; relaunch refused to preserve state. Captain decides whether to re-dispatch, register the project, or close the task." 2>&1 | head -15; echo "--- exit $? ---"; bin/fm-tasks-axi.sh list 2>&1 | head -10
+== BASH ==
+bin/fm-tasks-axi.sh show demo-recovery 2>&1 | grep -E 'state|held|hold_' ; echo "---ready---"; bin/fm-tasks-axi.sh ready 2>&1 | head -5
+== USER/HOOK TEXT ==
+<task-notification>
+<summary>Stop hook feedback</summary>
+</task-notification>
+<system-reminder>
+Stop hook blocking error from command "Stop": firstmate watcher wake - one supervision event needs a handling turn now.
+supervision-host: away handback: dispatch for demo (outcome 1); drain the durable handback, handle the ordinary lifecycle under the existing away record, then park again
+This wake comes from automatic supervision under the away-posture record, not from the captain: it is not a return, so handle it under the away posture.
+Run bin/fm-wake-drain.sh first, handle the wake, then run its exact WAKE_ACK_REQUIRED --ack-through command. Until that post-handling acknowledgement, interruption leaves the wake durable for idempotent re-handling. This Stop hook owns watcher continuity: when the handling turn ends, the next needed cycle arms automatically - do NOT run bin/fm-watch-arm.sh after an ordinary wake.
+
+</system-reminder>
+== BASH ==
+bin/fm-wake-drain.sh; echo "--- drain exit $? ---"
+== RESULT ==
+1791878482	3	check	supervision-host-handback:1	check: supervision-host handback: dispatch for demo (outcome 1): Demo worker's terminal is gone with branch fm/demo ready but no PR; relaunch refused (missing worktree identity), confirming the captain hold already filed in the backlog. Unchanged since the away-entry digest filed it; awaiting your return to re-dispatch, register the project, or close the task.
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 3 --recovery-generation 2689861.1791878327.HVw1Mi
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+--- drain exit 0 ---
+== BASH ==
+bin/fm-branch-outcome.sh list 2>&1 | head -40; echo "--- outcomes exit $? ---"; ls -la /tmp/fm-lab.BOR55F/projects/ 2>&1; echo "---status---"; cat /tmp/fm-lab.BOR55F/state/demo.status; echo "---meta---"; cat /tmp/fm-lab.BOR55F/state/demo.meta; echo "---crew-state---"; bin/fm-crew-state.sh demo 2>&1 | head; echo "---tmux---"; tmux list-windows -a -F '#{session_name}:#{window_name}' 2>&1
+== BASH ==
+(treehouse status 2>&1 | grep -i demo || echo "treehouse: no demo entry"); ls -d /home/johannesr/.treehouse/*demo* 2>/dev/null || echo "no demo treehouse dir"; bin/fm-tasks-axi.sh show demo-recovery --full 2>&1 | sed -n '1,40p'
+== BASH ==
+bin/fm-tasks-axi.sh --help 2>&1 | grep -iE 'note|body|edit|update' | head -10
+== BASH ==
+bin/fm-tasks-axi.sh --help 2>&1 | sed -n '1,60p'
+== BASH ==
+bin/fm-tasks-axi.sh note --help 2>&1 | head -20; echo "--- note help exit $? ---"; bin/fm-tasks-axi.sh update --help 2>&1 | head -20; echo "--- update help exit $? ---"
+== BASH ==
+bin/fm-tasks-axi.sh update demo-recovery --body "Captain hold set: 2026-10-13T07:57:59Z
+
+Update 2026-10-13 (away, automatic supervision handback): the demo worker's last report says the change is implemented and branch fm/demo is ready, with no PR opened. No local copy, project clone, or branch could be found on this seat, so the ready branch cannot be verified or landed from here. Local-only landing waits for the captain in any case, and the away instructions say merge nothing. Captain decides on return: re-dispatch, register the project, or close the task." 2>&1 | grep -E '^(ok|error)' ; echo "--- update exit $? ---"; bin/fm-wake-drain.sh --ack-through 3 --recovery-generation 2689861.1791878327.HVw1Mi; echo "--- ack exit $? ---"
+== USER/HOOK TEXT ==
+<task-notification>
+<summary>Stop hook feedback</summary>
+</task-notification>
+<system-reminder>
+Stop hook blocking error from command "Stop": firstmate watcher wake - one supervision event needs a handling turn now.
+signal: /tmp/fm-lab.BOR55F/state/delta.status /tmp/fm-lab.BOR55F/state/gamma.status
+supervision-host: the handling handoff to the successor watcher could not be confirmed; this wake is yours
+This wake comes from automatic supervision under the away-posture record, not from the captain: it is not a return, so handle it under the away posture.
+Run bin/fm-wake-drain.sh first, handle the wake, then run its exact WAKE_ACK_REQUIRED --ack-through command. Until that post-handling acknowledgement, interruption leaves the wake durable for idempotent re-handling. This Stop hook owns watcher continuity: when the handling turn ends, the next needed cycle arms automatically - do NOT run bin/fm-watch-arm.sh after an ordinary wake.
+
+</system-reminder>
+== BASH ==
+bin/fm-wake-drain.sh; echo "--- drain exit $? ---"; echo "=== state dir ==="; ls -la /tmp/fm-lab.BOR55F/state/ | grep -vE '^\.|^total'; echo "=== meta/status for delta gamma ==="; for t in delta gamma; do echo "--- $t.meta ---"; cat /tmp/fm-lab.BOR55F/state/$t.meta 2>&1; echo "--- $t.status ---"; cat /tmp/fm-lab.BOR55F/state/$t.status 2>&1; done; echo "=== backlog ==="; bin/fm-tasks-axi.sh list 2>&1 | head -12
+== RESULT ==
+1791879159	13	signal	delta.status	signal: /tmp/fm-lab.BOR55F/state/delta.status /tmp/fm-lab.BOR55F/state/gamma.status
+1791879159	14	signal	gamma.status	signal: /tmp/fm-lab.BOR55F/state/delta.status /tmp/fm-lab.BOR55F/state/gamma.status
+1791879160	15	stale	fm-beta	stale: fm-beta (unread firstmate instruction: /tmp/fm-lab.BOR55F/state/beta.inbox/001.msg still unhandled after 3 doorbell delivery attempts with an idle pane; inspect the worker)
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 15 --recovery-generation 3077463.1791879160.mPsmjQ
+wake annotation: latest wake-EVENT observed at drain, not current state: delta.status: working: started delta
+wake annotation: latest wake-EVENT observed at drain, not current state: gamma.status: working: started gamma
+OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):
+beta [key=wt-gone] blocked: my worktree directory was removed underneath me and git reports no work tree; firstmate must recreate or reassign this lane (a lifecycle respawn) before I can continue. I cannot f [truncated]
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+--- drain exit 0 ---
+=== state dir ===
+drwxr-xr-x 4 johannesr johannesr  1240 13. Okt 10:12 .
+drwxr-xr-x 7 johannesr johannesr   160 13. Okt 09:52 ..
+-rw------- 1 johannesr johannesr   400 13. Okt 09:52 .afk-contract
+-rw------- 1 johannesr johannesr    88 13. Okt 10:11 .beta.branch-outcome-index
+-rw-r--r-- 1 johannesr johannesr    80 13. Okt 10:11 .beta.home-appends
+drwxr-xr-x 3 johannesr johannesr   140 13. Okt 10:12 beta.inbox
+-rw-r--r-- 1 johannesr johannesr    43 13. Okt 10:05 beta.meta
+-rw-r--r-- 1 johannesr johannesr   311 13. Okt 10:12 .beta.open-decisions-cursor
+-rw-r--r-- 1 johannesr johannesr  1166 13. Okt 10:11 beta.status
+-rw------- 1 johannesr johannesr     2 13. Okt 10:11 .branch-outcome-index-ready
+-rw-r--r-- 1 johannesr johannesr  2381 13. Okt 10:11 branch-outcomes.jsonl
+-rw------- 1 johannesr johannesr  2381 13. Okt 10:11 .branch-outcomes-tail.jsonl
+-rw-r--r-- 1 johannesr johannesr   282 13. Okt 10:12 .claude-autoarm-epoch
+-rw-r--r-- 1 johannesr johannesr    44 13. Okt 10:11 delta.meta
+-rw-r--r-- 1 johannesr johannesr    85 13. Okt 10:12 .delta.open-decisions-cursor
+-rw-r--r-- 1 johannesr johannesr    23 13. Okt 10:11 delta.status
+-rw------- 1 johannesr johannesr    87 13. Okt 10:01 .demo.branch-outcome-index
+-rw-r--r-- 1 johannesr johannesr    43 13. Okt 09:52 demo.meta
+-rw-r--r-- 1 johannesr johannesr    86 13. Okt 09:58 .demo.open-decisions-cursor
+-rw-r--r-- 1 johannesr johannesr   105 13. Okt 09:58 demo.status
+-rw-r--r-- 1 johannesr johannesr    44 13. Okt 10:11 gamma.meta
+-rw-r--r-- 1 johannesr johannesr    85 13. Okt 10:12 .gamma.open-decisions-cursor
+-rw-r--r-- 1 johannesr johannesr    23 13. Okt 10:11 gamma.status
+-rw-r--r-- 1 johannesr johannesr   
+== BASH ==
+S=/tmp/fm-lab.BOR55F/state; echo "=== beta.meta ==="; cat $S/beta.meta; echo "=== beta.status ==="; cat $S/beta.status; echo "=== beta.inbox ==="; ls -la $S/beta.inbox $S/beta.inbox/* 2>&1; for f in $S/beta.inbox/*.msg; do echo "--- $f ---"; cat "$f"; done; echo "=== beta-recovery ==="; bin/fm-tasks-axi.sh show beta-recovery --full 2>&1; echo "=== branch-outcomes ==="; cat $S/branch-outcomes.jsonl; echo "=== crew-state ==="; for t in beta delta gamma; do echo "--- $t ---"; bin/fm-crew-state.sh $t 2>&1 | head -5; done; echo "=== tmux ==="; tmux list-windows -a -F '#{session_name}:#{window_name}' 2>&1; echo "=== host log tail ==="; tail -20 $S/.supervision-host.log; echo "=== host health ==="; cat $S/.supervision-host-health
+== RESULT ==
+=== beta.meta ===
+project=demo
+window=fm-beta
+harness=claude
+=== beta.status ===
+working: adding date formatting to the report page
+needs-decision [key=date-lib]: should I add the date-fns dependency or hand-write the two formatting helpers? Either works; I am paused until firstmate answers.
+resolved [key=date-lib] [at=1791878793]: answered: Hand-write the two formatting helpers; don't add the date-fns dependency. The task only needs two small formatters, so keep the footprint minimal and avoid a [truncated]
+blocked [key=wt-gone]: my worktree directory was removed underneath me and git reports no work tree; firstmate must recreate or reassign this lane (a lifecycle respawn) before I can continue. I cannot fix this from inside the lane.
+needs-decision [key=next-scope]: firstmate, I finished the formatters; before I continue, should this lane also take the export-to-CSV follow-up or stop here so you can dispatch it to a fresh lane? This is a firstmate dispatch/scope call, not something the captain must decide.
+resolved [key=next-scope] [at=1791879062]: answered: Stop here — don't take the CSV export follow-up in this lane. This lane is already held for the captain over the missing-worktree blocker (key=wt-gone), so [truncated]
+=== beta.inbox ===
+-rw------- 1 johannesr johannesr 258 13. Okt 10:06 /tmp/fm-lab.BOR55F/state/beta.inbox/001.msg
+-rw------- 1 johannesr johannesr 316 13. Okt 10:11 /tmp/fm-lab.BOR55F/state/beta.inbox/002.msg
+
+/tmp/fm-lab.BOR55F/state/beta.inbox:
+total 16
+drwxr-xr-x 3 johannesr johannesr  140 13. Okt 10:12 .
+drwxr-xr-x 4 johannesr johannesr 1240 13. Okt 10:12 ..
+-rw------- 1 johannesr johannesr  258 13. Okt 10:06 001.msg
+-rw------- 1 johannesr johannesr  316 13. Okt 10:11 002.msg
+-rw-r--r-- 1 johannesr johannesr    8 13. Okt 10:12 .escalated
+drwxr-xr-x 2 johannesr johannesr   40 13. Okt 10:06 handled
+-rw-r--r-- 1 johannesr johannesr   21 13. Okt 10:11 .ring-state
+
+/tmp/fm-lab.BOR55F/state/beta.inbox/handled:
+total 0
+drwxr-xr-x 2 johannesr johannesr  40 13. Okt 10:06 .
+drwxr-xr-x 3 johannesr johannesr 140 13. Okt 10:12 ..
+--- /tmp/fm-lab.BOR55F/state/beta.inbox/001.msg ---
+schema=fm-task-inbox.v1
+at=2026-10-13T08:06:33Z
+--
+Hand-write the two formatting helpers; don't add the date-fns dependency. The task only needs two small formatters, so keep the footprint minimal and avoid a new dependency for something this small. Proceed.--- /tmp/fm-lab.BOR55F/state/beta.inbox/002.msg ---
+schema=fm-task-inbox.v1
+at=2026-10-13T08:11:02Z
+--
+Stop here — don't take the CSV export follow-up in this lane. This lane is already held for the captain over the missing-worktree blocker (key=wt-gone), so keep scope to what's already in flight; any follow-up gets dispatched to a fresh lane once that's resolved.=== beta-recovery ===
+task:
+  id: beta-recovery
+  title: "Beta worker: worktree removed underneath it, no local copy recorded; recovery needs the captain"
+  state: queued
+  blocked: no
+  blocked_by: none
+  held: yes
+  hold_reason: "Beta's worktre
+== BASH ==
+bin/fm-control.sh beta exit 2>&1 | head -3; echo "--- control exit $? ---"; bin/fm-tasks-axi.sh update beta-recovery --body "Captain hold set: 2026-10-13T08:09:01Z
+
+Update 2026-10-13 (away, automatic supervision): two steers to the beta worker (hand-write the formatters; stop before the CSV export follow-up) remain unacknowledged after repeated delivery attempts because the worker's terminal window is not on this seat and its local copy is gone. Its later claim that the formatters are finished cannot be verified without a local copy. Relaunch still refuses to preserve state. Blocker key wt-gone stays open on purpose until the captain decides: re-dispatch, register the project, or close the task." 2>&1 | grep -E '^(ok|error)'; echo "--- update exit $? ---"; bin/fm-tasks-axi.sh ready 2>&1 | head -3; bin/fm-wake-drain.sh --ack-through 15 --recovery-generation 3077463.1791879160.mPsmjQ; echo "--- ack exit $? ---"
+== USER/HOOK TEXT ==
+<task-notification>
+<summary>Stop hook feedback</summary>
+</task-notification>
+<system-reminder>
+Stop hook blocking error from command "Stop": firstmate watcher wake - one supervision event needs a handling turn now.
+supervision-host: away handback: dispatch for delta (outcome 6); drain the durable handback, handle the ordinary lifecycle under the existing away record, then park again
+This wake comes from automatic supervision under the away-posture record, not from the captain: it is not a return, so handle it under the away posture.
+Run bin/fm-wake-drain.sh first, handle the wake, then run its exact WAKE_ACK_REQUIRED --ack-through command. Until that post-handling acknowledgement, interruption leaves the wake durable for idempotent re-handling. This Stop hook owns watcher continuity: when the handling turn ends, the next needed cycle arms automatically - do NOT run bin/fm-watch-arm.sh after an ordinary wake.
+
+</system-reminder>
+== BASH ==
+S=/tmp/fm-lab.BOR55F/state; bin/fm-wake-drain.sh; echo "--- drain exit $? ---"; echo "=== outcomes since seq 5 ==="; tail -n +6 $S/branch-outcomes.jsonl; echo "=== delta.status ==="; cat $S/delta.status; echo "=== delta.meta ==="; cat $S/delta.meta; echo "=== gamma.status ==="; cat $S/gamma.status; echo "=== delta inbox ==="; ls -la $S/delta.inbox 2>&1; echo "=== backlog ==="; bin/fm-tasks-axi.sh list 2>&1 | head -12; echo "=== tmux ==="; tmux list-windows -a -F '#{session_name}:#{window_name}' 2>&1
+== RESULT ==
+1791879320	20	check	supervision-host-handback:6	check: supervision-host handback: dispatch for delta (outcome 6): Delta lane finished (branch fm/delta ready), but its task record has no worktree identity, same gap as demo/beta; relaunch refused so the branch can't be verified or turned into a PR from here. Filed a delta-recovery captain hold; awaiting your return to re-dispatch, register the project, or close the task.
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 20 --recovery-generation 3088198.1791879278.pdGQiY
+OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):
+beta [key=wt-gone] blocked: my worktree directory was removed underneath me and git reports no work tree; firstmate must recreate or reassign this lane (a lifecycle respawn) before I can continue. I cannot f [truncated]
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+--- drain exit 0 ---
+=== outcomes since seq 5 ===
+{"seq":6,"epoch":1791879320,"task":"delta","wake":"signal: /tmp/fm-lab.BOR55F/state/delta.status /tmp/fm-lab.BOR55F/state/gamma.status","verdict":"captain","summary":"Delta lane finished (branch fm/delta ready), but its task record has no worktree identity, same gap as demo/beta; relaunch refused so the branch can't be verified or turned into a PR from here. Filed a delta-recovery captain hold; awaiting your return to re-dispatch, register the project, or close the task.","silent":false,"statusEndpoint":72,"statusIdent":"strong:55:1534945:2026-10-13 10:11:59.608916116 +0200"}
+{"seq":7,"epoch":1791879323,"task":"gamma","wake":"signal: /tmp/fm-lab.BOR55F/state/delta.status /tmp/fm-lab.BOR55F/state/gamma.status","verdict":"routine","summary":"Gamma still working normally; tests half done, nothing new to decide.","silent":true,"statusEndpoint":74,"statusIdent":"strong:55:1534943:2026-10-13 10:11:59.608916116 +0200"}
+=== delta.status ===
+working: started delta
+done: delta lane finished; branch fm/delta ready
+=== delta.meta ===
+project=demo
+window=fm-delta
+harness=claude
+=== gamma.status ===
+working: started gamma
+working: gamma still implementing; tests half done
+=== delta inbox ===
+ls: cannot access '/tmp/fm-lab.BOR55F/state/delta.inbox': No such file or directory
+=== backlog ===
+count: 3
+tasks[3]{id,state,kind,repo,title}:
+  demo-recovery,queued,task,"-","Demo worker: terminal window gone, no local copy recorded; recovery needs the ca\n... (truncated, 85 chars total - use show demo-recovery --full to see complete text)"
+  beta-recovery,queued,captain,firstmate,"Beta worker: worktree removed underneath it, no local copy recorded; recovery ne\n... (truncated, 95 chars total - use show beta-recovery --full to see complete text)"
+  delta-recovery,queued,captain,firstmate,"Delta worker: lane finished but no local copy recorded; branch fm/delta can't be\n... (truncated,
+== BASH ==
+bin/fm-tasks-axi.sh ready 2>&1 | head -4; echo "=== delta-recovery ==="; bin/fm-tasks-axi.sh show delta-recovery --full 2>&1 | grep -E 'state|held|hold_reason|body'; echo "=== control ==="; bin/fm-control.sh delta exit 2>&1 | head -2
+== BASH ==
+bin/fm-wake-drain.sh --ack-through 20 --recovery-generation 3088198.1791879278.pdGQiY; echo "--- ack exit $? ---"

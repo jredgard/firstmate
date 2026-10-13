@@ -1,0 +1,13 @@
+1791878297	start	gen=host-2689551-1791878297	primary=claude
+1791878491	handled	turn=host-2689551-1791878297.1	posture=away	rc=0	reports=1	error=0 cost=0.328013 conversation_cost=0.328013 input=44 cache_read=525264 cache_write=36917 output=13058 turns=22	signal: /tmp/fm-lab.BOR55F/state/demo.status
+1791878492	to-main	away handback: dispatch for demo (outcome 1); drain the durable handback, handle the ordinary lifecycle under the existing away record, then park again
+1791878550	start	gen=host-2883119-1791878550	primary=claude
+1791878677	handled	turn=host-2883119-1791878550.1	posture=away	rc=0	reports=1	error=0 cost=0.205323 conversation_cost=0.533336 input=26 cache_read=552267 cache_write=12699 output=6307 turns=13	check: rearm-resurface
+1791878812	handled	turn=host-2883119-1791878550.2	posture=away	rc=0	reports=1	error=0 cost=0.176587 conversation_cost=0.709923 input=20 cache_read=534672 cache_write=8245 output=4900 turns=10	signal: /tmp/fm-lab.BOR55F/state/beta.status
+1791878955	handled	turn=host-2883119-1791878550.3	posture=away	rc=0	reports=1	error=0 cost=0.182474 conversation_cost=0.892397 input=22 cache_read=681600 cache_write=7980 output=2616 turns=11	signal: /tmp/fm-lab.BOR55F/state/beta.status
+1791879081	handled	turn=host-2883119-1791878550.4	posture=away	rc=0	reports=1	error=0 cost=0.159478 conversation_cost=1.051875 input=14 cache_read=484873 cache_write=6606 output=4596 turns=7	signal: /tmp/fm-lab.BOR55F/state/beta.status
+1791879160	to-main	the handling handoff to the successor watcher could not be confirmed; this wake is yours
+1791879216	start	gen=host-3088013-1791879216	primary=claude
+1791879329	handled	turn=host-3088013-1791879216.1	posture=away	rc=0	reports=2	error=0 cost=0.193256 conversation_cost=1.245131 input=18 cache_read=684750 cache_write=6596 output=3978 turns=9	signal: /tmp/fm-lab.BOR55F/state/delta.status /tmp/fm-lab.BOR55F/state/gamma.status
+1791879329	to-main	away handback: dispatch for delta (outcome 6); drain the durable handback, handle the ordinary lifecycle under the existing away record, then park again
+1791879358	start	gen=host-3138124-1791879358	primary=claude

@@ -1,0 +1,47 @@
+ok - report surface: only the branch actor's current turn may report, and only on the tasks its wake names
+ok - report surface: visible late outcomes queue a relay, while silent outcomes remain stored without a wake or note
+(node:2332425) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/johannesr/.no-mistakes/worktrees/e0341a3b611a/01M4T2CBEMQPMYP0V1NJ4V6B9W/.pi/extensions/lib/fm-branch-dispatch.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/johannesr/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2332437) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/johannesr/.no-mistakes/worktrees/e0341a3b611a/01M4T2CBEMQPMYP0V1NJ4V6B9W/.pi/extensions/lib/fm-branch-dispatch.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/johannesr/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2332485) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/johannesr/.no-mistakes/worktrees/e0341a3b611a/01M4T2CBEMQPMYP0V1NJ4V6B9W/.pi/extensions/lib/fm-branch-dispatch.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/johannesr/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2332501) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/johannesr/.no-mistakes/worktrees/e0341a3b611a/01M4T2CBEMQPMYP0V1NJ4V6B9W/.pi/extensions/lib/fm-branch-dispatch.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/johannesr/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2332512) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/johannesr/.no-mistakes/worktrees/e0341a3b611a/01M4T2CBEMQPMYP0V1NJ4V6B9W/.pi/extensions/lib/fm-branch-dispatch.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/johannesr/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2332537) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/johannesr/.no-mistakes/worktrees/e0341a3b611a/01M4T2CBEMQPMYP0V1NJ4V6B9W/.pi/extensions/lib/fm-branch-dispatch.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/johannesr/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2332546) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/johannesr/.no-mistakes/worktrees/e0341a3b611a/01M4T2CBEMQPMYP0V1NJ4V6B9W/.pi/extensions/lib/fm-branch-dispatch.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/johannesr/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2332567) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///home/johannesr/.no-mistakes/worktrees/e0341a3b611a/01M4T2CBEMQPMYP0V1NJ4V6B9W/.pi/extensions/lib/fm-branch-dispatch.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /home/johannesr/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ok - dispatch entry: the host reads branch eligibility, the offer rule, and the wake prompt from the Pi branch's own owner
+ok - away reports: progress, resolved decisions and captain holds stay parked; terminal outcomes, freed slots and unanswered input hand back
+ok - away merge handback: only the exact reported lane receives a derived dispatch
+ok - away dispatch handback: derived terminal reports collapse per turn and task while explicit actions and outcomes survive
+ok - away handback: MAIN work survives engine acknowledgement and a dropped close, then the same posture resumes routine supervision
+ok - away worker input reaches MAIN, while explicit captain-owned holds stay for return
+ok - away handback: the engine acknowledges other handled lanes first; MAIN drains only the named handback lane
+ok - away handback: receipt and pending-row paths preserve all lanes and actions in one reason line
+ok - host: an away wake is handled on the engine through the branch contract and never reaches main
+ok - host: an unchanged held outcome reaches the captain once across cadences, and a later decision on the task still does
+ok - host: a captain return during an engine turn hands that turn's outcomes to main
+ok - host: an attended wake the branch may take is handled on the engine, and its routine outcome never wakes main
+ok - host: a turn that reports but leaves its granted rows queued hands the wake to main

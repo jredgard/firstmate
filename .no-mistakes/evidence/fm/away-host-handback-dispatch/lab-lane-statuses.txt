@@ -1,0 +1,16 @@
+== demo.status
+working: implementing the demo change
+done: demo change implemented; branch fm/demo ready, PR not opened
+== beta.status
+working: adding date formatting to the report page
+needs-decision [key=date-lib]: should I add the date-fns dependency or hand-write the two formatting helpers? Either works; I am paused until firstmate answers.
+resolved [key=date-lib] [at=1791878793]: answered: Hand-write the two formatting helpers; don't add the date-fns dependency. The task only needs two small formatters, so keep the footprint minimal and avoid a [truncated]
+blocked [key=wt-gone]: my worktree directory was removed underneath me and git reports no work tree; firstmate must recreate or reassign this lane (a lifecycle respawn) before I can continue. I cannot fix this from inside the lane.
+needs-decision [key=next-scope]: firstmate, I finished the formatters; before I continue, should this lane also take the export-to-CSV follow-up or stop here so you can dispatch it to a fresh lane? This is a firstmate dispatch/scope call, not something the captain must decide.
+resolved [key=next-scope] [at=1791879062]: answered: Stop here — don't take the CSV export follow-up in this lane. This lane is already held for the captain over the missing-worktree blocker (key=wt-gone), so [truncated]
+== gamma.status
+working: started gamma
+working: gamma still implementing; tests half done
+== delta.status
+working: started delta
+done: delta lane finished; branch fm/delta ready

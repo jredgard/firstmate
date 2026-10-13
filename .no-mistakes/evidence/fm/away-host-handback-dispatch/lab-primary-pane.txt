@@ -1,0 +1,29 @@
+● Stop hook feedback
+● Captain, another automatic supervision notification under your away record, now naming two workers I have not seen before. Draining first.
+  Ran 3 shell commands
+● Captain, the notification is handled under your away record and nothing was merged or dispatched. Ending this turn so supervision parks.
+  What came in:
+  - Two new workers, delta and gamma, on the demo project report only that they have started. That is routine progress and needs nothing from you.
+  - The beta worker could not be reached with two answers the away supervision already gave it: hand-write the date formatters, and stop before the CSV export follow-up. Its terminal window is not on
+    this seat and its local copy was removed underneath it, so those answers sit undelivered. Its later claim that the formatters are finished cannot be checked without a local copy.
+  What I did: confirmed a relaunch is refused to protect whatever work exists, added that evidence to the beta recovery task already held for your return, and acknowledged the notifications. Beta's
+  missing-copy blocker stays open on purpose so it shows in your return brief.
+  Waiting for you on return: two held recovery decisions, one for the demo task and one for beta. For each, decide whether to re-dispatch, register the project first, or close the task. No queued work
+  is ready to send, so your instruction to send the next task when a lane finishes has nothing to act on yet.
+✻ Cooked for 56s · done 10:13
+● Stop hook feedback
+● Captain, another automatic handback under your away record, this time about the delta worker. Draining first.
+  Ran 2 shell commands
+● Nothing is ready to dispatch and the delta hold is already filed correctly, so the only remaining step is acknowledging the wake.
+  Ran 1 shell command
+● Captain, the delta handback is handled and acknowledged under your away record. Ending this turn so supervision parks.
+  What came in: the delta worker reports its lane finished with a branch ready, but no PR. Like demo and beta, its record has no local copy on this seat, so the branch cannot be verified, pushed, or
+  turned into a PR from here. The gamma worker is still implementing with tests half done, which is routine.
+  What I did: confirmed a relaunch is refused to protect the work, confirmed the away supervision had already filed a delta recovery task held for your return, and acknowledged the notification.
+  Nothing was merged. No queued work is ready to send, so your instruction to send the next task when a lane finishes still has nothing to act on.
+  Waiting for you on return: three held recovery decisions, for demo, beta, and delta. For each, decide whether to re-dispatch, register the project first, or close the task.
+✻ Baked for 28s · done 10:15
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents
