@@ -567,6 +567,21 @@ def verify_build_policy(org: str, pr_id: str) -> None:
         )
 
 
+def nm_skip_valid(value: str) -> bool:
+    # Standalone counterpart of bin/fm-dod-lib.sh's fm_nm_skip_valid owner:
+    # this file is vendored alone as standard-library-only Python, so it must
+    # not source sibling scripts; the test battery pins parity with the owner.
+    if value in ("", "lint"):
+        return True
+    print(
+        f"error: fm-pr-report-compact: invalid no-mistakes skip '{value}'; "
+        "use lint only, or an empty value for no skips; "
+        "all other steps cannot be skipped at intake",
+        file=sys.stderr,
+    )
+    return False
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -581,11 +596,7 @@ def main() -> int:
     ):
         print(__doc__, file=sys.stderr)
         return 2
-    if subprocess.run(
-        ["bash", "-c", '. "$1"; fm_nm_skip_valid "$2" fm-pr-report-compact',
-         "_", os.path.join(os.path.dirname(os.path.abspath(__file__)), "fm-dod-lib.sh"),
-         args.nm_skip],
-    ).returncode != 0:
+    if not nm_skip_valid(args.nm_skip):
         return 2
     skips = {args.nm_skip} if args.nm_skip else set()
 
