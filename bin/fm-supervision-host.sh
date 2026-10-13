@@ -916,6 +916,11 @@ handle_wake() {  # <reason-lines>
   printf 'turn=%s\nrows=%s\ntasks=%s\nunscoped=%s\nwake=%s\nposture=%s\n' \
     "$turn" "$rows" "$tasks" "${unscoped:-0}" "$first" "$TURN_POSTURE" > "$TURN_FILE"
   if [ "$TURN_POSTURE" = away ]; then
+    awk -F '\t' -v rows="$rows" '
+      BEGIN { n = split(rows, list, " "); for (i = 1; i <= n; i++) want[list[i]] = 1 }
+      $2 in want && $3 == "check" { print "check=" $5 }
+    ' "$STATE/.wake-queue" >> "$TURN_FILE" \
+      || { HANDLE_WHY="the granted check rows could not be recorded"; return 1; }
     _fm_wake_require_classify
     signal_keys=$(awk -F '\t' -v rows="$rows" '
       BEGIN { n = split(rows, list, " "); for (i = 1; i <= n; i++) want[list[i]] = 1 }

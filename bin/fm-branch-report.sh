@@ -155,10 +155,12 @@ if [ "$(turn_field posture)" = away ] && fm_afk_contract_away_present "$STATE"; 
   TRIGGER=''
   case "$ACTION" in
     dispatch) TRIGGER=teardown ;;
-    decision) TRIGGER=$(turn_field wake) ;;
+    decision) TRIGGER=decision ;;
   esac
   TERMINAL_EVENT=''
-  case "$(turn_field wake)" in 'check: merge landed: '"$TASK"' '*) TERMINAL_EVENT='merge landed' ;; esac
+  if awk -v task="$TASK" 'index($0, "check=check: merge landed: " task " ") == 1 { found=1 } END { exit !found }' "$TURN_FILE"; then
+    TERMINAL_EVENT='merge landed'
+  fi
   EVENTS=$(awk -F '\t' -v task="$TASK" '$1 == "event=" task { sub(/^[^\t]*\t/, ""); print }' "$TURN_FILE")
   if [ "$TASK" != fleet ]; then
     while IFS= read -r EVENT; do
@@ -171,9 +173,9 @@ EOF
       *" $TASK "*) [ -e "$STATE/$TASK.meta" ] || TERMINAL_EVENT=teardown ;;
     esac
   fi
-  [ -z "$TERMINAL_EVENT" ] || TRIGGER=$TERMINAL_EVENT
   if [ -n "$TERMINAL_EVENT" ] && [ "$ACTION" != decision ]; then
     ACTION=dispatch
+    TRIGGER=$TERMINAL_EVENT
     if [ "$MAIN_ACTION" != dispatch ] && [ -f "$RECEIPTS" ] \
       && awk -F '\t' -v turn="$TURN" -v task="$TASK" \
         '$1 == turn && $4 == task && $5 == "dispatch" { found=1 } END { exit !found }' "$RECEIPTS"; then
