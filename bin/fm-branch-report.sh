@@ -23,14 +23,16 @@
 # or captain"); --silent true is legal only for a routine outcome.
 # --wake defaults to the wake reason the host recorded for the turn.
 # --main-action applies only to an away host turn while still away. auto
-# (the default) hands a merge-landed wake, a done task, or a removed scoped
-# task record to MAIN for dispatch, and a still-open needs-decision or blocked
-# record for decision handling. A resolved decision needs no handback.
+# (the default) hands a merge-landed wake, a newly presented done event, or a
+# removed scoped task record to MAIN for dispatch, and a newly presented
+# needs-decision or blocked event that remains open for decision handling.
+# The turn record captures unread signal events before the engine drains them.
 # dispatch also names cleanup or a worker stopped as idle after readiness,
 # including an action found on heartbeat; decision names input the engine
 # declines; captain-hold explicitly leaves a genuinely captain-owned call for
-# return. none is for a handled event with no MAIN work. Dispatch is mandatory
-# for terminal outcomes even when captain-hold or none was requested.
+# return. none skips decision detection for a handled event with no MAIN work.
+# New terminal events hand back even when captain-hold or none was requested;
+# standing lane status never triggers a handback.
 # A handback is a durable check row keyed supervision-host-handback:<seq>,
 # published before acknowledgement, plus a fifth receipt column naming its
 # action. The host exits to MAIN after releasing the turn's leases; a later
@@ -148,20 +150,33 @@ if [ "$(turn_field posture)" = away ] && fm_afk_contract_away_present "$STATE"; 
   . "$SCRIPT_DIR/fm-classify-lib.sh"
   ACTION=$MAIN_ACTION
   STATUS="$STATE/$TASK.status"
-  LAST=$(last_status_line "$STATUS")
   TERMINAL=0
   case "$(turn_field wake)" in 'check: merge landed:'*) TERMINAL=1 ;; esac
+  EVENTS=$(awk -F '\t' -v task="$TASK" '$1 == "event=" task { sub(/^[^\t]*\t/, ""); print }' "$TURN_FILE")
   if [ "$TASK" != fleet ]; then
-    if [ "$(status_line_verb "$LAST")" = 'done' ]; then TERMINAL=1; fi
+    while IFS= read -r EVENT; do
+      if [ "$(status_line_verb "$EVENT")" = done ]; then TERMINAL=1; fi
+    done <<EOF
+$EVENTS
+EOF
     case " $(turn_field tasks) " in
       *" $TASK "*) [ -e "$STATE/$TASK.meta" ] || TERMINAL=1 ;;
     esac
   fi
   if [ "$TERMINAL" -eq 1 ]; then
     ACTION=dispatch
-  elif [ "$ACTION" = auto ] || [ "$ACTION" = none ]; then
+  elif [ "$ACTION" = auto ]; then
     ACTION=none
-    if [ -n "$(status_open_decisions "$STATUS")" ]; then ACTION=decision; fi
+    OPEN=$(status_open_decisions "$STATUS")
+    while IFS= read -r EVENT; do
+      VERB=$(status_line_verb "$EVENT")
+      case "$VERB" in needs-decision|blocked) ;; *) continue ;; esac
+      KEY=$(_fm_decision_key "$EVENT") || continue
+      DECISION=$(printf '%s\t%s\t%s' "$KEY" "$VERB" "$(status_line_note "$EVENT")")
+      case $'\n'"$OPEN"$'\n' in *$'\n'"$DECISION"$'\n'*) ACTION=decision ;; esac
+    done <<EOF
+$EVENTS
+EOF
   fi
 fi
 

@@ -398,25 +398,33 @@ test_report_after_the_return_is_queued_for_main() {
 # --- dispatch entry -----------------------------------------------------------
 
 test_away_report_classifies_main_actions() {
-  local home state scenario action expected out rows
-  for scenario in progress 'done' merged teardown decision blocked resolved hold idle-ready heartbeat freed-slot; do
+  local home state scenario action expected out rows event old_action old_wake wake_index
+  for scenario in progress done merged teardown decision blocked resolved hold decision-none blocked-none done-hold heartbeat freed-slot teardown-due; do
     home=$(make_home "handback-report-$scenario" away)
     state="$home/state"
     printf 'turn=h1\nrows=1\ntasks=demo\nunscoped=0\nwake=signal: demo.status\nposture=away\n' > "$state/.supervision-host-turn"
-    action=auto expected=none
+    action=auto expected=none event=''
     case "$scenario" in
       progress) printf 'working: rebased onto merged work; PR ready later\n' > "$state/demo.status" ;;
-      done) printf 'done [at=1]: ready branch\n' > "$state/demo.status"; expected=dispatch; action=none ;;
+      done) event='done [at=1]: ready branch'; expected=dispatch; action=none ;;
       merged) printf 'turn=h1\nrows=1\ntasks=\nunscoped=1\nwake=check: merge landed: demo https://example.test/o/r/pull/1\nposture=away\n' > "$state/.supervision-host-turn"; expected=dispatch ;;
       teardown) rm "$state/demo.meta"; expected=dispatch ;;
-      decision) printf 'needs-decision [key=d1]: input needed\n' > "$state/demo.status"; expected=decision ;;
-      blocked) printf 'blocked [key=b1]: tooling refusal\n' > "$state/demo.status"; expected=decision ;;
-      resolved) printf 'needs-decision [key=d1]: input needed\nresolved [key=d1]: answered\nworking: resumed\n' > "$state/demo.status" ;;
-      hold) printf 'needs-decision [key=d1]: destructive choice\n' > "$state/demo.status"; action=captain-hold ;;
-      idle-ready) printf 'done: ready branch\n' > "$state/demo.status"; action=captain-hold; expected=dispatch ;;
+      decision) event='needs-decision [key=d1]: input needed'; expected=decision ;;
+      blocked) event='blocked [key=b1]: tooling refusal'; expected=decision ;;
+      resolved) event='needs-decision [key=d1]: input needed' ;;
+      hold) event='needs-decision [key=d1]: destructive choice'; action=captain-hold ;;
+      decision-none) event='needs-decision [key=d1]: input needed'; action=none ;;
+      blocked-none) event='blocked [key=b1]: tooling refusal'; action=none ;;
+      done-hold) event='done: ready branch'; action=captain-hold; expected=dispatch ;;
       heartbeat) printf 'turn=h1\nrows=1\ntasks=\nunscoped=1\nwake=heartbeat\nposture=away\n' > "$state/.supervision-host-turn" ;;
       freed-slot) printf 'turn=h1\nrows=1\ntasks=\nunscoped=1\nwake=heartbeat\nposture=away\n' > "$state/.supervision-host-turn"; action=dispatch; expected=dispatch ;;
+      teardown-due) action=dispatch; expected=dispatch ;;
     esac
+    if [ -n "$event" ]; then
+      printf '%s\n' "$event" > "$state/demo.status"
+      printf 'event=demo\t%s\n' "$event" >> "$state/.supervision-host-turn"
+      [ "$scenario" != resolved ] || printf 'resolved [key=d1]: answered\nworking: resumed\n' >> "$state/demo.status"
+    fi
     out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=h1 "$REPORT" \
       --task demo --verdict captain --summary 'event handled' --main-action "$action" 2>&1) \
       || fail "$scenario: report failed: $out"
@@ -431,6 +439,24 @@ test_away_report_classifies_main_actions() {
     esac
     assert_absent "$state/.branch-outcomes-processed" "$scenario must not process the return outcome"
     [ "$(FM_HOME="$home" "$CONTRACT" mode)" = away ] || fail "$scenario changed the away record"
+  done
+  for scenario in done decision blocked; do
+    for old_action in auto none captain-hold; do
+      wake_index=0
+      for old_wake in 'check: validation still running' 'stale: fm-demo' heartbeat 'signal: demo.turn-ended' 'signal: demo.status'; do
+        wake_index=$((wake_index + 1))
+        home=$(make_home "handback-old-$scenario-$old_action-$wake_index" away)
+        state="$home/state"
+        printf '%s [key=old]: old event\n' "${scenario/decision/needs-decision}" > "$state/demo.status"
+        printf 'turn=h1\nrows=1\ntasks=demo\nunscoped=0\nwake=%s\nposture=away\n' "$old_wake" > "$state/.supervision-host-turn"
+        printf 'event=demo\tworking: new routine event\n' >> "$state/.supervision-host-turn"
+        out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=h1 "$REPORT" \
+          --task demo --verdict captain --summary 'old event still held' --main-action "$old_action" 2>&1) \
+          || fail "old $scenario/$old_action/$old_wake: report failed: $out"
+        rows=$(cat "$state/.wake-queue" 2>/dev/null || true)
+        assert_not_contains "$rows" 'supervision-host-handback:' "old $scenario must not hand back on $old_wake with $old_action"
+      done
+    done
   done
   pass "away reports: progress, resolved decisions and captain holds stay parked; terminal outcomes, freed slots and unanswered input hand back"
 }
@@ -458,8 +484,13 @@ test_away_handback_survives_ack_and_resumes_host_after_main() {
   main_drain_and_ack "$home"
   park_again "$home"
   wait_until 150 watcher_live "$home" || fail "handback: resumed watcher never started"
+  calls=$(handled_count "$home")
+  append_wake "$home/state" check validation 'check: validation still running for demo'
+  wait_until 250 handled_at_least "$home" "$((calls + 1))" || fail "handback: later check was not handled"
+  host_exited "$home" && fail "handback: old done status woke MAIN on a later check"
+  assert_no_grep 'supervision-host-handback:' "$home/state/.wake-queue" "old done status must not queue another handback"
   append_status "$home" 'next worker running'
-  wait_until 250 handled_at_least "$home" 2 || fail "handback: host did not resume after MAIN acknowledged: $(cat "$home/host.out" "$home/main-drain.out" "$home/state/.wake-queue" "$home/state/.supervision-host.log" 2>/dev/null)"
+  wait_until 250 handled_at_least "$home" "$((calls + 2))" || fail "handback: host did not resume after MAIN acknowledged: $(cat "$home/host.out" "$home/main-drain.out" "$home/state/.wake-queue" "$home/state/.supervision-host.log" 2>/dev/null)"
   host_exited "$home" && fail "handback: routine successor woke MAIN"
   watcher=$(cat "$home/state/.watch.lock/pid")
   stop_home_processes "$home"
@@ -468,15 +499,17 @@ test_away_handback_survives_ack_and_resumes_host_after_main() {
 }
 
 test_away_worker_input_handback_and_captain_hold() {
-  local home
-  home=$(make_home away-input-handback away)
-  start_host "$home"
-  wait_until 150 watcher_live "$home" || fail "input: watcher never started"
-  append_status "$home" 'firstmate input needed' needs-decision
-  wait_until 250 host_exited "$home" || fail "input: unanswered decision left MAIN parked"
-  assert_re '^supervision-host: away handback: decision for demo' "$home/host.out" "input wake needs a clear reason"
-  assert_grep 'supervision-host-handback:' "$home/state/.wake-queue" "input wake must stay durable"
-  stop_home_processes "$home"
+  local home verb
+  for verb in needs-decision blocked; do
+    home=$(make_home "away-input-handback-$verb" away)
+    start_host "$home"
+    wait_until 150 watcher_live "$home" || fail "input: watcher never started"
+    append_status "$home" 'firstmate input needed' "$verb"
+    wait_until 250 host_exited "$home" || fail "input: unanswered $verb left MAIN parked"
+    assert_re '^supervision-host: away handback: decision for demo' "$home/host.out" "input wake needs a clear reason"
+    assert_grep 'supervision-host-handback:' "$home/state/.wake-queue" "input wake must stay durable"
+    stop_home_processes "$home"
+  done
 
   home=$(make_home away-captain-hold away)
   echo captain-hold > "$home/stub-main-action"
@@ -486,6 +519,11 @@ test_away_worker_input_handback_and_captain_hold() {
   wait_until 250 handled_at_least "$home" 1 || fail "hold: engine did not handle the event"
   host_exited "$home" && fail "hold: genuine captain call woke MAIN"
   assert_no_grep 'supervision-host-handback:' "$home/state/.wake-queue" "hold must wait for return"
+  rm "$home/stub-main-action"
+  append_status "$home" 'routine work continues'
+  wait_until 250 handled_at_least "$home" 2 || fail "hold: later routine event was not handled"
+  host_exited "$home" && fail "hold: standing decision woke MAIN on a later signal"
+  assert_no_grep 'supervision-host-handback:' "$home/state/.wake-queue" "standing decision must not repeat its handback"
   stop_home_processes "$home"
   pass "away worker input reaches MAIN, while explicit captain-owned holds stay for return"
 }
@@ -497,6 +535,7 @@ test_away_handback_drains_only_the_handed_lane() {
   printf 'project=other\nwindow=fm-other\nharness=claude\n' > "$home/state/other.meta"
   printf 'working: continuing\n' > "$home/state/other.status"
   printf 'done: lane completed\n' > "$home/state/demo.status"
+  printf 'working: validation running\n' >> "$home/state/demo.status"
   # Publish the status presentation once, as the watcher does, before seeding
   # its two rows; otherwise startup also discovers duplicate fixture signals.
   prime_status_seen "$home/state" "$home/state/demo.status"
@@ -3111,17 +3150,6 @@ test_superseded_host_leaves_the_owner_untouched() {
     || fail "superseded: the owner host did not stop on TERM"
   pass "host: a host under a superseded auto-arm generation stands down without touching the owner"
 }
-
-# Named cases permit targeted local verification; no arguments runs the whole
-# suite for CI. Only a function declared by this test script is executable.
-if [ "$#" -gt 0 ]; then
-  for selected_case in "$@"; do
-    case "$selected_case" in test_*) ;; *) fail "unknown test case: $selected_case" ;; esac
-    declare -F "$selected_case" >/dev/null || fail "unknown test case: $selected_case"
-    "$selected_case"
-  done
-  exit 0
-fi
 
 test_claude_stop_hook_restores_handoff_when_successor_closed_before_exit_to_main
 test_claude_stop_hook_restores_handoff_when_successor_closed_mid_engine_turn

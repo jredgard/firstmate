@@ -850,7 +850,7 @@ health_record() {  # <engine-error 0|1> <reports>
 # never a subshell, because it advances the host's grant and turn state.
 handle_wake() {  # <reason-lines>
   local reason=$1 first scope status corrupted rows tasks unscoped rc turn readback
-  local receipts usage result errors unacked mirror
+  local receipts usage result errors unacked mirror signal_keys key events
   LAST_TURN=
   ENGINE_ERROR=0
   HEALTH_NOTE=
@@ -915,6 +915,27 @@ handle_wake() {  # <reason-lines>
   : > "$RECEIPTS"
   printf 'turn=%s\nrows=%s\ntasks=%s\nunscoped=%s\nwake=%s\nposture=%s\n' \
     "$turn" "$rows" "$tasks" "${unscoped:-0}" "$first" "$TURN_POSTURE" > "$TURN_FILE"
+  if [ "$TURN_POSTURE" = away ]; then
+    _fm_wake_require_classify
+    signal_keys=$(awk -F '\t' -v rows="$rows" '
+      BEGIN { n = split(rows, list, " "); for (i = 1; i <= n; i++) want[list[i]] = 1 }
+      $2 in want && $3 == "signal" && !seen[$4]++ { print $4 }
+    ' "$STATE/.wake-queue") || { HANDLE_WHY="the granted signal rows could not be read"; return 1; }
+    while IFS= read -r key; do
+      fm_wake_status_key_map "$key" || continue
+      if [ "$FM_WAKE_STATUS_HISTORICAL" = true ] \
+        && fm_wake_signal_reported_current "$STATE" "$STATE/$FM_WAKE_STATUS_KEY"; then continue; fi
+      events=$(status_new_lines_since_cursor "$STATE/$FM_WAKE_STATUS_KEY") \
+        || { HANDLE_WHY="the granted signal events could not be read"; return 1; }
+      if [ -n "$events" ]; then
+        printf '%s\n' "$events" \
+          | sed "s/^/event=${FM_WAKE_STATUS_KEY%.status}$(printf '\t')/" >> "$TURN_FILE" \
+          || { HANDLE_WHY="the granted signal events could not be recorded"; return 1; }
+      fi
+    done <<EOF
+$signal_keys
+EOF
+  fi
   readback=
   if [ "$TURN_POSTURE" != attended ]; then
     readback=$(mktemp "$STATE/.supervision-host-readback.XXXXXX") || readback=
@@ -958,10 +979,10 @@ handle_wake() {  # <reason-lines>
   if [ "$TURN_POSTURE" = away ]; then
     cat >> "$WAKE_FILE" <<'INSTRUCTIONS'
 
-HOST MAIN HANDBACK: Use bin/fm-branch-report.sh --main-action dispatch for a lane terminal outcome, teardown due or completed, or a worker stopped as idle after a ready signal, including a freed slot found on heartbeat.
-Use --main-action decision for needs-decision or blocked events you do not answer yourself; MAIN applies ask-user-authority and the recorded words.
+HOST MAIN HANDBACK: Use bin/fm-branch-report.sh --main-action dispatch for a new lane terminal event, teardown due or completed, or a newly freed slot, including cleanup discovered on heartbeat.
+Use --main-action decision for new needs-decision or blocked events you do not answer yourself; MAIN applies ask-user-authority and the recorded words.
 Use --main-action captain-hold only when the call genuinely requires the captain; it stays held for return.
-The report's default auto also detects terminal task status and still-open decisions, and terminal outcomes always hand back for dispatch.
+The report's default auto detects newly presented done, needs-decision and blocked signal events, merge-landed wakes and removed scoped task records; standing task status never triggers a handback. Use --main-action none to skip decision detection when no MAIN work remains.
 Report every event separately, acknowledge only the granted rows, release leases, and end the turn; MAIN handles the durable handback under the same away record and then parks again.
 INSTRUCTIONS
   fi
