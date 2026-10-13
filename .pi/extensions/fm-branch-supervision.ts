@@ -1554,7 +1554,7 @@ ${context.command}
         // durable queue keeps every row (bin/fm-lease-lib.sh role-partition).
         const postureTail = afk ? await awayPostureTail() : "";
         try {
-          await session.prompt(branchWakePrompt(message, "fm_branch_report", postureTail));
+          await session.prompt(branchWakePrompt(message, "fm_branch_report", postureTail, "", state));
         } finally {
           wakeTaskScope = null;
         }

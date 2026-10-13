@@ -832,6 +832,68 @@ test_dispatch_entry_scopes_rows_and_renders_the_away_tail() {
 
 # --- host loop ----------------------------------------------------------------
 
+test_herdr_endpoint_bindings_follow_crew_state_metadata() {
+  local home state endpoint out rc
+  home="$TMP_ROOT/herdr-bindings"
+  state="$home/state"
+  mkdir -p "$state"
+  for endpoint in default:w1F:p2 default:w1J:p2 fm-Mosaiq:w8D:p2; do
+    # The old field deliberately diverges from the current one, as after a
+    # metadata update. crew-state's owner reads the last value, not the first.
+    printf 'project=demo\nbackend=herdr\nwindow=old:w0:p1\nwindow=%s\n' "$endpoint" > "$state/demo.meta"
+    : > "$state/.wake-queue"
+    append_wake "$state" stale "$endpoint" "stale: $endpoint"
+    out=$(FM_HOME="$home" node "$DISPATCH" scope --afk) || fail "Herdr scope failed"
+    assert_contains "$out" 'status=safe' "the current recorded endpoint must be claimable"
+    assert_contains "$out" 'tasks=demo' "the endpoint must map to its task"
+    out=$(printf 'stale: %s\n' "$endpoint" | FM_HOME="$home" node "$DISPATCH" offer --afk)
+    assert_contains "$out" 'eligible=1' "the away host must accept the mapped endpoint"
+    out=$(printf 'stale: %s\n' "$endpoint" | FM_HOME="$home" node "$DISPATCH" wake-prompt --report report)
+    assert_contains "$out" "\"endpoint\":\"$endpoint\",\"task\":\"demo\"" "the engine must receive the task binding"
+    # Exercise the exact public shell owner crew-state calls, with no live
+    # Herdr inspection or lifecycle operation.
+    out=$(bash -c '. "$1/bin/fm-backend.sh"; fm_backend_target_of_meta "$2"' _ "$ROOT" "$state/demo.meta")
+    [ "$out" = "$endpoint" ] || fail "host and crew-state target owner disagree"
+  done
+
+  # Prefixes and old pane identities never alias the currently recorded pane.
+  for endpoint in Mosaiq:w8D:p2 old:w0:p1; do
+    : > "$state/.wake-queue"
+    append_wake "$state" stale "$endpoint" "stale: $endpoint"
+    out=$(FM_HOME="$home" node "$DISPATCH" scope --afk 2>&1)
+    assert_contains "$out" 'corrupted=1' "a nonmatching endpoint must fail closed"
+    assert_contains "$out" "\"endpoint\":\"$endpoint\"" "a lookup miss must log its exact address"
+    assert_contains "$out" '"window":"fm-Mosaiq:w8D:p2"' "a miss must log the compared window"
+    assert_contains "$out" '"terminal":""' "a miss must log the compared terminal"
+    assert_contains "$out" "\"state\":\"$state\"" "a miss must identify the scanned home"
+  done
+
+  # Orca's terminal is the target owner even when a legacy window is present.
+  printf 'project=demo\nbackend=orca\nwindow=legacy\nterminal=orca:term-1\n' > "$state/demo.meta"
+  : > "$state/.wake-queue"
+  append_wake "$state" stale orca:term-1 'stale: orca:term-1'
+  out=$(FM_HOME="$home" node "$DISPATCH" scope --afk)
+  assert_contains "$out" 'tasks=demo' "Orca must use crew-state's terminal selection"
+
+  # Two records claiming one endpoint cannot authorize a guessed task.
+  cp "$state/demo.meta" "$state/other.meta"
+  out=$(FM_HOME="$home" node "$DISPATCH" scope --afk 2>&1)
+  assert_contains "$out" 'corrupted=1' "duplicate endpoint ownership must fail closed"
+  assert_contains "$out" '"task":"other"' "the diagnostic must include every conflicting record"
+  out=$(printf 'stale: orca:term-1\n' | FM_HOME="$home" node "$DISPATCH" wake-prompt --report report 2>&1)
+  assert_contains "$out" 'endpoint lookup miss' "an ambiguous prompt must report unproven ownership"
+  rm "$state/other.meta"
+
+  # NUL framing preserves empty fields, equals signs, and spaces in paths.
+  printf 'project=demo=fixture\nkind=secondmate\nbackend=zellij\nwindow=lab:tab:pane\n' > "$state/demo.meta"
+  out=$(bash "$ROOT/bin/fm-endpoint-records.sh" "$state" | python3 -c 'import sys; f=sys.stdin.buffer.read().split(b"\0"); assert len(f)==9 and f[-1]==b""; assert f[2]==b"demo=fixture" and f[6]==b""; print(f[7].decode())')
+  [ "$out" = 'lab:tab:pane' ] || fail "endpoint snapshot lost field framing"
+  rc=0
+  bash "$ROOT/bin/fm-endpoint-records.sh" "$state/absent" >/dev/null 2>&1 || rc=$?
+  [ "$rc" -ne 0 ] || fail "an absent state directory must refuse the snapshot"
+  pass "Herdr endpoint bindings use crew-state's target owner, preserve exact identities, and diagnose misses"
+}
+
 
 # BRANCH OUTCOMES belongs to a home that runs the host off Pi: on a Claude
 # primary that is the default and an `off` file opts out, while another
@@ -3389,6 +3451,7 @@ test_away_handback_survives_ack_and_resumes_host_after_main
 test_away_worker_input_handback_and_captain_hold
 test_away_handback_drains_only_the_handed_lane
 test_away_multiple_handbacks_keep_one_complete_reason_line
+test_herdr_endpoint_bindings_follow_crew_state_metadata
 test_branch_outcomes_only_on_a_host_home_off_pi
 test_branch_outcomes_put_captain_first_and_collapse_routine_overflow
 test_branch_outcomes_collapse_repeated_captain_outcomes_per_task

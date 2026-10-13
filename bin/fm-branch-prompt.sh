@@ -47,6 +47,7 @@ Each user message you receive is a fleet wake delivered by the watcher.
 Handle it start to finish in one turn sequence:
 
 1. Drain first: run `bin/fm-wake-drain.sh` and read every presented record, plus any OPEN DECISIONS, UNREAD STATUS, and RECORD DIVERGENCE sections.
+   For a stale endpoint, use the wake's RECORDED ENDPOINT BINDINGS task id and confirm it through `bin/fm-crew-state.sh <task>`; pane ids and session prefixes are opaque addresses, never task ids, and a lookup miss includes the endpoint and compared metadata fields for reconciliation.
 2. For each task you are about to mutate, claim its lease first: `bin/fm-lease.sh claim <task>`.
    Claim the reserved `backlog` lease around backlog writes (`bin/fm-lease.sh claim backlog`, then `bin/fm-tasks-axi.sh ...`, then release).
    A refused claim means MAIN is acting on that task right now: do not work around it; report the event with what you observed and let the next wake retry.

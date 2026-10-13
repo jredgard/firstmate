@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { lstatSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { runCommandAsync } from "./fm-async-exec.ts";
 
 // Shared wake-dispatch handshake between the Pi watcher extension (the
@@ -82,10 +83,76 @@ export const MAIN_DIALOG_MIRROR_HEADER =
 // fm_branch_report tool on Pi, the bin/fm-branch-report.sh command elsewhere.
 // `mirror` is the host's dialog-mirror feed, empty on Pi and whenever nothing
 // new was said.
-export function branchWakePrompt(message: string, reportSurface: string, postureTail: string, mirror = ""): string {
+export function branchWakePrompt(message: string, reportSurface: string, postureTail: string, mirror = "", state = ""): string {
   const feed = mirror.replace(/\n+$/, "");
   const head = feed ? `${MAIN_DIALOG_MIRROR_HEADER}\n${feed}\n\n` : "";
-  return `${head}FIRSTMATE SUPERVISION WAKE: ${message}\n\nHandle this per your operating procedure and finish with ${reportSurface}.${postureTail}`;
+  const bindings = state ? wakeEndpointContext(state, message) : "";
+  return `${head}FIRSTMATE SUPERVISION WAKE: ${message}${bindings}\n\nHandle this per your operating procedure and finish with ${reportSurface}.${postureTail}`;
+}
+
+interface EndpointRecord {
+  task: string;
+  meta: string;
+  project: string;
+  kind: string;
+  backend: string;
+  window: string;
+  terminal: string;
+  target: string;
+}
+
+// Use the same shell owner as crew-state instead of a second metadata parser.
+function endpointRecords(state: string): EndpointRecord[] {
+  const script = fileURLToPath(new URL("../../../bin/fm-endpoint-records.sh", import.meta.url));
+  const fields = execFileSync("bash", [script, state], { encoding: "utf8", timeout: 10000 }).split("\0");
+  if (fields.pop() !== "" || fields.length % 8 !== 0) throw new Error("invalid endpoint record snapshot");
+  const records: EndpointRecord[] = [];
+  for (let i = 0; i < fields.length; i += 8) {
+    const [task, meta, project, kind, backend, window, terminal, target] = fields.slice(i, i + 8);
+    records.push({ task, meta, project, kind, backend, window, terminal, target });
+  }
+  return records;
+}
+
+function endpointMiss(state: string, endpoint: string, records: EndpointRecord[]): string {
+  const detail = `endpoint lookup miss: ${JSON.stringify({ state, endpoint, compared: records })}`;
+  console.error(detail);
+  return detail;
+}
+
+// A pane address is not a task selector. Carry the exact recorded binding at
+// the wake tail for both hosts; guarded tools still revalidate before acting.
+function wakeEndpointContext(state: string, message: string): string {
+  const keys = new Set<string>();
+  for (const line of message.split(/\r?\n/)) {
+    const key = /^stale:\s+(\S+)/.exec(line)?.[1];
+    if (key) keys.add(key);
+  }
+  try {
+    let queue = "";
+    try {
+      queue = readFileSync(join(state, ".wake-queue"), "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    for (const line of queue.split(/\r?\n/)) {
+      const fields = line.split("\t");
+      if (fields[2] === "stale" && fields[3]) keys.add(fields[3]);
+    }
+    if (keys.size === 0) return "";
+    const records = endpointRecords(state);
+    const lines = [...keys].map((endpoint) => {
+      const matches = records.filter((record) => record.target === endpoint);
+      if (matches.length !== 1) return endpointMiss(state, endpoint, records);
+      const record = matches[0];
+      return JSON.stringify({ endpoint, task: record.task, meta: record.meta, backend: record.backend });
+    });
+    return `\n\nRECORDED ENDPOINT BINDINGS (current metadata, not lifecycle authority):\n${lines.join("\n")}\nUse the bound task id with bin/fm-crew-state.sh and the guarded task tools. Re-read current state before acting; never derive a task id from a pane suffix or strip its session prefix. An unresolved or ambiguous endpoint requires reconciliation, with no lifecycle action.`;
+  } catch (error) {
+    const detail = `endpoint lookup unavailable: ${JSON.stringify({ state, endpoints: [...keys], error: String(error) })}`;
+    console.error(detail);
+    return `\n\n${detail}\nEndpoint ownership is unproven; reconcile metadata before any lifecycle action.`;
+  }
 }
 
 export type UnreadWakeScopeStatus = "safe" | "empty" | "unsafe";
@@ -390,22 +457,23 @@ export function scopeForUnreadWake(state: string, heartbeat: boolean, afk = fals
   // The task id behind each key a signal or stale row may carry: the task id
   // itself, or the endpoint its metadata records.
   const taskByKey = new Map<string, string>();
+  let records: EndpointRecord[];
   try {
-    for (const name of readdirSync(state)) {
-      if (!name.endsWith(".meta")) continue;
-      const task = name.slice(0, -5);
-      const fields = readFileSync(`${state}/${name}`, "utf8").split(/\r?\n/);
-      const project = fields.find((line) => line.startsWith("project="))?.slice(8) ?? "";
-      const window = fields.find((line) => line.startsWith("window="))?.slice(7) ?? "";
-      if (fields.includes("kind=secondmate")) secondmates.add(task);
+    records = endpointRecords(state);
+    const targetCounts = new Map<string, number>();
+    for (const { target } of records) {
+      if (target) targetCounts.set(target, (targetCounts.get(target) ?? 0) + 1);
+    }
+    for (const { task, project, kind, target } of records) {
+      if (kind === "secondmate") secondmates.add(task);
       if (project) {
         metadata.set(task, project);
         taskByKey.set(task, task);
         taskByKey.set(`${task}.status`, task);
         taskByKey.set(`${task}.turn-ended`, task);
-        if (window) {
-          metadata.set(window, project);
-          taskByKey.set(window, task);
+        if (target && targetCounts.get(target) === 1) {
+          metadata.set(target, project);
+          taskByKey.set(target, task);
         }
       }
     }
@@ -469,8 +537,12 @@ export function scopeForUnreadWake(state: string, heartbeat: boolean, afk = fals
       task = key.replace(/\.(?:status|turn-ended)$/, "");
       project = metadata.get(task) ?? "";
     } else if (kind === "stale") {
-      task = taskByKey.get(key) ?? taskByKey.get(key.replace(/^fm-/, "")) ?? "";
-      project = metadata.get(key) ?? metadata.get(key.replace(/^fm-/, "")) ?? "";
+      // Only task selectors get the legacy fm- alias. An endpoint's session
+      // may itself start fm- and must always match the full recorded target.
+      const selector = key.includes(":") ? key : key.replace(/^fm-/, "");
+      task = taskByKey.get(key) ?? taskByKey.get(selector) ?? "";
+      project = metadata.get(key) ?? metadata.get(selector) ?? "";
+      if (!task || !project) endpointMiss(state, key, records);
     } else {
       // A kind fm_wake_append never emits: structural corruption, not an
       // ordinary main-only row.
