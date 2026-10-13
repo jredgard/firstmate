@@ -155,6 +155,8 @@ fm_forge_valid_for_mode() {  # <forge> <mode> <caller>
   return 0
 }
 
+# bin/fm-pr-report-compact keeps a standalone copy of this rule because it is
+# vendored alone; tests/fm-pr-report-compact.test.sh pins their parity.
 fm_nm_skip_valid() {
   case "$1" in
     ''|lint) return 0 ;;
