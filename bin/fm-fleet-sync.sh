@@ -3,6 +3,8 @@
 # origin/<default> when safe, and prune local branches whose upstream tracking
 # branch is gone (the remote branch was deleted, i.e. its PR merged) and that no
 # worktree still needs.
+# Only a checked-out main/master uses its origin upstream; other checkouts use
+# origin/HEAD, then the first existing local main/master when no default is recorded.
 # Self-heals the one unambiguously safe drift: a clean, detached HEAD that holds
 # no unique commits (it is an ancestor of origin/<default>) and whose <default>
 # branch is free to check out is re-attached and then fast-forwarded ("recovered:").
@@ -119,14 +121,28 @@ resolve_project_arg() {
 
 default_branch() {
   local ref branch
+  case "$cur" in
+    main|master)
+      ref=$(git -C "$PROJ" rev-parse --symbolic-full-name "$cur@{upstream}" 2>/dev/null || true)
+      case "$ref" in
+        refs/remotes/origin/*)
+          DEFAULT=$cur
+          BASE="origin/${ref#refs/remotes/origin/}"
+          return 0
+          ;;
+      esac
+      ;;
+  esac
   ref=$(git -C "$PROJ" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)
   if [ -n "$ref" ]; then
-    echo "${ref#origin/}"
+    DEFAULT=${ref#origin/}
+    BASE=$ref
     return 0
   fi
   for branch in main master; do
     if git -C "$PROJ" show-ref --verify --quiet "refs/heads/$branch"; then
-      echo "$branch"
+      DEFAULT=$branch
+      BASE="origin/$branch"
       return 0
     fi
   done
@@ -353,17 +369,16 @@ sync_project() {
 
   prune_gone_branches || true
 
-  DEFAULT=$(default_branch) || {
+  cur=$(git -C "$PROJ" symbolic-ref --short HEAD 2>/dev/null || echo "")
+  default_branch || {
     echo "$label: skipped: cannot determine default branch"
     return 0
   }
-  BASE="origin/$DEFAULT"
   if ! git -C "$PROJ" rev-parse --verify --quiet "$BASE^{commit}" >/dev/null; then
     echo "$label: skipped: $BASE does not exist"
     return 0
   fi
 
-  cur=$(git -C "$PROJ" symbolic-ref --short HEAD 2>/dev/null || echo "")
   dirty=no
   [ -z "$(git -C "$PROJ" status --porcelain 2>/dev/null | head -1)" ] || dirty=yes
   recovered=no
