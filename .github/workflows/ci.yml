@@ -118,6 +118,13 @@ jobs:
           # Pi 1.2.0 adds custom before_agent_start events without prompt.
           # Follow-up: validate user/custom startup handling before lifting this pin.
           npm install -g @earendil-works/pi-coding-agent@1.1.0
+          # Pi 1.1.0 takes its sibling packages as ^1.1.0, which now resolves
+          # them to 1.2.0 and fails to load; pin them to a coherent 1.1.0 tree.
+          npm install --prefix "$(npm root -g)/@earendil-works/pi-coding-agent" --no-save --omit=dev \
+            @earendil-works/chord@1.1.0 @earendil-works/pi-agent-core@1.1.0 \
+            @earendil-works/pi-ai@1.1.0 @earendil-works/pi-codemode@1.1.0 \
+            @earendil-works/pi-mcp@1.1.0 @earendil-works/pi-telemetry@1.1.0 \
+            @earendil-works/pi-tui@1.1.0
           npm ls -g --depth 0 @earendil-works/pi-coding-agent
       - name: Run portable parallel shard 1
         run: |
@@ -227,6 +234,13 @@ jobs:
           set -eu
           # Keep the same last-known-good Pi version as the parallel typecheck.
           npm install -g @earendil-works/pi-coding-agent@1.1.0
+          # Pi 1.1.0 takes its sibling packages as ^1.1.0, which now resolves
+          # them to 1.2.0 and fails to load; pin them to a coherent 1.1.0 tree.
+          npm install --prefix "$(npm root -g)/@earendil-works/pi-coding-agent" --no-save --omit=dev \
+            @earendil-works/chord@1.1.0 @earendil-works/pi-agent-core@1.1.0 \
+            @earendil-works/pi-ai@1.1.0 @earendil-works/pi-codemode@1.1.0 \
+            @earendil-works/pi-mcp@1.1.0 @earendil-works/pi-telemetry@1.1.0 \
+            @earendil-works/pi-tui@1.1.0
           npm ls -g --depth 0 @earendil-works/pi-coding-agent
       - name: Run portable serial shard ${{ matrix.shard }}
         env:
