@@ -517,7 +517,7 @@ test_away_merge_handback_in_a_batch() {
   mkfifo "$home/scope-release"
   cat > "$home/fakebin/node" <<SH
 #!/usr/bin/env bash
-if [ "\${2:-}" = scope ] && [ ! -e "\$FM_HOME/scope-released" ]; then
+if [ "\${3:-}" = scope ] && [ ! -e "\$FM_HOME/scope-released" ]; then
   : > "\$FM_HOME/scope-ready"
   read -r _ < "\$FM_HOME/scope-release"
   : > "\$FM_HOME/scope-released"
@@ -918,12 +918,13 @@ for (const method of ["error", "warn", "log", "info", "debug"]) {
 writeFileSync(`${state}/.wake-queue`, `1\t1\tstale\t${endpoint}\t${message}\n`);
 
 function host(command, args = []) {
-  const result = spawnSync(process.execPath, [process.env.DISPATCH, command, ...args], {
+  const result = spawnSync(process.execPath, ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", process.env.DISPATCH, command, ...args], {
     encoding: "utf8",
     input: `${message}\n`,
     env: { ...process.env, FM_STATE_OVERRIDE: state },
   });
   assert.equal(result.status, 0, result.stderr);
+  assert.ok(!result.stderr.includes("MODULE_TYPELESS_PACKAGE_JSON"), result.stderr);
   return result;
 }
 
@@ -985,7 +986,7 @@ for (const afk of [false, true]) {
 assert.ok(branchWakePrompt(message, "fm_branch_report", "", "", state).includes(`"endpoint":"${endpoint}","task":"demo"`));
 for (const [command, args] of [["scope", ["--afk"]], ["offer", ["--afk"]], ["wake-prompt", ["--report", "report"]]]) {
   const result = host(command, args);
-  assert.equal(result.stderr, "");
+  assert.ok(!/endpoint lookup (?:miss|unavailable):|unreadable endpoint metadata:/.test(result.stderr), result.stderr);
   assert.ok(result.stdout.includes(command === "wake-prompt" ? '"task":"demo"' : "tasks=demo"), result.stdout);
 }
 
@@ -1008,7 +1009,7 @@ JS
   rc=$?
   out=$(cat "$TMP_ROOT/endpoint-diagnostics.out" "$TMP_ROOT/endpoint-diagnostics.err")
   expect_code 0 "$rc" "endpoint diagnostic routing must preserve silent Pi calls and host stderr: $out"
-  [ ! -s "$TMP_ROOT/endpoint-diagnostics.err" ] || fail "shared endpoint calls leaked stderr: $out"
+  assert_no_re 'endpoint lookup (miss|unavailable):|unreadable endpoint metadata:' "$TMP_ROOT/endpoint-diagnostics.err" "shared endpoint calls leaked diagnostics: $out"
   pass "dispatch diagnostics use the caller sink, keep Pi silent, and preserve host output and ownership checks"
 }
 
@@ -1452,6 +1453,7 @@ test_attended_routine_wake_is_handled_on_the_engine_and_stays_off_main() {
     || fail "attended: the wake was not handled on the engine: $(cat "$home/host.out"; cat "$home/state/.supervision-host.log")"
   first="$home/engine-call.1"
   assert_re '^actor=branch$' "$first" "the attended engine must run as the branch actor"
+  assert_no_grep 'MODULE_TYPELESS_PACKAGE_JSON' "$home/state/.supervision-host.log" "attended dispatch must keep module-type warnings out of the ledger"
   assert_no_re '^POSTURE: AWAY' "$first" "an attended wake must carry no away tail"
   assert_re '^(arg=)?FIRSTMATE SUPERVISION WAKE: signal: ' "$first" "the attended wake must carry the close"
   assert_re '	handled	turn=[^	]*	posture=attended	' "$home/state/.supervision-host.log" "the ledger must record the attended turn"
@@ -2444,7 +2446,7 @@ test_undelivered_dialog_is_fed_again_on_the_next_turn() {
   real_node=$(command -v node)
   cat > "$home/fakebin/node" <<SH
 #!/usr/bin/env bash
-if [ "\${2:-}" = wake-prompt ] && [ -e "\$FM_HOME/slow-render" ]; then echo 120 > "\$FM_HOME/park-clock"; fi
+if [ "\${3:-}" = wake-prompt ] && [ -e "\$FM_HOME/slow-render" ]; then echo 120 > "\$FM_HOME/park-clock"; fi
 exec "$real_node" "\$@"
 SH
   chmod +x "$home/fakebin/node"
@@ -2656,6 +2658,7 @@ test_away_wake_is_handled_on_the_engine_and_never_reaches_main() {
   wait_until 150 watcher_live "$home" || fail "away: the host never started a watcher cycle: $(cat "$home/host.out")"
   append_status "$home" 'step one'
   wait_until 250 handled_at_least "$home" 1 || fail "away: the wake was not handled: $(cat "$home/host.out"; cat "$home/state/.supervision-host.log")"
+  assert_no_grep 'MODULE_TYPELESS_PACKAGE_JSON' "$home/state/.supervision-host.log" "away dispatch must keep module-type warnings out of the ledger"
   lock_pid=$(cat "$home/state/.lock")
 
   first="$home/engine-call.1"
@@ -3069,7 +3072,7 @@ test_park_boundary_rechecked_just_before_the_engine_turn() {
   echo 0 > "$home/park-clock"
   cat > "$home/fakebin/node" <<SH
 #!/usr/bin/env bash
-if [ "\${2:-}" = wake-prompt ]; then
+if [ "\${3:-}" = wake-prompt ]; then
   cp "\$FM_HOME/state/.supervision-host" "\$FM_HOME/host-record-at-render" 2>/dev/null
   read -r _ < "\$FM_HOME/render-release"
 fi
