@@ -1,0 +1,37 @@
+=== S1 regression repro: BASE commit 3db8201, Mosaiq.UIUX.Internal on main tracking origin/main, origin/HEAD=master ===
+  HEAD branch: main  local main=9154c10  origin/main=9154c10  origin/HEAD=origin/master  upstream=origin/main
+$ FM_HOME=$LAB fm-fleet-sync.sh Mosaiq.UIUX.Internal   (base)
+Mosaiq.UIUX.Internal: STUCK: on branch main, 1 commits behind origin/master - needs attention
+  HEAD branch: main  local main=9154c10  origin/main=6aa4af6  origin/HEAD=origin/master  upstream=origin/main
+
+=== S1 fixed: TARGET commit, same clone state ===
+$ FM_HOME=$LAB fm-fleet-sync.sh Mosaiq.UIUX.Internal   (target)
+Mosaiq.UIUX.Internal: synced 9154c10..6aa4af6
+  HEAD branch: main  local main=6aa4af6  origin/main=6aa4af6  origin/HEAD=origin/master  upstream=origin/main
+$ second run (target)
+Mosaiq.UIUX.Internal: already current
+
+=== S2 whole-fleet form (no args), fresh clone ===
+  HEAD branch: main  local main=b7034c1  origin/main=b7034c1  origin/HEAD=origin/master  upstream=origin/main
+$ FM_HOME=$LAB fm-fleet-sync.sh
+Mosaiq.UIUX.Internal: synced b7034c1..b1e0504
+  HEAD branch: main  local main=b1e0504  origin/main=b1e0504  origin/HEAD=origin/master  upstream=origin/main
+
+=== S3 guard: dirty main tracking origin/main stays untouched (STUCK) ===
+Mosaiq.UIUX.Internal: STUCK: on branch main with uncommitted changes, 2 commits behind origin/main - needs attention
+  main unchanged; wip preserved:  M f.txt
+
+=== S4 guard: local main diverged from origin/main -> STUCK diverged, untouched ===
+Mosaiq.UIUX.Internal: STUCK: on diverged main, 2 commits behind origin/main - needs attention
+  main unchanged at fd8e1ec
+
+=== S5 guard: feature branch tracking origin/feature, origin/HEAD=master -> still STUCK off-default (not synced to its own upstream) ===
+Mosaiq.UIUX.Internal: STUCK: on branch feat, 1 commits behind origin/master - needs attention
+  feat unchanged
+
+=== S6 regression guard: clone on master tracking origin/master with origin/HEAD=master still syncs ===
+classic: synced 01c6b9f..07e929b
+  master=07e929b origin/master=07e929b
+
+=== S7 fallback: main with no upstream + origin/HEAD=master -> uses origin/HEAD (pre-existing behavior) ===
+Mosaiq.UIUX.Internal: STUCK: on branch main, 1 commits behind origin/master - needs attention
