@@ -81,9 +81,13 @@
 # releases the branch's leases and grant, and counts the wake handled only
 # when that turn exited cleanly, recorded a durable report
 # (bin/fm-branch-report.sh), and left none of its granted rows in the wake
-# queue. A handled wake with only routine outcomes never wakes
-# main, and neither does any handled wake while away: captain outcomes wait in
-# the outcome store for the return drain's BRANCH OUTCOMES section. A handled
+# queue. A handled away wake that leaves a queued supervision-host-handback
+# check row exits to MAIN with a supervision-host: away handback reason naming
+# those rows' payloads after releasing its leases; bin/fm-branch-report.sh owns
+# the action classification and durable check row.
+# A queued handback is never offered to another engine turn. Other handled
+# away outcomes wait in the store for the return drain's BRANCH OUTCOMES section.
+# A handled
 # attended or quiet wake that recorded a captain outcome exits with one "supervision-host: branch-outcome:"
 # line naming its store rows, without the close it handled; main drains, where
 # the BRANCH OUTCOMES section (bin/fm-wake-drain.sh) presents every
@@ -847,7 +851,7 @@ health_record() {  # <engine-error 0|1> <reports>
 # never a subshell, because it advances the host's grant and turn state.
 handle_wake() {  # <reason-lines>
   local reason=$1 first scope status corrupted rows tasks unscoped rc turn readback
-  local receipts usage result errors unacked mirror
+  local receipts usage result errors unacked mirror signal_keys key events
   LAST_TURN=
   ENGINE_ERROR=0
   HEALTH_NOTE=
@@ -912,6 +916,32 @@ handle_wake() {  # <reason-lines>
   : > "$RECEIPTS"
   printf 'turn=%s\nrows=%s\ntasks=%s\nunscoped=%s\nwake=%s\nposture=%s\n' \
     "$turn" "$rows" "$tasks" "${unscoped:-0}" "$first" "$TURN_POSTURE" > "$TURN_FILE"
+  if [ "$TURN_POSTURE" = away ]; then
+    awk -F '\t' -v rows="$rows" '
+      BEGIN { n = split(rows, list, " "); for (i = 1; i <= n; i++) want[list[i]] = 1 }
+      $2 in want && $3 == "check" { print "check=" $5 }
+    ' "$STATE/.wake-queue" >> "$TURN_FILE" \
+      || { HANDLE_WHY="the granted check rows could not be recorded"; return 1; }
+    _fm_wake_require_classify
+    signal_keys=$(awk -F '\t' -v rows="$rows" '
+      BEGIN { n = split(rows, list, " "); for (i = 1; i <= n; i++) want[list[i]] = 1 }
+      $2 in want && $3 == "signal" && !seen[$4]++ { print $4 }
+    ' "$STATE/.wake-queue") || { HANDLE_WHY="the granted signal rows could not be read"; return 1; }
+    while IFS= read -r key; do
+      fm_wake_status_key_map "$key" || continue
+      if [ "$FM_WAKE_STATUS_HISTORICAL" = true ] \
+        && fm_wake_signal_reported_current "$STATE" "$STATE/$FM_WAKE_STATUS_KEY"; then continue; fi
+      events=$(status_new_lines_since_cursor "$STATE/$FM_WAKE_STATUS_KEY") \
+        || { HANDLE_WHY="the granted signal events could not be read"; return 1; }
+      if [ -n "$events" ]; then
+        printf '%s\n' "$events" \
+          | sed "s/^/event=${FM_WAKE_STATUS_KEY%.status}$(printf '\t')/" >> "$TURN_FILE" \
+          || { HANDLE_WHY="the granted signal events could not be recorded"; return 1; }
+      fi
+    done <<EOF
+$signal_keys
+EOF
+  fi
   readback=
   if [ "$TURN_POSTURE" != attended ]; then
     readback=$(mktemp "$STATE/.supervision-host-readback.XXXXXX") || readback=
@@ -951,6 +981,16 @@ handle_wake() {  # <reason-lines>
     HANDLE_WHY="the wake prompt could not be rendered"
     [ "$rc" -ne 3 ] || HANDLE_WHY="the dialog mirror could not be read"
     return 1
+  fi
+  if [ "$TURN_POSTURE" = away ]; then
+    cat >> "$WAKE_FILE" <<'INSTRUCTIONS'
+
+HOST MAIN HANDBACK: Use bin/fm-branch-report.sh --main-action dispatch for a new lane terminal event (done or failed), teardown due or completed, or a newly freed slot, including cleanup discovered on heartbeat.
+Use --main-action decision for new needs-decision or blocked events you do not answer yourself; MAIN applies ask-user-authority and the recorded words.
+Use --main-action captain-hold only when the call genuinely requires the captain; it stays held for return.
+The report's default auto detects newly presented done or failed, needs-decision and blocked signal events, merge-landed wakes and removed scoped task records; standing task status never triggers a handback.
+Report every event separately, acknowledge only the granted rows, release leases, and end the turn; MAIN handles the durable handback under the same away record and then parks again.
+INSTRUCTIONS
   fi
   [ -z "$readback" ] || rm -f "$readback"
   rm -f "$mirror"
@@ -1032,6 +1072,13 @@ handle_wake() {  # <reason-lines>
 # The captain outcomes one turn recorded, as store rows.
 turn_captain_seqs() {  # <turn>
   awk -F '\t' -v turn="$1" '$1 == turn && $3 == "captain" { printf "%s%s", sep, $2; sep = ", " }' "$RECEIPTS" 2>/dev/null
+}
+
+# These rows belong to MAIN even when the engine acknowledged their original
+# wake. Inspect the whole queue so a coalesced signal cannot swallow one.
+pending_main_handbacks() {
+  [ -f "$STATE/.wake-queue" ] || return 0
+  awk -F '\t' '$3 == "check" && $4 ~ /^supervision-host-handback:/ { printf "%s%s", sep, $5; sep="; " }' "$STATE/.wake-queue"
 }
 
 # Why an attended close stays with main exactly as the plain arm delivers it,
@@ -1119,6 +1166,11 @@ while :; do
     if ! host_still_owner; then
       stand_down "this session no longer owns supervision"
     fi
+    MAIN_HANDBACKS=$(pending_main_handbacks) \
+      || exit_to_main "away handback queue could not be read; drain and reconcile before parking again"
+    if [ -n "$MAIN_HANDBACKS" ]; then
+      exit_to_main "away handback: $MAIN_HANDBACKS; handle this lane under the existing away record, then park again"
+    fi
     if ! fm_supervision_host_config "$CONFIG" "$PRIMARY"; then
       exit_to_main "the home no longer runs the supervision host"
     fi
@@ -1183,6 +1235,16 @@ while :; do
   elif [ "$RETURNED_LOOKUP_FAILED" -eq 1 ]; then
     exit_to_main "the captain returned while the away session was handling this wake, but the recorded outcomes could not be verified; main must review them" \
       "$(turn_outcome_lookup_warning)"
+  fi
+  if [ "$TURN_POSTURE" = away ] && fm_afk_contract_away_present "$STATE"; then
+    MAIN_HANDBACKS=$(pending_main_handbacks) \
+      || exit_to_main "away handback queue could not be read; drain and reconcile before parking again"
+    if [ -n "$MAIN_HANDBACKS" ]; then
+      # All originally granted rows were acknowledged before handle_wake
+      # returned success. MAIN drains only the new lane handback rows.
+      ARM_TEXT=
+      exit_to_main "away handback: $MAIN_HANDBACKS; handle this lane under the existing away record, then park again"
+    fi
   fi
   # Attended captain outcomes are main's to process; away they wait for the
   # return, including when the captain left while this turn ran. The close
