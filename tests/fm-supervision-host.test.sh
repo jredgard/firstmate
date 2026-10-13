@@ -92,7 +92,7 @@ verdict=routine
 [ "$mode" != go-away ] || verdict=captain
 case "$mode" in
   fail) exit 3 ;;
-  handle|handback-batch|captain|captain-close-before-return|held|captain-held|hold-lease|return|return-silent|return-fail|return-fail-silent|return-many|return-lookup-fail|return-first|noack|emptyresult|go-away)
+  handle|handback-batch|handback-multiple|captain|captain-close-before-return|held|captain-held|hold-lease|return|return-silent|return-fail|return-fail-silent|return-many|return-lookup-fail|return-first|noack|emptyresult|go-away)
     case "$mode" in held|captain-held) read -r _ < "$FM_HOME/stub-release" ;; esac
     [ "$mode" != return-first ] || "$FM_REPO/bin/fm-afk-contract.sh" archive >> "$FM_HOME/engine-return.log" 2>&1
     [ "$mode" != go-away ] || "$FM_REPO/bin/fm-afk-contract.sh" enter --words 'gone mid-turn' >> "$FM_HOME/engine-return.log" 2>&1
@@ -115,10 +115,16 @@ case "$mode" in
       esac
       "$FM_REPO/bin/fm-branch-report.sh" "${report_args[@]}" >> "$FM_HOME/engine-report.log" 2>&1
     fi
-    if [ "$mode" = handback-batch ]; then
+    if [ "$mode" = handback-batch ] || [ "$mode" = handback-multiple ]; then
       "$FM_REPO/bin/fm-branch-report.sh" --task other --verdict routine \
         --summary 'other worker remains busy; nothing new; no action taken' \
         >> "$FM_HOME/engine-report.log" 2>&1
+    fi
+    if [ "$mode" = handback-multiple ]; then
+      "$FM_REPO/bin/fm-branch-report.sh" --task "$task" --verdict routine \
+        --summary 'handled the later PR check' >> "$FM_HOME/engine-report.log" 2>&1
+      "$FM_REPO/bin/fm-branch-report.sh" --task "$task" --verdict captain \
+        --main-action decision --summary 'firstmate input still needed' >> "$FM_HOME/engine-report.log" 2>&1
     fi
     if [ "$mode" = return-many ]; then
       awk -v task="$task" 'BEGIN { for (seq = 2; seq <= 1001; seq++)
@@ -461,6 +467,70 @@ test_away_report_classifies_main_actions() {
   pass "away reports: progress, resolved decisions and captain holds stay parked; terminal outcomes, freed slots and unanswered input hand back"
 }
 
+test_away_merge_handback_scopes_the_reported_lane() {
+  local home state task out rows
+  home=$(make_home handback-merge-scope away)
+  state="$home/state"
+  printf 'turn=h1\nrows=1\ntasks=\nunscoped=1\nwake=check: merge landed: demo https://example.test/o/r/pull/1\nposture=away\n' > "$state/.supervision-host-turn"
+  for task in demo dem demo-extra other fleet; do
+    out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=h1 "$REPORT" \
+      --task "$task" --verdict routine --summary "handled $task" 2>&1) \
+      || fail "merge scope: $task report failed: $out"
+  done
+  rows=$(cat "$state/.wake-queue")
+  assert_contains "$rows" 'handback: dispatch for demo (outcome 1)' "merge must hand back its lane"
+  [ "$(awk -F '\t' '$3 == "check" && $4 ~ /^supervision-host-handback:/ { n++ } END { print n+0 }' "$state/.wake-queue")" = 1 ] \
+    || fail "merge scope: unrelated reports queued extra handbacks: $rows"
+  [ "$(awk -F '\t' '$5 == "dispatch" { print $4 }' "$state/.supervision-host-receipts")" = demo ] \
+    || fail "merge scope: unrelated reports carried dispatch receipts"
+  pass "away merge handback: only the exact reported lane receives a derived dispatch"
+}
+
+test_away_derived_dispatch_is_once_per_turn_and_task() {
+  local home state trigger action out rows
+  for trigger in done merged teardown; do
+    home=$(make_home "handback-dedup-$trigger" away)
+    state="$home/state"
+    printf 'turn=h1\nrows=1\ntasks=demo other\nunscoped=0\nwake=signal: demo.status other.status\nposture=away\n' > "$state/.supervision-host-turn"
+    case "$trigger" in
+      done) printf 'event=demo\tdone: ready branch\nevent=other\tdone: other ready branch\n' >> "$state/.supervision-host-turn" ;;
+      merged) printf 'turn=h1\nrows=1\ntasks=demo other\nunscoped=1\nwake=check: merge landed: demo https://example.test/o/r/pull/1\nposture=away\n' > "$state/.supervision-host-turn" ;;
+      teardown) rm "$state/demo.meta" ;;
+    esac
+    for action in auto auto none captain-hold decision; do
+      out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=h1 "$REPORT" \
+        --task demo --verdict captain --main-action "$action" --summary "handled $action" 2>&1) \
+        || fail "$trigger/$action: report failed: $out"
+    done
+    rows=$(cat "$state/.wake-queue")
+    [ "$(awk -F '\t' '$5 ~ /handback: dispatch for demo / { n++ } END { print n+0 }' "$state/.wake-queue")" = 1 ] \
+      || fail "$trigger: repeated reports queued duplicate derived dispatch: $rows"
+    assert_contains "$rows" 'handback: decision for demo (outcome 5)' "$trigger: explicit decision must survive terminal detection and deduplication"
+    [ "$(awk -F '\t' '$5 == "dispatch" { n++ } END { print n+0 }' "$state/.supervision-host-receipts")" = 1 ] \
+      || fail "$trigger: duplicate derived dispatch receipt remained"
+    [ "$(FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" list | wc -l | tr -d ' ')" = 5 ] \
+      || fail "$trigger: deduplication lost handled-event outcomes"
+    out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=h1 "$REPORT" \
+      --task demo --verdict routine --main-action dispatch --summary 'new explicit cleanup work' 2>&1) \
+      || fail "$trigger: explicit dispatch report failed: $out"
+    assert_grep 'handback: dispatch for demo (outcome 6)' "$state/.wake-queue" "$trigger: derived deduplication must not suppress explicit dispatch"
+    if [ "$trigger" = done ]; then
+      out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=h1 "$REPORT" \
+        --task other --verdict routine --summary 'other lane finished' 2>&1) \
+        || fail "another lane's report failed: $out"
+      assert_grep 'handback: dispatch for other (outcome 7)' "$state/.wake-queue" "deduplication must be task scoped"
+    fi
+    sed 's/^turn=h1$/turn=h2/' "$state/.supervision-host-turn" > "$state/next-turn"
+    mv "$state/next-turn" "$state/.supervision-host-turn"
+    out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=h2 "$REPORT" \
+      --task demo --verdict routine --summary 'new turn terminal event' 2>&1) \
+      || fail "$trigger: new turn report failed: $out"
+    [ "$(awk -F '\t' '$1 == "h2" && $4 == "demo" && $5 == "dispatch" { n++ } END { print n+0 }' "$state/.supervision-host-receipts")" = 1 ] \
+      || fail "$trigger: deduplication must be turn scoped"
+  done
+  pass "away dispatch handback: derived terminal reports collapse per turn and task while explicit actions and outcomes survive"
+}
+
 test_away_handback_survives_ack_and_resumes_host_after_main() {
   local home watcher out calls
   home=$(make_home away-handback-cycle away)
@@ -557,6 +627,43 @@ test_away_handback_drains_only_the_handed_lane() {
   main_drain_and_ack "$home"
   stop_home_processes "$home"
   pass "away handback: the engine acknowledges other handled lanes first; MAIN drains only the named handback lane"
+}
+
+test_away_multiple_handbacks_keep_one_complete_reason_line() {
+  local home reason calls rows
+  home=$(make_home handback-multiple away)
+  echo handback-multiple > "$home/stub-mode"
+  printf 'project=other\nwindow=fm-other\nharness=claude\n' > "$home/state/other.meta"
+  printf 'done: demo ready\n' > "$home/state/demo.status"
+  printf 'done: other ready\n' > "$home/state/other.status"
+  prime_status_seen "$home/state" "$home/state/demo.status"
+  prime_status_seen "$home/state" "$home/state/other.status"
+  append_wake "$home/state" signal demo.status "signal: $home/state/demo.status"
+  append_wake "$home/state" signal other.status "signal: $home/state/other.status"
+  start_session "$home"
+  park_again "$home"
+  wait_until 250 host_exited "$home" || fail "multiple: host did not hand back both lanes"
+  reason=$(sed -n '/^supervision-host: away handback:/p' "$home/host.out")
+  assert_contains "$reason" 'dispatch for demo (outcome 1); dispatch for other (outcome 2); decision for demo (outcome 4)' \
+    "all lane/action entries must appear in one supervision-host reason line"
+  [ "$(printf '%s\n' "$reason" | wc -l | tr -d ' ')" = 1 ] || fail "multiple: handback reason spans lines"
+  assert_no_grep 'signal:' "$home/state/.wake-queue" "all originally granted rows must be acknowledged"
+  rows=$(awk -F '\t' '$4 ~ /^supervision-host-handback:/ { n++ } END { print n+0 }' "$home/state/.wake-queue")
+  [ "$rows" = 3 ] || fail "multiple: expected two lane dispatches and one explicit decision, got $rows"
+  calls=$(engine_calls "$home")
+  park_again "$home"
+  wait_until 250 host_exited "$home" || fail "multiple: pending handbacks were swallowed"
+  [ "$(engine_calls "$home")" = "$calls" ] || fail "multiple: another engine received the pending handbacks"
+  reason=$(sed -n '/^supervision-host: away handback:/p' "$home/host.out")
+  assert_contains "$reason" 'dispatch for demo (outcome 1)' "pending reason lost demo dispatch"
+  assert_contains "$reason" 'dispatch for other (outcome 2)' "pending reason lost other dispatch"
+  assert_contains "$reason" 'decision for demo (outcome 4)' "pending reason lost explicit decision"
+  [ "$(printf '%s\n' "$reason" | wc -l | tr -d ' ')" = 1 ] || fail "pending handback reason spans lines"
+  main_drain_and_ack "$home"
+  assert_grep 'dispatch for other (outcome 2)' "$home/main-drain.out" "MAIN must receive the second handed lane"
+  [ "$(FM_HOME="$home" "$CONTRACT" mode)" = away ] || fail "multiple: away record changed"
+  stop_home_processes "$home"
+  pass "away handback: receipt and pending-row paths preserve all lanes and actions in one reason line"
 }
 
 test_dispatch_entry_scopes_rows_and_renders_the_away_tail() {
@@ -3160,9 +3267,12 @@ test_report_surface_enforces_actor_turn_and_scope
 test_report_after_the_return_is_queued_for_main
 test_dispatch_entry_scopes_rows_and_renders_the_away_tail
 test_away_report_classifies_main_actions
+test_away_merge_handback_scopes_the_reported_lane
+test_away_derived_dispatch_is_once_per_turn_and_task
 test_away_handback_survives_ack_and_resumes_host_after_main
 test_away_worker_input_handback_and_captain_hold
 test_away_handback_drains_only_the_handed_lane
+test_away_multiple_handbacks_keep_one_complete_reason_line
 test_branch_outcomes_only_on_a_host_home_off_pi
 test_branch_outcomes_put_captain_first_and_collapse_routine_overflow
 test_branch_outcomes_collapse_repeated_captain_outcomes_per_task
