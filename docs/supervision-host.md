@@ -140,8 +140,8 @@ The record relocates its covered PR merge authority to the engine while main is 
 #### Main handback while away
 
 Main is woken for dispatch and worker input as well as a declined engine turn.
-The host passes lane terminal outcomes, cleanup due or completed, and a worker stopped as idle after readiness back to main, so a freed slot can serve the next queued item.
-A needs-decision or blocked event the engine does not answer also reaches main, unless the engine identifies a genuine captain-owned hold for return.
+The host passes new lane terminal events, cleanup due or completed, and newly freed slots back to main, so a freed slot can serve the next queued item; standing lane status does not trigger a handback.
+A newly presented needs-decision or blocked event the engine does not answer also reaches main, unless the engine identifies a genuine captain-owned hold for return or explicitly reports no remaining main work.
 `bin/fm-branch-report.sh` owns handback classification, its `--main-action` report flag, and durable check publication; the host's away wake includes those reporting instructions without changing Pi's prompt.
 The durable handback survives an acknowledged original wake and a host that exits before delivering its close, and the next host passes it to main without offering it to another engine turn.
 The host completes acknowledgement of every row the engine handled before handing back, and names the lane and event in its reason, so main drains the new handback rows without re-reading other handled lanes.
