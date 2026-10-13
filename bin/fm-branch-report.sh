@@ -151,7 +151,7 @@ if [ "$(turn_field posture)" = away ] && fm_afk_contract_away_present "$STATE"; 
   ACTION=$MAIN_ACTION
   STATUS="$STATE/$TASK.status"
   TERMINAL=0
-  case "$(turn_field wake)" in 'check: merge landed:'*) TERMINAL=1 ;; esac
+  case "$(turn_field wake)" in 'check: merge landed: '"$TASK"' '*) TERMINAL=1 ;; esac
   EVENTS=$(awk -F '\t' -v task="$TASK" '$1 == "event=" task { sub(/^[^\t]*\t/, ""); print }' "$TURN_FILE")
   if [ "$TASK" != fleet ]; then
     while IFS= read -r EVENT; do
@@ -163,8 +163,13 @@ EOF
       *" $TASK "*) [ -e "$STATE/$TASK.meta" ] || TERMINAL=1 ;;
     esac
   fi
-  if [ "$TERMINAL" -eq 1 ]; then
+  if [ "$TERMINAL" -eq 1 ] && [ "$ACTION" != decision ]; then
     ACTION=dispatch
+    if [ "$MAIN_ACTION" != dispatch ] && [ -f "$RECEIPTS" ] \
+      && awk -F '\t' -v turn="$TURN" -v task="$TASK" \
+        '$1 == turn && $4 == task && $5 == "dispatch" { found=1 } END { exit !found }' "$RECEIPTS"; then
+      ACTION=none
+    fi
   elif [ "$ACTION" = auto ]; then
     ACTION=none
     OPEN=$(status_open_decisions "$STATUS")

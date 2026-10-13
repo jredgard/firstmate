@@ -1072,7 +1072,7 @@ turn_captain_seqs() {  # <turn>
 # wake. Inspect the whole queue so a coalesced signal cannot swallow one.
 pending_main_handbacks() {
   [ -f "$STATE/.wake-queue" ] || return 0
-  awk -F '\t' '$3 == "check" && $4 ~ /^supervision-host-handback:/ { print $5 }' "$STATE/.wake-queue"
+  awk -F '\t' '$3 == "check" && $4 ~ /^supervision-host-handback:/ { printf "%s%s", sep, $5; sep="; " }' "$STATE/.wake-queue"
 }
 
 # Why an attended close stays with main exactly as the plain arm delivers it,
@@ -1232,7 +1232,7 @@ while :; do
   fi
   if [ "$TURN_POSTURE" = away ] && fm_afk_contract_away_present "$STATE"; then
     MAIN_ACTIONS=$(awk -F '\t' -v turn="$LAST_TURN" \
-      '$1 == turn && ($5 == "dispatch" || $5 == "decision") { print $5 " for " $4 " (outcome " $2 ")" }' "$RECEIPTS")
+      '$1 == turn && ($5 == "dispatch" || $5 == "decision") { printf "%s%s", sep, $5 " for " $4 " (outcome " $2 ")"; sep="; " }' "$RECEIPTS")
     if [ -n "$MAIN_ACTIONS" ]; then
       # All originally granted rows were acknowledged before handle_wake
       # returned success. MAIN drains only the new lane handback rows.
