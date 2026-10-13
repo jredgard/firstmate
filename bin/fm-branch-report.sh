@@ -16,11 +16,27 @@
 #
 # Usage:
 #   fm-branch-report.sh --task <id|fleet> --verdict routine|captain \
-#       --summary <text> [--silent true|false] [--wake <text>]
+#       --summary <text> [--silent true|false] [--wake <text>] \
+#       [--main-action auto|none|dispatch|decision|captain-hold]
 #
 # The verdict criteria are owned by bin/fm-branch-prompt.sh ("Verdict: routine
 # or captain"); --silent true is legal only for a routine outcome.
 # --wake defaults to the wake reason the host recorded for the turn.
+# --main-action applies only to an away host turn while still away. auto
+# (the default) hands a merge-landed wake, a done task, or a removed scoped
+# task record to MAIN for dispatch, and a still-open needs-decision or blocked
+# record for decision handling. A resolved decision needs no handback.
+# dispatch also names cleanup or a worker stopped as idle after readiness,
+# including an action found on heartbeat; decision names input the engine
+# declines; captain-hold explicitly leaves a genuinely captain-owned call for
+# return. none is for a handled event with no MAIN work. Dispatch is mandatory
+# for terminal outcomes even when captain-hold or none was requested.
+# A handback is a durable check row keyed supervision-host-handback:<seq>,
+# published before acknowledgement, plus a fifth receipt column naming its
+# action. The host exits to MAIN after releasing the turn's leases; a later
+# park passes that queued row to MAIN without offering it to another engine.
+# Outcomes remain unprocessed for the return brief; this adds no merge or
+# dispatch authority and changes no spend limit.
 #
 # Only the branch actor of a live host turn may report: FM_SUPERVISION_ACTOR
 # must be "branch" and FM_BRANCH_REPORT_TURN must name the host's current turn
@@ -64,7 +80,7 @@ refuse() {
   exit 3
 }
 
-TASK='' VERDICT='' SUMMARY='' SILENT=false WAKE='' WAKE_SET=0
+TASK='' VERDICT='' SUMMARY='' SILENT=false WAKE='' WAKE_SET=0 MAIN_ACTION=auto
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --task) TASK=${2:-}; shift 2 || usage ;;
@@ -72,6 +88,7 @@ while [ "$#" -gt 0 ]; do
     --summary) SUMMARY=${2:-}; shift 2 || usage ;;
     --silent) SILENT=${2:-}; shift 2 || usage ;;
     --wake) WAKE=${2:-}; WAKE_SET=1; shift 2 || usage ;;
+    --main-action) MAIN_ACTION=${2:-}; shift 2 || usage ;;
     -h|--help) usage ;;
     *) usage ;;
   esac
@@ -79,8 +96,13 @@ done
 
 TASK=$(printf '%s' "$TASK" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
 SUMMARY=$(printf '%s' "$SUMMARY" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+case "$TASK" in ''|*[!A-Za-z0-9._-]*) usage ;; esac
 case "$VERDICT" in routine|captain) ;; *) VERDICT= ;; esac
 case "$SILENT" in true|false) ;; *) usage ;; esac
+case "$MAIN_ACTION" in auto|none|dispatch|decision|captain-hold) ;; *) usage ;; esac
+if [ "$SILENT" = true ]; then
+  case "$MAIN_ACTION" in dispatch|decision) usage ;; esac
+fi
 if [ -z "$TASK" ] || [ -z "$SUMMARY" ] || [ -z "$VERDICT" ]; then
   echo "invalid report: --task, --verdict (routine|captain), and --summary are required" >&2
   exit 2
@@ -118,13 +140,54 @@ fi
 
 [ "$WAKE_SET" -eq 1 ] || WAKE=$(turn_field wake)
 
+# Host-only routing: never infer an action from the free-text outcome summary
+# or parse the captain's mandate. Shared status readers own open decisions.
+ACTION=none
+if [ "$(turn_field posture)" = away ] && fm_afk_contract_away_present "$STATE"; then
+  # shellcheck source=bin/fm-classify-lib.sh
+  . "$SCRIPT_DIR/fm-classify-lib.sh"
+  ACTION=$MAIN_ACTION
+  STATUS="$STATE/$TASK.status"
+  LAST=$(last_status_line "$STATUS")
+  TERMINAL=0
+  case "$(turn_field wake)" in 'check: merge landed:'*) TERMINAL=1 ;; esac
+  if [ "$TASK" != fleet ]; then
+    if [ "$(status_line_verb "$LAST")" = 'done' ]; then TERMINAL=1; fi
+    case " $(turn_field tasks) " in
+      *" $TASK "*) [ -e "$STATE/$TASK.meta" ] || TERMINAL=1 ;;
+    esac
+  fi
+  if [ "$TERMINAL" -eq 1 ]; then
+    ACTION=dispatch
+  elif [ "$ACTION" = auto ] || [ "$ACTION" = none ]; then
+    ACTION=none
+    if [ -n "$(status_open_decisions "$STATUS")" ]; then ACTION=decision; fi
+  fi
+fi
+
 set -- append --task "$TASK" --verdict "$VERDICT" --summary "$SUMMARY" --silent "$SILENT"
 [ -z "$WAKE" ] || set -- "$@" --wake "$WAKE"
 if ! SEQ=$("$SCRIPT_DIR/fm-branch-outcome.sh" "$@"); then
   echo "outcome store append failed (nothing recorded)" >&2
   exit 1
 fi
-printf '%s\t%s\t%s\t%s\n' "$TURN" "$SEQ" "$VERDICT" "$TASK" >> "$RECEIPTS" || {
+case "$ACTION" in
+  dispatch|decision)
+    # shellcheck source=bin/fm-wake-lib.sh
+    . "$SCRIPT_DIR/fm-wake-lib.sh"
+    fm_wake_append check "supervision-host-handback:$SEQ" \
+      "check: supervision-host handback: $ACTION for $TASK (outcome $SEQ): $SUMMARY" || {
+      echo "recorded seq $SEQ, but its MAIN handback could not be queued" >&2
+      exit 1
+    }
+    ;;
+esac
+if [ "$ACTION" = none ]; then
+  RECEIPT=$(printf '%s\t%s\t%s\t%s' "$TURN" "$SEQ" "$VERDICT" "$TASK")
+else
+  RECEIPT=$(printf '%s\t%s\t%s\t%s\t%s' "$TURN" "$SEQ" "$VERDICT" "$TASK" "$ACTION")
+fi
+printf '%s\n' "$RECEIPT" >> "$RECEIPTS" || {
   echo "recorded seq $SEQ, but the host receipt could not be written; the host will hand this wake to MAIN" >&2
   exit 1
 }

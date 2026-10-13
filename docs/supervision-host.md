@@ -132,10 +132,25 @@ The engine turn runs beside a captain who is present, so its guarded actions tak
 
 ### Away
 
-Every close goes to the engine; captain outcomes remain in the store until the return drain presents them (see [Captain outcomes](#captain-outcomes)).
+Every close except a pending main handback goes to the engine; captain outcomes remain in the store until the return drain presents them (see [Captain outcomes](#captain-outcomes)).
 Every turn that starts attended meets the attended rule again at its start, and the offer's scan is the scope the turn claims: a close accepted away whose turn starts attended, because the captain returned in between, or an attended close whose task turned main-only (a decision appeared) while the successor started, reaches main unchanged and leaves that successor cycle running, with the handoff that turn had confirmed handed back to downtime.
 A captain who leaves while an attended turn runs turns its captain outcomes into away outcomes: they wait for the return too.
 The record relocates its covered PR merge authority to the engine while main is parked, rather than requiring a separate main-addressed instruction for each PR; `bin/fm-branch-prompt.sh` "Postures" owns interpretation, synchronous live-head merging, and captain-outcome reporting.
+
+#### Main handback while away
+
+Main is woken for dispatch and worker input as well as a declined engine turn.
+The host passes lane terminal outcomes, cleanup due or completed, and a worker stopped as idle after readiness back to main, so a freed slot can serve the next queued item.
+A needs-decision or blocked event the engine does not answer also reaches main, unless the engine identifies a genuine captain-owned hold for return.
+`bin/fm-branch-report.sh` owns handback classification, its `--main-action` report flag, and durable check publication; the host's away wake includes those reporting instructions without changing Pi's prompt.
+The durable handback survives an acknowledged original wake and a host that exits before delivering its close, and the next host passes it to main without offering it to another engine turn.
+The host completes acknowledgement of every row the engine handled before handing back, and names the lane and event in its reason, so main drains the new handback rows without re-reading other handled lanes.
+
+The `supervision-host: away handback:` reason is automatic supervision, never the captain's return.
+Main drains first, reconciles current task state, completes ordinary guarded teardown, and dispatches the next authorized queued item whose brief exists and whose blockers cleared, within the existing spend cap.
+For worker input, main applies `ask-user-authority` and the captain's recorded words; anything that genuinely needs the captain keeps its hold for return.
+After handling and acknowledging the wake, main ends its turn and the existing harness arm owner resumes the host under the same away record.
+No automatic brief writing, new merge authority, spend-cap change, or return-brief change is involved.
 
 ### Quiet mode
 
