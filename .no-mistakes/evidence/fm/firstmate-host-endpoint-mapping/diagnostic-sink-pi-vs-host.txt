@@ -1,0 +1,16 @@
+# parent package.json without "type" present: /home/johannesr/package.json
+## 1. Pi-style shared-library calls (no sink) on a lookup miss: stdout/stderr captured separately
+stdout: {"scopeCorrupted":true,"offerEligible":false,"promptCarriesMiss":true}
+stderr bytes: 0
+## 2. Host CLI entry (as fm-supervision-host.sh invokes it) on the same miss: stderr
+stdout:
+  status=unsafe
+  corrupted=1
+  rows=
+  tasks=
+  unscoped=0
+stderr:
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-head-superseded/state","endpoint":"Mosaiq:w8D:p2","compared":[{"task":"t-mosaiq","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-mosaiq.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal
+MODULE_TYPELESS warnings in stderr: 0
+## 3. Same CLI without the flag (shows the warning the flag keeps out of the host log)
+1

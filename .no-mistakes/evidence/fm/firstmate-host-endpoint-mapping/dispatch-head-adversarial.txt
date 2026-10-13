@@ -1,0 +1,162 @@
+### crew-state target owner (fm_backend_target_of_meta) vs dispatch binding
+t-w1f -> default:w1F:p2
+t-w1j -> default:w1J:p2
+t-mosaiq -> fm-Mosaiq:w8D:p2
+
+### A: session-truncated address (fm- prefix stripped) must fail closed
+--- [head/adversarial] stale endpoint: Mosaiq:w8D:p2
+$ fm-branch-dispatch.mjs scope --afk
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-head-superseded/state","endpoint":"Mosaiq:w8D:p2","compared":[{"task":"t-mosaiq","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-mosaiq.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal":"","target":"fm-Mosaiq:w8D:p2"},{"task":"t-w1f","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1f.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1F:p2","terminal":"","target":"default:w1F:p2"},{"task":"t-w1j","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1j.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1J:p2","terminal":"","target":"default:w1J:p2"}]}
+  status=unsafe
+  corrupted=1
+  rows=
+  tasks=
+  unscoped=0
+$ fm-branch-dispatch.mjs offer --afk
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-head-superseded/state","endpoint":"Mosaiq:w8D:p2","compared":[{"task":"t-mosaiq","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-mosaiq.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal":"","target":"fm-Mosaiq:w8D:p2"},{"task":"t-w1f","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1f.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1F:p2","terminal":"","target":"default:w1F:p2"},{"task":"t-w1j","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1j.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1J:p2","terminal":"","target":"default:w1J:p2"}]}
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-head-superseded/state","endpoint":"Mosaiq:w8D:p2","compared":[{"task":"t-mosaiq","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-mosaiq.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal":"","target":"fm-Mosaiq:w8D:p2"},{"task":"t-w1f","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1f.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1F:p2","terminal":"","target":"default:w1F:p2"},{"task":"t-w1j","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1j.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1J:p2","terminal":"","target":"default:w1J:p2"}]}
+  eligible=0
+  status=unsafe
+  corrupted=1
+  rows=
+  tasks=
+  unscoped=0
+$ fm-branch-dispatch.mjs wake-prompt --report bin/fm-branch-report.sh
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-head-superseded/state","endpoint":"Mosaiq:w8D:p2","compared":[{"task":"t-mosaiq","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-mosaiq.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal":"","target":"fm-Mosaiq:w8D:p2"},{"task":"t-w1f","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1f.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1F:p2","terminal":"","target":"default:w1F:p2"},{"task":"t-w1j","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1j.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1J:p2","terminal":"","target":"default:w1J:p2"}]}
+  FIRSTMATE SUPERVISION WAKE: stale: Mosaiq:w8D:p2
+  
+  RECORDED ENDPOINT BINDINGS (current metadata, not lifecycle authority):
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-head-superseded/state","endpoint":"Mosaiq:w8D:p2","compared":[{"task":"t-mosaiq","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-mosaiq.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal":"","target":"fm-Mosaiq:w8D:p2"},{"task":"t-w1f","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1f.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1F:p2","terminal":"","target":"default:w1F:p2"},{"task":"t-w1j","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1j.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1J:p2","terminal":"","target":"default:w1J:p2"}]}
+  Use the bound task id with bin/fm-crew-state.sh and the guarded task tools. Re-read current state before acting; never derive a task id from a pane suffix or strip its session prefix. An unresolved or ambiguous endpoint requires reconciliation, with no lifecycle action.
+  
+  Handle this per your operating procedure and finish with bin/fm-branch-report.sh.
+
+### B: superseded (older) window value must not alias the current pane
+--- [head/adversarial] stale endpoint: fm-Mosaiq:w7C:p1
+$ fm-branch-dispatch.mjs scope --afk
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-head-superseded/state","endpoint":"fm-Mosaiq:w7C:p1","compared":[{"task":"t-mosaiq","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-mosaiq.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal":"","target":"fm-Mosaiq:w8D:p2"},{"task":"t-w1f","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1f.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1F:p2","terminal":"","target":"default:w1F:p2"},{"task":"t-w1j","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1j.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1J:p2","terminal":"","target":"default:w1J:p2"}]}
+  status=unsafe
+  corrupted=1
+  rows=
+  tasks=
+  unscoped=0
+$ fm-branch-dispatch.mjs offer --afk
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-head-superseded/state","endpoint":"fm-Mosaiq:w7C:p1","compared":[{"task":"t-mosaiq","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-mosaiq.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal":"","target":"fm-Mosaiq:w8D:p2"},{"task":"t-w1f","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1f.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1F:p2","terminal":"","target":"default:w1F:p2"},{"task":"t-w1j","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1j.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1J:p2","terminal":"","target":"default:w1J:p2"}]}
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-head-superseded/state","endpoint":"fm-Mosaiq:w7C:p1","compared":[{"task":"t-mosaiq","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-mosaiq.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal":"","target":"fm-Mosaiq:w8D:p2"},{"task":"t-w1f","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1f.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1F:p2","terminal":"","target":"default:w1F:p2"},{"task":"t-w1j","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1j.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1J:p2","terminal":"","target":"default:w1J:p2"}]}
+  eligible=0
+  status=unsafe
+  corrupted=1
+  rows=
+  tasks=
+  unscoped=0
+$ fm-branch-dispatch.mjs wake-prompt --report bin/fm-branch-report.sh
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-head-superseded/state","endpoint":"fm-Mosaiq:w7C:p1","compared":[{"task":"t-mosaiq","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-mosaiq.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal":"","target":"fm-Mosaiq:w8D:p2"},{"task":"t-w1f","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1f.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1F:p2","terminal":"","target":"default:w1F:p2"},{"task":"t-w1j","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1j.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1J:p2","terminal":"","target":"default:w1J:p2"}]}
+  FIRSTMATE SUPERVISION WAKE: stale: fm-Mosaiq:w7C:p1
+  
+  RECORDED ENDPOINT BINDINGS (current metadata, not lifecycle authority):
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-head-superseded/state","endpoint":"fm-Mosaiq:w7C:p1","compared":[{"task":"t-mosaiq","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-mosaiq.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal":"","target":"fm-Mosaiq:w8D:p2"},{"task":"t-w1f","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1f.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1F:p2","terminal":"","target":"default:w1F:p2"},{"task":"t-w1j","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1j.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1J:p2","terminal":"","target":"default:w1J:p2"}]}
+  Use the bound task id with bin/fm-crew-state.sh and the guarded task tools. Re-read current state before acting; never derive a task id from a pane suffix or strip its session prefix. An unresolved or ambiguous endpoint requires reconciliation, with no lifecycle action.
+  
+  Handle this per your operating procedure and finish with bin/fm-branch-report.sh.
+
+### C: duplicate binding (two metas record fm-Mosaiq:w8D:p2) must fail closed
+--- [head/adversarial] stale endpoint: fm-Mosaiq:w8D:p2
+$ fm-branch-dispatch.mjs scope --afk
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-head-superseded/state","endpoint":"fm-Mosaiq:w8D:p2","compared":[{"task":"t-dup","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-dup.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal":"","target":"fm-Mosaiq:w8D:p2"},{"task":"t-mosaiq","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-mosaiq.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal":"","target":"fm-Mosaiq:w8D:p2"},{"task":"t-w1f","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1f.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1F:p2","terminal":"","target":"default:w1F:p2"},{"task":"t-w1j","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1j.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1J:p2","terminal":"","target":"default:w1J:p2"}]}
+  status=unsafe
+  corrupted=1
+  rows=
+  tasks=
+  unscoped=0
+$ fm-branch-dispatch.mjs offer --afk
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-head-superseded/state","endpoint":"fm-Mosaiq:w8D:p2","compared":[{"task":"t-dup","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-dup.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal":"","target":"fm-Mosaiq:w8D:p2"},{"task":"t-mosaiq","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-mosaiq.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal":"","target":"fm-Mosaiq:w8D:p2"},{"task":"t-w1f","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1f.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1F:p2","terminal":"","target":"default:w1F:p2"},{"task":"t-w1j","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1j.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1J:p2","terminal":"","target":"default:w1J:p2"}]}
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-head-superseded/state","endpoint":"fm-Mosaiq:w8D:p2","compared":[{"task":"t-dup","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-dup.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal":"","target":"fm-Mosaiq:w8D:p2"},{"task":"t-mosaiq","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-mosaiq.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal":"","target":"fm-Mosaiq:w8D:p2"},{"task":"t-w1f","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1f.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1F:p2","terminal":"","target":"default:w1F:p2"},{"task":"t-w1j","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1j.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1J:p2","terminal":"","target":"default:w1J:p2"}]}
+  eligible=0
+  status=unsafe
+  corrupted=1
+  rows=
+  tasks=
+  unscoped=0
+$ fm-branch-dispatch.mjs wake-prompt --report bin/fm-branch-report.sh
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-head-superseded/state","endpoint":"fm-Mosaiq:w8D:p2","compared":[{"task":"t-dup","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-dup.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal":"","target":"fm-Mosaiq:w8D:p2"},{"task":"t-mosaiq","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-mosaiq.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal":"","target":"fm-Mosaiq:w8D:p2"},{"task":"t-w1f","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1f.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1F:p2","terminal":"","target":"default:w1F:p2"},{"task":"t-w1j","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1j.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1J:p2","terminal":"","target":"default:w1J:p2"}]}
+  FIRSTMATE SUPERVISION WAKE: stale: fm-Mosaiq:w8D:p2
+  
+  RECORDED ENDPOINT BINDINGS (current metadata, not lifecycle authority):
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-head-superseded/state","endpoint":"fm-Mosaiq:w8D:p2","compared":[{"task":"t-dup","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-dup.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal":"","target":"fm-Mosaiq:w8D:p2"},{"task":"t-mosaiq","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-mosaiq.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"fm-Mosaiq:w8D:p2","terminal":"","target":"fm-Mosaiq:w8D:p2"},{"task":"t-w1f","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1f.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1F:p2","terminal":"","target":"default:w1F:p2"},{"task":"t-w1j","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1j.meta","project":"/tmp/proj/demo","kind":"ship","backend":"herdr","window":"default:w1J:p2","terminal":"","target":"default:w1J:p2"}]}
+  Use the bound task id with bin/fm-crew-state.sh and the guarded task tools. Re-read current state before acting; never derive a task id from a pane suffix or strip its session prefix. An unresolved or ambiguous endpoint requires reconciliation, with no lifecycle action.
+  
+  Handle this per your operating procedure and finish with bin/fm-branch-report.sh.
+
+### D: Orca terminal takes precedence over a legacy window
+--- [head/adversarial] stale endpoint: orca:term-7
+$ fm-branch-dispatch.mjs scope --afk
+  status=safe
+  corrupted=0
+  rows=1
+  tasks=t-orca
+  unscoped=0
+$ fm-branch-dispatch.mjs offer --afk
+  eligible=1
+  status=safe
+  corrupted=0
+  rows=1
+  tasks=t-orca
+  unscoped=0
+$ fm-branch-dispatch.mjs wake-prompt --report bin/fm-branch-report.sh
+  FIRSTMATE SUPERVISION WAKE: stale: orca:term-7
+  
+  RECORDED ENDPOINT BINDINGS (current metadata, not lifecycle authority):
+  {"endpoint":"orca:term-7","task":"t-orca","meta":"/tmp/fm-ep.DflHdk/home-orca/state/t-orca.meta","backend":"orca"}
+  Use the bound task id with bin/fm-crew-state.sh and the guarded task tools. Re-read current state before acting; never derive a task id from a pane suffix or strip its session prefix. An unresolved or ambiguous endpoint requires reconciliation, with no lifecycle action.
+  
+  Handle this per your operating procedure and finish with bin/fm-branch-report.sh.
+--- [head/adversarial] stale endpoint: legacy:w1:p1
+$ fm-branch-dispatch.mjs scope --afk
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-orca/state","endpoint":"legacy:w1:p1","compared":[{"task":"t-orca","meta":"/tmp/fm-ep.DflHdk/home-orca/state/t-orca.meta","project":"/tmp/proj/demo","kind":"ship","backend":"orca","window":"legacy:w1:p1","terminal":"orca:term-7","target":"orca:term-7"}]}
+  status=unsafe
+  corrupted=1
+  rows=
+  tasks=
+  unscoped=0
+$ fm-branch-dispatch.mjs offer --afk
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-orca/state","endpoint":"legacy:w1:p1","compared":[{"task":"t-orca","meta":"/tmp/fm-ep.DflHdk/home-orca/state/t-orca.meta","project":"/tmp/proj/demo","kind":"ship","backend":"orca","window":"legacy:w1:p1","terminal":"orca:term-7","target":"orca:term-7"}]}
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-orca/state","endpoint":"legacy:w1:p1","compared":[{"task":"t-orca","meta":"/tmp/fm-ep.DflHdk/home-orca/state/t-orca.meta","project":"/tmp/proj/demo","kind":"ship","backend":"orca","window":"legacy:w1:p1","terminal":"orca:term-7","target":"orca:term-7"}]}
+  eligible=0
+  status=unsafe
+  corrupted=1
+  rows=
+  tasks=
+  unscoped=0
+$ fm-branch-dispatch.mjs wake-prompt --report bin/fm-branch-report.sh
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-orca/state","endpoint":"legacy:w1:p1","compared":[{"task":"t-orca","meta":"/tmp/fm-ep.DflHdk/home-orca/state/t-orca.meta","project":"/tmp/proj/demo","kind":"ship","backend":"orca","window":"legacy:w1:p1","terminal":"orca:term-7","target":"orca:term-7"}]}
+  FIRSTMATE SUPERVISION WAKE: stale: legacy:w1:p1
+  
+  RECORDED ENDPOINT BINDINGS (current metadata, not lifecycle authority):
+  endpoint lookup miss: {"state":"/tmp/fm-ep.DflHdk/home-orca/state","endpoint":"legacy:w1:p1","compared":[{"task":"t-orca","meta":"/tmp/fm-ep.DflHdk/home-orca/state/t-orca.meta","project":"/tmp/proj/demo","kind":"ship","backend":"orca","window":"legacy:w1:p1","terminal":"orca:term-7","target":"orca:term-7"}]}
+  Use the bound task id with bin/fm-crew-state.sh and the guarded task tools. Re-read current state before acting; never derive a task id from a pane suffix or strip its session prefix. An unresolved or ambiguous endpoint requires reconciliation, with no lifecycle action.
+  
+  Handle this per your operating procedure and finish with bin/fm-branch-report.sh.
+
+### E: default backend (no backend= line, tmux) still maps by window
+--- [head/adversarial] stale endpoint: fm-demo:fm-t-tmux
+$ fm-branch-dispatch.mjs scope --afk
+  status=safe
+  corrupted=0
+  rows=1
+  tasks=t-tmux
+  unscoped=0
+$ fm-branch-dispatch.mjs offer --afk
+  eligible=1
+  status=safe
+  corrupted=0
+  rows=1
+  tasks=t-tmux
+  unscoped=0
+$ fm-branch-dispatch.mjs wake-prompt --report bin/fm-branch-report.sh
+  FIRSTMATE SUPERVISION WAKE: stale: fm-demo:fm-t-tmux
+  
+  RECORDED ENDPOINT BINDINGS (current metadata, not lifecycle authority):
+  {"endpoint":"fm-demo:fm-t-tmux","task":"t-tmux","meta":"/tmp/fm-ep.DflHdk/home-default/state/t-tmux.meta","backend":"tmux"}
+  Use the bound task id with bin/fm-crew-state.sh and the guarded task tools. Re-read current state before acting; never derive a task id from a pane suffix or strip its session prefix. An unresolved or ambiguous endpoint requires reconciliation, with no lifecycle action.
+  
+  Handle this per your operating procedure and finish with bin/fm-branch-report.sh.

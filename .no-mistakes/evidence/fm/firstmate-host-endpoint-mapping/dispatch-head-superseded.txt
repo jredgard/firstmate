@@ -1,0 +1,100 @@
+# code=head metadata=superseded
+## /tmp/fm-ep.DflHdk/home-head-superseded/state/t-mosaiq.meta
+window=fm-Mosaiq:w7C:p1
+window=fm-Mosaiq:w8D:p2
+endpoint_task_id=t-mosaiq
+worktree=/tmp/wt/t-mosaiq
+project=/tmp/proj/demo
+harness=claude
+kind=ship
+backend=herdr
+herdr_session=fm-Mosaiq
+herdr_pane_id=p2
+## /tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1f.meta
+window=default:w1A:p1
+window=default:w1F:p2
+endpoint_task_id=t-w1f
+worktree=/tmp/wt/t-w1f
+project=/tmp/proj/demo
+harness=claude
+kind=ship
+backend=herdr
+herdr_session=default
+herdr_pane_id=p2
+## /tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1j.meta
+window=default:w1B:p1
+window=default:w1J:p2
+endpoint_task_id=t-w1j
+worktree=/tmp/wt/t-w1j
+project=/tmp/proj/demo
+harness=claude
+kind=ship
+backend=herdr
+herdr_session=default
+herdr_pane_id=p2
+--- [head/superseded] stale endpoint: default:w1F:p2
+$ fm-branch-dispatch.mjs scope --afk
+  status=safe
+  corrupted=0
+  rows=1
+  tasks=t-w1f
+  unscoped=0
+$ fm-branch-dispatch.mjs offer --afk
+  eligible=1
+  status=safe
+  corrupted=0
+  rows=1
+  tasks=t-w1f
+  unscoped=0
+$ fm-branch-dispatch.mjs wake-prompt --report bin/fm-branch-report.sh
+  FIRSTMATE SUPERVISION WAKE: stale: default:w1F:p2
+  
+  RECORDED ENDPOINT BINDINGS (current metadata, not lifecycle authority):
+  {"endpoint":"default:w1F:p2","task":"t-w1f","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1f.meta","backend":"herdr"}
+  Use the bound task id with bin/fm-crew-state.sh and the guarded task tools. Re-read current state before acting; never derive a task id from a pane suffix or strip its session prefix. An unresolved or ambiguous endpoint requires reconciliation, with no lifecycle action.
+  
+  Handle this per your operating procedure and finish with bin/fm-branch-report.sh.
+--- [head/superseded] stale endpoint: default:w1J:p2
+$ fm-branch-dispatch.mjs scope --afk
+  status=safe
+  corrupted=0
+  rows=2
+  tasks=t-w1j
+  unscoped=0
+$ fm-branch-dispatch.mjs offer --afk
+  eligible=1
+  status=safe
+  corrupted=0
+  rows=2
+  tasks=t-w1j
+  unscoped=0
+$ fm-branch-dispatch.mjs wake-prompt --report bin/fm-branch-report.sh
+  FIRSTMATE SUPERVISION WAKE: stale: default:w1J:p2
+  
+  RECORDED ENDPOINT BINDINGS (current metadata, not lifecycle authority):
+  {"endpoint":"default:w1J:p2","task":"t-w1j","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-w1j.meta","backend":"herdr"}
+  Use the bound task id with bin/fm-crew-state.sh and the guarded task tools. Re-read current state before acting; never derive a task id from a pane suffix or strip its session prefix. An unresolved or ambiguous endpoint requires reconciliation, with no lifecycle action.
+  
+  Handle this per your operating procedure and finish with bin/fm-branch-report.sh.
+--- [head/superseded] stale endpoint: fm-Mosaiq:w8D:p2
+$ fm-branch-dispatch.mjs scope --afk
+  status=safe
+  corrupted=0
+  rows=3
+  tasks=t-mosaiq
+  unscoped=0
+$ fm-branch-dispatch.mjs offer --afk
+  eligible=1
+  status=safe
+  corrupted=0
+  rows=3
+  tasks=t-mosaiq
+  unscoped=0
+$ fm-branch-dispatch.mjs wake-prompt --report bin/fm-branch-report.sh
+  FIRSTMATE SUPERVISION WAKE: stale: fm-Mosaiq:w8D:p2
+  
+  RECORDED ENDPOINT BINDINGS (current metadata, not lifecycle authority):
+  {"endpoint":"fm-Mosaiq:w8D:p2","task":"t-mosaiq","meta":"/tmp/fm-ep.DflHdk/home-head-superseded/state/t-mosaiq.meta","backend":"herdr"}
+  Use the bound task id with bin/fm-crew-state.sh and the guarded task tools. Re-read current state before acting; never derive a task id from a pane suffix or strip its session prefix. An unresolved or ambiguous endpoint requires reconciliation, with no lifecycle action.
+  
+  Handle this per your operating procedure and finish with bin/fm-branch-report.sh.

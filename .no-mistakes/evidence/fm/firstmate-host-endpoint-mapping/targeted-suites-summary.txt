@@ -1,0 +1,8 @@
+# tests/fm-supervision-host.test.sh: 87 ok, 0 not ok, rc=0 secs=351
+# tests/fm-pi-branch-extension.test.sh: 51 ok, 0 not ok, rc=0 secs=39
+# tests/fm-pi-watch-extension.test.sh: 60 ok, 0 not ok, rc=0 secs=44
+# tests/fm-watch-recovery-loop.test.sh: 2 ok, 0 not ok, rc=0 secs=58
+# tests/fm-branch-supervision.test.sh: 34 ok, 0 not ok, rc=0 secs=12
+
+ok - Herdr endpoint bindings use crew-state's target owner, preserve exact identities, and diagnose misses
+ok - dispatch diagnostics use the caller sink, keep Pi silent, and preserve host output and ownership checks
