@@ -3,8 +3,8 @@
 # origin/<default> when safe, and prune local branches whose upstream tracking
 # branch is gone (the remote branch was deleted, i.e. its PR merged) and that no
 # worktree still needs.
-# Compare checked-out main/master against its origin upstream, otherwise use
-# origin/HEAD, then checked-out main/master when no remote default is recorded.
+# Only a checked-out main/master uses its origin upstream; other checkouts use
+# origin/HEAD, then the first existing local main/master when no default is recorded.
 # Self-heals the one unambiguously safe drift: a clean, detached HEAD that holds
 # no unique commits (it is an ancestor of origin/<default>) and whose <default>
 # branch is free to check out is re-attached and then fast-forwarded ("recovered:").
@@ -120,7 +120,7 @@ resolve_project_arg() {
 }
 
 default_branch() {
-  local ref
+  local ref branch
   case "$cur" in
     main|master)
       ref=$(git -C "$PROJ" rev-parse --symbolic-full-name "$cur@{upstream}" 2>/dev/null || true)
@@ -139,13 +139,13 @@ default_branch() {
     BASE=$ref
     return 0
   fi
-  case "$cur" in
-    main|master)
-      DEFAULT=$cur
-      BASE="origin/$cur"
+  for branch in main master; do
+    if git -C "$PROJ" show-ref --verify --quiet "refs/heads/$branch"; then
+      DEFAULT=$branch
+      BASE="origin/$branch"
       return 0
-      ;;
-  esac
+    fi
+  done
   return 1
 }
 
