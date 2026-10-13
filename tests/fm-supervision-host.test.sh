@@ -405,7 +405,7 @@ test_report_after_the_return_is_queued_for_main() {
 
 test_away_report_classifies_main_actions() {
   local home state scenario action expected out rows event old_action old_wake wake_index
-  for scenario in progress done merged teardown decision blocked resolved hold decision-none blocked-none done-hold heartbeat freed-slot teardown-due; do
+  for scenario in progress "done" merged teardown decision blocked resolved hold decision-none blocked-none done-hold heartbeat freed-slot teardown-due; do
     home=$(make_home "handback-report-$scenario" away)
     state="$home/state"
     printf 'turn=h1\nrows=1\ntasks=demo\nunscoped=0\nwake=signal: demo.status\nposture=away\n' > "$state/.supervision-host-turn"
@@ -446,7 +446,7 @@ test_away_report_classifies_main_actions() {
     assert_absent "$state/.branch-outcomes-processed" "$scenario must not process the return outcome"
     [ "$(FM_HOME="$home" "$CONTRACT" mode)" = away ] || fail "$scenario changed the away record"
   done
-  for scenario in done decision blocked; do
+  for scenario in "done" decision blocked; do
     for old_action in auto none captain-hold; do
       wake_index=0
       for old_wake in 'check: validation still running' 'stale: fm-demo' heartbeat 'signal: demo.turn-ended' 'signal: demo.status'; do
@@ -488,7 +488,7 @@ test_away_merge_handback_scopes_the_reported_lane() {
 
 test_away_derived_dispatch_is_once_per_turn_and_task() {
   local home state trigger action out rows
-  for trigger in done merged teardown; do
+  for trigger in "done" merged teardown; do
     home=$(make_home "handback-dedup-$trigger" away)
     state="$home/state"
     printf 'turn=h1\nrows=1\ntasks=demo other\nunscoped=0\nwake=signal: demo.status other.status\nposture=away\n' > "$state/.supervision-host-turn"
@@ -514,7 +514,7 @@ test_away_derived_dispatch_is_once_per_turn_and_task() {
       --task demo --verdict routine --main-action dispatch --summary 'new explicit cleanup work' 2>&1) \
       || fail "$trigger: explicit dispatch report failed: $out"
     assert_grep 'handback: dispatch for demo (outcome 6)' "$state/.wake-queue" "$trigger: derived deduplication must not suppress explicit dispatch"
-    if [ "$trigger" = done ]; then
+    if [ "$trigger" = "done" ]; then
       out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=h1 "$REPORT" \
         --task other --verdict routine --summary 'other lane finished' 2>&1) \
         || fail "another lane's report failed: $out"
