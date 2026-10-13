@@ -1,0 +1,79 @@
+
+=== S1 [base] reported case: Mosaiq.UIUX.Internal on main tracking origin/main, origin/HEAD=master, registry branch main (single-project by name) ===
+before:
+  HEAD=main 0461791 origin/HEAD=origin/master origin/main=0461791 status=''
+  main upstream=origin/main
+$ FM_HOME=$LAB bin/fm-fleet-sync.sh Mosaiq.UIUX.Internal
+Mosaiq.UIUX.Internal: STUCK: on branch main, 0 commits behind origin/master - needs attention
+after:
+  HEAD=main 0461791 origin/HEAD=origin/master origin/main=774c21f status=''
+  local main == origin/main? no
+  master untouched local ref present? no (never created)
+
+=== S1 [target] reported case: Mosaiq.UIUX.Internal on main tracking origin/main, origin/HEAD=master, registry branch main (single-project by name) ===
+before:
+  HEAD=main ee7323d origin/HEAD=origin/master origin/main=ee7323d status=''
+  main upstream=origin/main
+$ FM_HOME=$LAB bin/fm-fleet-sync.sh Mosaiq.UIUX.Internal
+Mosaiq.UIUX.Internal: synced ee7323d..1399a1f
+after:
+  HEAD=main 1399a1f origin/HEAD=origin/master origin/main=1399a1f status=''
+  local main == origin/main? yes
+  master untouched local ref present? no (never created)
+
+=== S1b [target] same reported shape, whole-fleet form ===
+  HEAD=main ee7323d origin/HEAD=origin/master origin/main=ee7323d status=''
+$ FM_HOME=$LAB bin/fm-fleet-sync.sh
+Mosaiq.UIUX.Internal: synced ee7323d..1399a1f
+  HEAD=main 1399a1f origin/HEAD=origin/master origin/main=1399a1f status=''
+
+=== S2 [target] guard: dirty main in reported shape stays STUCK, edit preserved ===
+Mosaiq.UIUX.Internal: STUCK: on branch main with uncommitted changes, 2 commits behind origin/main - needs attention
+  HEAD=main ee7323d origin/HEAD=origin/master origin/main=1399a1f status=' M file.txt '
+  HEAD unchanged? yes
+  edit kept? yes
+
+=== S3 [target] guard: diverged main in reported shape stays STUCK ===
+Mosaiq.UIUX.Internal: STUCK: on diverged main, 2 commits behind origin/main - needs attention
+  HEAD=main 86ddd48 origin/HEAD=origin/master origin/main=1399a1f status=''
+  HEAD unchanged? yes
+
+=== S4 [target] adversarial: main tracks a non-origin remote (upstream) -> must NOT override origin/HEAD ===
+Mosaiq.UIUX.Internal: STUCK: on branch main, 0 commits behind origin/master - needs attention
+  HEAD=main ee7323d origin/HEAD=origin/master origin/main=1399a1f status=''
+  HEAD unchanged? yes
+
+=== S5 [target] adversarial: feature branch tracking origin/main does NOT get the override ===
+Mosaiq.UIUX.Internal: STUCK: on branch feature, 0 commits behind origin/master - needs attention
+  HEAD=feature ee7323d origin/HEAD=origin/master origin/main=1399a1f status=''
+  HEAD unchanged? yes
+
+=== S6 [target] decided scope: develop tracking origin/develop with origin/HEAD=main -> compares to origin/HEAD (documented) ===
+proj: STUCK: on branch develop, 0 commits behind origin/main - needs attention
+  HEAD=develop ff983c5 origin/HEAD=origin/main origin/main=ff983c5 status=''
+
+=== S7 [base] restored fallback (F1): no origin/HEAD, on feature, local main exists -> loud STUCK, not benign skip ===
+proj: STUCK: on branch feature, 1 commits behind origin/main - needs attention
+  HEAD=feature ff983c5 origin/HEAD=none origin/main=14b05a1 status=''
+
+=== S8 [base] restored fallback (F1): no origin/HEAD, clean detached ancestor -> recovered ===
+proj: recovered: re-attached main, synced ff983c5..14b05a1
+  HEAD=main 14b05a1 origin/HEAD=none origin/main=14b05a1 status=''
+
+=== S7 [target] restored fallback (F1): no origin/HEAD, on feature, local main exists -> loud STUCK, not benign skip ===
+proj: STUCK: on branch feature, 1 commits behind origin/main - needs attention
+  HEAD=feature ff983c5 origin/HEAD=none origin/main=14b05a1 status=''
+
+=== S8 [target] restored fallback (F1): no origin/HEAD, clean detached ancestor -> recovered ===
+proj: recovered: re-attached main, synced ff983c5..14b05a1
+  HEAD=main 14b05a1 origin/HEAD=none origin/main=14b05a1 status=''
+
+=== S9 [target] regression: ordinary clone (origin/HEAD=main, on main) behind by 1 -> synced; rerun -> already current ===
+proj: synced e27c65c..908f2ea
+proj: already current
+  HEAD=main 908f2ea origin/HEAD=origin/main origin/main=908f2ea status=''
+
+=== S10 [target] regression: master-default repo (origin/HEAD=master, on master) with stray local main -> master synced, main untouched ===
+proj: synced e27c65c..3bbd418
+  HEAD=master 3bbd418 origin/HEAD=origin/master origin/main=e27c65c status=''
+  origin/master=3bbd418 main unchanged? yes
