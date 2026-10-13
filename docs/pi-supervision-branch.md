@@ -184,7 +184,7 @@ A settled provider error, or a settled prompt with no report, releases the grant
 While a signal or stale prompt is open, `fm_branch_report` accepts only the tasks that prompt's claimed rows resolve to:
 
 - A signal row resolves by its status-log key.
-- A stale row resolves through the task record naming that endpoint.
+- A stale row resolves through the one task record whose backend target is that endpoint; an endpoint that no record or several records name resolves to no task.
 
 A report for any other task id, `fleet` included, is refused before the store is touched.
 That way, a task remembered from an earlier wake cannot become a delivered outcome.

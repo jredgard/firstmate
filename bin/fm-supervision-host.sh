@@ -163,7 +163,7 @@
 # .supervision-host-health (the latch: errors, cooldown, and probe time, keyed
 # to the main session, engine, and model), and .supervision-host.log (a bounded
 # ledger of where every close went, with each engine turn's usage and
-# outcome).
+# outcome, plus the dispatch command's endpoint lookup diagnostics).
 #
 # Tunables (environment): FM_SUPERVISION_HOST_PARK_SECONDS (27000; a positive
 # integer below the 28800-second registration, any other value is the default),
@@ -867,7 +867,7 @@ handle_wake() {  # <reason-lines>
   else
     set --
     case "$first" in heartbeat*) set -- --heartbeat ;; esac
-    if ! scope=$(node "$SCRIPT_DIR/fm-branch-dispatch.mjs" scope "$@" --afk 2>/dev/null); then
+    if ! scope=$(node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON "$SCRIPT_DIR/fm-branch-dispatch.mjs" scope "$@" --afk 2>> "$HOST_LOG"); then
       HANDLE_WHY="branch eligibility could not be computed"
       return 1
     fi
@@ -973,7 +973,7 @@ EOF
   rm -f "$WAKE_FILE"
   rc=0
   printf '%s\n' "$reason" \
-    | (umask 077; exec node "$SCRIPT_DIR/fm-branch-dispatch.mjs" wake-prompt "$@" > "$WAKE_FILE" 2>/dev/null) || rc=$?
+    | (umask 077; exec node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON "$SCRIPT_DIR/fm-branch-dispatch.mjs" wake-prompt "$@" > "$WAKE_FILE" 2>> "$HOST_LOG") || rc=$?
   if [ "$rc" -ne 0 ]; then
     [ -z "$readback" ] || rm -f "$readback"
     rm -f "$TURN_FILE" "$mirror"
@@ -1098,7 +1098,7 @@ attended_acceptor() {  # <first-reason-line>
     ATTENDED_WHY="the main session could not be identified"
   elif health_cooling; then
     ATTENDED_WHY="the supervision session is cooling down after engine errors"
-  elif ! offer=$(printf '%s\n' "$1" | node "$SCRIPT_DIR/fm-branch-dispatch.mjs" offer "${@:2}" 2>/dev/null); then
+  elif ! offer=$(printf '%s\n' "$1" | node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON "$SCRIPT_DIR/fm-branch-dispatch.mjs" offer "${@:2}" 2>> "$HOST_LOG"); then
     ATTENDED_WHY="branch eligibility could not be computed"
   elif [ "$(printf '%s\n' "$offer" | sed -n 's/^eligible=//p')" != 1 ]; then
     ATTENDED_WHY="main-only"

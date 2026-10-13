@@ -517,7 +517,7 @@ test_away_merge_handback_in_a_batch() {
   mkfifo "$home/scope-release"
   cat > "$home/fakebin/node" <<SH
 #!/usr/bin/env bash
-if [ "\${2:-}" = scope ] && [ ! -e "\$FM_HOME/scope-released" ]; then
+if [ "\${3:-}" = scope ] && [ ! -e "\$FM_HOME/scope-released" ]; then
   : > "\$FM_HOME/scope-ready"
   read -r _ < "\$FM_HOME/scope-release"
   : > "\$FM_HOME/scope-released"
@@ -832,6 +832,186 @@ test_dispatch_entry_scopes_rows_and_renders_the_away_tail() {
 
 # --- host loop ----------------------------------------------------------------
 
+test_herdr_endpoint_bindings_follow_crew_state_metadata() {
+  local home state endpoint out rc
+  home="$TMP_ROOT/herdr-bindings"
+  state="$home/state"
+  mkdir -p "$state"
+  for endpoint in default:w1F:p2 default:w1J:p2 fm-Mosaiq:w8D:p2; do
+    # The old field deliberately diverges from the current one, as after a
+    # metadata update. crew-state's owner reads the last value, not the first.
+    printf 'project=demo\nbackend=herdr\nwindow=old:w0:p1\nwindow=%s\n' "$endpoint" > "$state/demo.meta"
+    : > "$state/.wake-queue"
+    append_wake "$state" stale "$endpoint" "stale: $endpoint"
+    out=$(FM_HOME="$home" node "$DISPATCH" scope --afk) || fail "Herdr scope failed"
+    assert_contains "$out" 'status=safe' "the current recorded endpoint must be claimable"
+    assert_contains "$out" 'tasks=demo' "the endpoint must map to its task"
+    out=$(printf 'stale: %s\n' "$endpoint" | FM_HOME="$home" node "$DISPATCH" offer --afk)
+    assert_contains "$out" 'eligible=1' "the away host must accept the mapped endpoint"
+    out=$(printf 'stale: %s\n' "$endpoint" | FM_HOME="$home" node "$DISPATCH" wake-prompt --report report)
+    assert_contains "$out" "\"endpoint\":\"$endpoint\",\"task\":\"demo\"" "the engine must receive the task binding"
+    # Exercise the exact public shell owner crew-state calls, with no live
+    # Herdr inspection or lifecycle operation.
+    out=$(bash -c '. "$1/bin/fm-backend.sh"; fm_backend_target_of_meta "$2"' _ "$ROOT" "$state/demo.meta")
+    [ "$out" = "$endpoint" ] || fail "host and crew-state target owner disagree"
+  done
+
+  # Prefixes and old pane identities never alias the currently recorded pane.
+  for endpoint in Mosaiq:w8D:p2 old:w0:p1; do
+    : > "$state/.wake-queue"
+    append_wake "$state" stale "$endpoint" "stale: $endpoint"
+    out=$(FM_HOME="$home" node "$DISPATCH" scope --afk 2>&1)
+    assert_contains "$out" 'corrupted=1' "a nonmatching endpoint must fail closed"
+    assert_contains "$out" "\"endpoint\":\"$endpoint\"" "a lookup miss must log its exact address"
+    assert_contains "$out" '"window":"fm-Mosaiq:w8D:p2"' "a miss must log the compared window"
+    assert_contains "$out" '"terminal":""' "a miss must log the compared terminal"
+    assert_contains "$out" "\"state\":\"$state\"" "a miss must identify the scanned home"
+  done
+
+  # Orca's terminal is the target owner even when a legacy window is present.
+  printf 'project=demo\nbackend=orca\nwindow=legacy\nterminal=orca:term-1\n' > "$state/demo.meta"
+  : > "$state/.wake-queue"
+  append_wake "$state" stale orca:term-1 'stale: orca:term-1'
+  out=$(FM_HOME="$home" node "$DISPATCH" scope --afk)
+  assert_contains "$out" 'tasks=demo' "Orca must use crew-state's terminal selection"
+
+  # Two records claiming one endpoint cannot authorize a guessed task.
+  cp "$state/demo.meta" "$state/other.meta"
+  out=$(FM_HOME="$home" node "$DISPATCH" scope --afk 2>&1)
+  assert_contains "$out" 'corrupted=1' "duplicate endpoint ownership must fail closed"
+  assert_contains "$out" '"task":"other"' "the diagnostic must include every conflicting record"
+  out=$(printf 'stale: orca:term-1\n' | FM_HOME="$home" node "$DISPATCH" wake-prompt --report report 2>&1)
+  assert_contains "$out" 'endpoint lookup miss' "an ambiguous prompt must report unproven ownership"
+  rm "$state/other.meta"
+
+  # NUL framing preserves empty fields, equals signs, and spaces in paths.
+  printf 'project=demo=fixture\nkind=secondmate\nbackend=zellij\nwindow=lab:tab:pane\n' > "$state/demo.meta"
+  out=$(bash "$ROOT/bin/fm-endpoint-records.sh" "$state" | python3 -c 'import sys; f=sys.stdin.buffer.read().split(b"\0"); assert len(f)==9 and f[-1]==b""; assert f[2]==b"demo=fixture" and f[6]==b""; print(f[7].decode())')
+  [ "$out" = 'lab:tab:pane' ] || fail "endpoint snapshot lost field framing"
+  rc=0
+  bash "$ROOT/bin/fm-endpoint-records.sh" "$state/absent" >/dev/null 2>&1 || rc=$?
+  [ "$rc" -ne 0 ] || fail "an absent state directory must refuse the snapshot"
+  pass "Herdr endpoint bindings use crew-state's target owner, preserve exact identities, and diagnose misses"
+}
+
+
+test_dispatch_endpoint_diagnostics_respect_caller_sink() {
+  local state out rc
+  state="$TMP_ROOT/endpoint-diagnostics/state"
+  mkdir -p "$state"
+  STATE="$state" LIB="$ROOT/.pi/extensions/lib/fm-branch-dispatch.ts" DISPATCH="$DISPATCH" \
+    node --input-type=module > "$TMP_ROOT/endpoint-diagnostics.out" 2> "$TMP_ROOT/endpoint-diagnostics.err" <<'JS'
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+
+const { branchOfferForWake, branchWakePrompt, scopeForUnreadWake } = await import(pathToFileURL(process.env.LIB).href);
+const state = process.env.STATE;
+const endpoint = "fm-Mosaiq:w8D:p2";
+const message = `stale: ${endpoint}`;
+const record = `project=demo\nbackend=herdr\nwindow=${endpoint}\n`;
+const consoleCalls = [];
+for (const method of ["error", "warn", "log", "info", "debug"]) {
+  console[method] = (...args) => consoleCalls.push([method, ...args]);
+}
+writeFileSync(`${state}/.wake-queue`, `1\t1\tstale\t${endpoint}\t${message}\n`);
+
+function host(command, args = []) {
+  const result = spawnSync(process.execPath, ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON", process.env.DISPATCH, command, ...args], {
+    encoding: "utf8",
+    input: `${message}\n`,
+    env: { ...process.env, FM_STATE_OVERRIDE: state },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.ok(!result.stderr.includes("MODULE_TYPELESS_PACKAGE_JSON"), result.stderr);
+  return result;
+}
+
+function rejectedCalls(expectedPromptDetail) {
+  for (const afk of [false, true]) {
+    const scope = scopeForUnreadWake(state, false, afk);
+    assert.equal(scope.corrupted, true);
+    assert.deepEqual(scope.eligibleTasks, []);
+    const offer = branchOfferForWake(state, message, afk);
+    assert.equal(offer.eligible, false);
+    assert.deepEqual(offer.scope.eligibleSeqs, []);
+  }
+  const prompt = branchWakePrompt(message, "fm_branch_report", "", "", state);
+  assert.ok(prompt.includes(expectedPromptDetail), prompt);
+  assert.ok(!prompt.includes(`"endpoint":"${endpoint}","task":`), prompt);
+  return prompt;
+}
+
+function misses() {
+  const prompt = rejectedCalls("endpoint lookup miss:");
+  assert.ok(prompt.includes('"compared":'), prompt);
+  const diagnostics = [];
+  const sink = (detail) => diagnostics.push(detail);
+  scopeForUnreadWake(state, false, false, false, sink);
+  assert.equal(diagnostics.length, 1);
+  branchOfferForWake(state, message, false, false, sink);
+  assert.equal(diagnostics.length, 2);
+  branchOfferForWake(state, message, true, false, sink);
+  assert.equal(diagnostics.length, 4);
+  assert.equal(branchWakePrompt(message, "fm_branch_report", "", "", state, sink), prompt);
+  assert.equal(diagnostics.length, 5);
+  for (const detail of diagnostics) {
+    const data = JSON.parse(detail.slice("endpoint lookup miss: ".length));
+    assert.equal(data.state, state);
+    assert.equal(data.endpoint, endpoint);
+    assert.ok(Array.isArray(data.compared));
+  }
+  for (const [command, args] of [["scope", ["--afk"]], ["offer", ["--afk"]], ["wake-prompt", ["--report", "report"]]]) {
+    const result = host(command, args);
+    assert.ok(result.stderr.includes(diagnostics[0]), result.stderr);
+    if (command === "wake-prompt") assert.ok(result.stdout.includes(diagnostics[0]), result.stdout);
+    else {
+      assert.ok(!result.stdout.includes("endpoint lookup"), result.stdout);
+      assert.ok(result.stdout.includes("corrupted=1"), result.stdout);
+      if (command === "offer") assert.ok(result.stdout.includes("eligible=0"), result.stdout);
+    }
+  }
+}
+
+misses();
+writeFileSync(`${state}/demo.meta`, record);
+writeFileSync(`${state}/other.meta`, record);
+misses();
+rmSync(`${state}/other.meta`);
+for (const afk of [false, true]) {
+  assert.deepEqual(scopeForUnreadWake(state, false, afk).eligibleTasks, ["demo"]);
+  assert.equal(branchOfferForWake(state, message, afk).eligible, true);
+}
+assert.ok(branchWakePrompt(message, "fm_branch_report", "", "", state).includes(`"endpoint":"${endpoint}","task":"demo"`));
+for (const [command, args] of [["scope", ["--afk"]], ["offer", ["--afk"]], ["wake-prompt", ["--report", "report"]]]) {
+  const result = host(command, args);
+  assert.ok(!/endpoint lookup (?:miss|unavailable):|unreadable endpoint metadata:/.test(result.stderr), result.stderr);
+  assert.ok(result.stdout.includes(command === "wake-prompt" ? '"task":"demo"' : "tasks=demo"), result.stdout);
+}
+
+symlinkSync(`${state}/absent`, `${state}/broken.meta`);
+const unavailablePrompt = rejectedCalls("endpoint lookup unavailable:");
+assert.ok(unavailablePrompt.includes("Endpoint ownership is unproven"), unavailablePrompt);
+const diagnostics = [];
+assert.equal(branchWakePrompt(message, "fm_branch_report", "", "", state, (detail) => diagnostics.push(detail)), unavailablePrompt);
+assert.equal(diagnostics.length, 1);
+assert.ok(diagnostics[0].includes("unreadable endpoint metadata"), diagnostics[0]);
+for (const [command, args] of [["scope", ["--afk"]], ["offer", ["--afk"]], ["wake-prompt", ["--report", "report"]]]) {
+  const unavailable = host(command, args);
+  assert.ok(unavailable.stderr.includes("endpoint lookup unavailable:"), unavailable.stderr);
+  assert.ok(unavailable.stderr.includes("unreadable endpoint metadata"), unavailable.stderr);
+  if (command === "wake-prompt") assert.ok(unavailable.stdout.includes(diagnostics[0]), unavailable.stdout);
+  else assert.ok(unavailable.stdout.includes("corrupted=1"), unavailable.stdout);
+}
+assert.deepEqual(consoleCalls, []);
+JS
+  rc=$?
+  out=$(cat "$TMP_ROOT/endpoint-diagnostics.out" "$TMP_ROOT/endpoint-diagnostics.err")
+  expect_code 0 "$rc" "endpoint diagnostic routing must preserve silent Pi calls and host stderr: $out"
+  assert_no_re 'endpoint lookup (miss|unavailable):|unreadable endpoint metadata:' "$TMP_ROOT/endpoint-diagnostics.err" "shared endpoint calls leaked diagnostics: $out"
+  pass "dispatch diagnostics use the caller sink, keep Pi silent, and preserve host output and ownership checks"
+}
 
 # BRANCH OUTCOMES belongs to a home that runs the host off Pi: on a Claude
 # primary that is the default and an `off` file opts out, while another
@@ -1273,6 +1453,7 @@ test_attended_routine_wake_is_handled_on_the_engine_and_stays_off_main() {
     || fail "attended: the wake was not handled on the engine: $(cat "$home/host.out"; cat "$home/state/.supervision-host.log")"
   first="$home/engine-call.1"
   assert_re '^actor=branch$' "$first" "the attended engine must run as the branch actor"
+  assert_no_grep 'MODULE_TYPELESS_PACKAGE_JSON' "$home/state/.supervision-host.log" "attended dispatch must keep module-type warnings out of the ledger"
   assert_no_re '^POSTURE: AWAY' "$first" "an attended wake must carry no away tail"
   assert_re '^(arg=)?FIRSTMATE SUPERVISION WAKE: signal: ' "$first" "the attended wake must carry the close"
   assert_re '	handled	turn=[^	]*	posture=attended	' "$home/state/.supervision-host.log" "the ledger must record the attended turn"
@@ -2265,7 +2446,7 @@ test_undelivered_dialog_is_fed_again_on_the_next_turn() {
   real_node=$(command -v node)
   cat > "$home/fakebin/node" <<SH
 #!/usr/bin/env bash
-if [ "\${2:-}" = wake-prompt ] && [ -e "\$FM_HOME/slow-render" ]; then echo 120 > "\$FM_HOME/park-clock"; fi
+if [ "\${3:-}" = wake-prompt ] && [ -e "\$FM_HOME/slow-render" ]; then echo 120 > "\$FM_HOME/park-clock"; fi
 exec "$real_node" "\$@"
 SH
   chmod +x "$home/fakebin/node"
@@ -2477,6 +2658,7 @@ test_away_wake_is_handled_on_the_engine_and_never_reaches_main() {
   wait_until 150 watcher_live "$home" || fail "away: the host never started a watcher cycle: $(cat "$home/host.out")"
   append_status "$home" 'step one'
   wait_until 250 handled_at_least "$home" 1 || fail "away: the wake was not handled: $(cat "$home/host.out"; cat "$home/state/.supervision-host.log")"
+  assert_no_grep 'MODULE_TYPELESS_PACKAGE_JSON' "$home/state/.supervision-host.log" "away dispatch must keep module-type warnings out of the ledger"
   lock_pid=$(cat "$home/state/.lock")
 
   first="$home/engine-call.1"
@@ -2890,7 +3072,7 @@ test_park_boundary_rechecked_just_before_the_engine_turn() {
   echo 0 > "$home/park-clock"
   cat > "$home/fakebin/node" <<SH
 #!/usr/bin/env bash
-if [ "\${2:-}" = wake-prompt ]; then
+if [ "\${3:-}" = wake-prompt ]; then
   cp "\$FM_HOME/state/.supervision-host" "\$FM_HOME/host-record-at-render" 2>/dev/null
   read -r _ < "\$FM_HOME/render-release"
 fi
@@ -3389,6 +3571,8 @@ test_away_handback_survives_ack_and_resumes_host_after_main
 test_away_worker_input_handback_and_captain_hold
 test_away_handback_drains_only_the_handed_lane
 test_away_multiple_handbacks_keep_one_complete_reason_line
+test_herdr_endpoint_bindings_follow_crew_state_metadata
+test_dispatch_endpoint_diagnostics_respect_caller_sink
 test_branch_outcomes_only_on_a_host_home_off_pi
 test_branch_outcomes_put_captain_first_and_collapse_routine_overflow
 test_branch_outcomes_collapse_repeated_captain_outcomes_per_task
