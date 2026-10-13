@@ -157,7 +157,7 @@ if [ "$(turn_field posture)" = away ] && fm_afk_contract_away_present "$STATE"; 
   EVENTS=$(awk -F '\t' -v task="$TASK" '$1 == "event=" task { sub(/^[^\t]*\t/, ""); print }' "$TURN_FILE")
   if [ "$TASK" != fleet ]; then
     while IFS= read -r EVENT; do
-      if [ "$(status_line_verb "$EVENT")" = done ]; then TERMINAL=1; fi
+      if [ "$(status_line_verb "$EVENT")" = "done" ]; then TERMINAL=1; fi
     done <<EOF
 $EVENTS
 EOF
