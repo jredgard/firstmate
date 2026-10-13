@@ -586,28 +586,142 @@ test_origin_head_fallback_without_tracking() {
   pass "origin/HEAD remains the fallback without local main/master upstreams"
 }
 
+test_tracking_nonstandard_branch_uses_origin_head() {
+  local home clone out form name before
+  home=$(new_home)
+  for form in single fleet; do
+    name="tracked-develop-$form"
+    clone=$(build_pair "$home" "$name")
+    git -C "$home/work-$name" push -q origin main:refs/heads/develop
+    git -C "$clone" fetch -q origin
+    git -C "$clone" checkout -q -b develop --track origin/develop
+    before=$(head_sha "$clone")
+    commit_file "$home/work-$name" file.txt v1 C1
+    git -C "$home/work-$name" push -q origin main:refs/heads/develop
+
+    if [ "$form" = single ]; then
+      out=$(run_sync "$home" "$clone")
+    else
+      out=$(run_sync "$home")
+    fi
+
+    assert_contains "$out" "$name: STUCK: on branch develop, 0 commits behind origin/main" "tracked develop must compare against origin/HEAD"
+    [ "$(git -C "$clone" symbolic-ref --short HEAD)" = develop ] || fail "tracked develop was switched"
+    [ "$(head_sha "$clone")" = "$before" ] || fail "tracked develop was advanced"
+    [ "$(git -C "$clone" rev-parse main)" = "$before" ] || fail "unchecked main was advanced"
+    [ "$(git -C "$clone" rev-parse origin/develop)" != "$before" ] || fail "fixture develop upstream did not advance"
+  done
+  pass "tracked nonstandard checkouts use origin/HEAD in single and fleet sync"
+}
+
 test_local_default_fallback_without_upstream_or_origin_head() {
-  local home clone out branch name
+  local home clone out branch name state before form default_before
   home=$(new_home)
   for branch in main master; do
-    name="fallback-$branch-no-head"
+    for state in clean feature detached dirty unique diverged localdiverged elsewhere; do
+      name="fallback-$branch-$state-no-head"
+      clone=$(build_pair "$home" "$name")
+      advance_origin "$home" "$name" C1
+      if [ "$branch" = master ]; then
+        git -C "$home/work-$name" push -q origin main:refs/heads/master
+        git -C "$clone" branch -m main master
+      fi
+      git -C "$clone" branch --unset-upstream "$branch"
+      git -C "$clone" config remote.origin.followRemoteHEAD never
+      git -C "$clone" symbolic-ref --delete refs/remotes/origin/HEAD
+      case "$state" in
+        feature) git -C "$clone" checkout -q -b feature ;;
+        detached|dirty|unique|localdiverged|elsewhere)
+          if [ "$state" = localdiverged ]; then
+            commit_file "$clone" local.txt local "local divergent commit"
+          fi
+          git -C "$clone" checkout --detach --quiet
+          case "$state" in
+            dirty) printf 'uncommitted edit\n' >> "$clone/file.txt" ;;
+            unique) commit_file "$clone" local.txt local "unique detached commit" ;;
+            localdiverged) git -C "$clone" checkout --detach --quiet HEAD~1 ;;
+            elsewhere) git -C "$clone" worktree add -q "$home/worktree-$name" "$branch" ;;
+          esac
+          ;;
+        diverged) commit_file "$clone" local.txt local "local divergent commit" ;;
+      esac
+      before=$(head_sha "$clone")
+      default_before=$(git -C "$clone" rev-parse "$branch")
+
+      for form in single fleet; do
+        if [ "$form" = single ]; then
+          out=$(run_sync "$home" "$clone")
+        else
+          out=$(run_sync "$home")
+        fi
+
+        case "$state" in
+          clean|detached)
+            if [ "$form" = single ]; then
+              assert_contains "$out" "synced" "local fallback must refresh safe checkouts"
+              if [ "$state" = detached ]; then
+                assert_contains "$out" "$name: recovered: re-attached $branch" "safe detached fallback must recover"
+              fi
+            else
+              assert_contains "$out" "$name: already current" "fallback must remain current after refresh"
+            fi
+            [ "$(git -C "$clone" symbolic-ref --short HEAD)" = "$branch" ] || fail "local fallback branch was not retained"
+            [ "$(head_sha "$clone")" = "$(git -C "$clone" rev-parse "origin/$branch")" ] || fail "local fallback was not refreshed"
+            ;;
+          *)
+            assert_contains "$out" "$name: STUCK:" "unsafe fallback checkout must be reported loudly"
+            assert_contains "$out" "1 commits behind origin/$branch - needs attention" "unsafe fallback warning must be quantified"
+            [ "$(head_sha "$clone")" = "$before" ] || fail "unsafe fallback checkout was advanced"
+            [ "$(git -C "$clone" rev-parse "$branch")" = "$default_before" ] || fail "unsafe fallback local default was moved"
+            case "$state" in
+              feature) [ "$(git -C "$clone" symbolic-ref --short HEAD)" = feature ] || fail "feature checkout was switched" ;;
+              diverged) [ "$(git -C "$clone" symbolic-ref --short HEAD)" = "$branch" ] || fail "diverged checkout was switched" ;;
+              *) git -C "$clone" symbolic-ref --quiet HEAD >/dev/null && fail "unsafe detached checkout was re-attached" ;;
+            esac
+            if [ "$state" = dirty ]; then
+              assert_contains "$(cat "$clone/file.txt")" "uncommitted edit" "dirty fallback edit must remain intact"
+            fi
+            ;;
+        esac
+      done
+    done
+  done
+  pass "local main/master fallback preserves sync, recovery, and unsafe states across checkout forms"
+}
+
+test_local_default_fallback_prefers_main_over_master() {
+  local home clone out state name before
+  home=$(new_home)
+  for state in main master feature detached; do
+    name="fallback-both-$state"
     clone=$(build_pair "$home" "$name")
+    git -C "$clone" branch master
     advance_origin "$home" "$name" C1
-    if [ "$branch" = master ]; then
-      git -C "$home/work-$name" push -q origin main:refs/heads/master
-      git -C "$clone" branch -m main master
-      git -C "$clone" branch -q main --track origin/main
-    fi
-    git -C "$clone" branch --unset-upstream "$branch"
+    git -C "$clone" branch --unset-upstream main
     git -C "$clone" config remote.origin.followRemoteHEAD never
     git -C "$clone" symbolic-ref --delete refs/remotes/origin/HEAD
+    case "$state" in
+      master) git -C "$clone" checkout -q master ;;
+      feature) git -C "$clone" checkout -q -b feature ;;
+      detached) git -C "$clone" checkout --detach --quiet ;;
+    esac
+    before=$(head_sha "$clone")
 
     out=$(run_sync "$home" "$clone")
 
-    assert_contains "$out" "$name: synced" "local main/master fallback must still sync without upstream or origin/HEAD"
-    [ "$(head_sha "$clone")" = "$(git -C "$clone" rev-parse "origin/$branch")" ] || fail "local default fallback was not refreshed"
+    if [ "$state" = master ] || [ "$state" = feature ]; then
+      assert_contains "$out" "$name: STUCK: on branch $state, 1 commits behind origin/main" "fallback must prefer local main regardless of checkout"
+      [ "$(git -C "$clone" symbolic-ref --short HEAD)" = "$state" ] || fail "off-default checkout was switched"
+      [ "$(head_sha "$clone")" = "$before" ] || fail "off-default checkout was advanced"
+      [ "$(git -C "$clone" rev-parse main)" = "$before" ] || fail "unchecked local main was advanced"
+    else
+      assert_contains "$out" "synced" "fallback must sync or recover local main"
+      [ "$(git -C "$clone" symbolic-ref --short HEAD)" = main ] || fail "fallback did not select main"
+      [ "$(head_sha "$clone")" = "$(git -C "$clone" rev-parse origin/main)" ] || fail "fallback main was not refreshed"
+    fi
+    [ "$(git -C "$clone" rev-parse master)" = "$before" ] || fail "fallback moved unchecked master"
   done
-  pass "local main/master remains the final fallback without upstream or origin/HEAD"
+  pass "local fallback prefers main over master independently of checkout"
 }
 
 test_tracking_branch_dirty_checkout_is_untouched() {
@@ -1007,7 +1121,9 @@ test_tracking_branch_overrides_origin_head
 test_local_default_and_remote_upstream_names_can_differ
 test_dev_default_and_master_ignore_stray_main
 test_origin_head_fallback_without_tracking
+test_tracking_nonstandard_branch_uses_origin_head
 test_local_default_fallback_without_upstream_or_origin_head
+test_local_default_fallback_prefers_main_over_master
 test_tracking_branch_dirty_checkout_is_untouched
 test_no_origin_skipped
 test_local_only_skipped
