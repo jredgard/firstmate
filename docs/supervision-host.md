@@ -85,6 +85,7 @@ The other owners read the file at every arm.
 
 `bin/fm-branch-report.sh` appends to the outcome store (`bin/fm-branch-outcome.sh`) plus a per-turn receipt the host requires.
 A non-silent row an away turn records after the captain returned is also queued for main as a durable check wake.
+An away turn's [main handback](#main-handback-while-away) is queued the same way while the captain is still away.
 Silent outcomes remain in the store but are not queued or relayed as notes.
 An attended turn queues nothing: its captain rows reach main through the host's `branch-outcome` exit and the drain, and its routine rows stay in the store.
 
@@ -199,13 +200,13 @@ The host counts the wake handled only when all three hold:
 
 ### Where a handled wake's outcome goes
 
-Away, a handled wake never reaches main, whether its outcome was routine or captain.
+Away, a handled wake reaches main only through a [main handback](#main-handback-while-away); otherwise it never does, whether its outcome was routine or captain.
 Captain outcomes wait in the outcome store, and after the return the drain's `BRANCH OUTCOMES` section presents them; the return brief (`bin/fm-afk-return.sh`) counts them and points there.
 Attended, see [Captain outcomes](#captain-outcomes).
 
 ### A captain who returns during a turn
 
-The one exception to the away rule is a captain who returns while an away turn is still running.
+Besides a main handback, the exception to the away rule is a captain who returns while an away turn is still running.
 The return brief may have been rendered before that turn's visible outcomes existed.
 So the host hands the close to main with any visible outcomes for main to relay, whether or not the turn handled its wake.
 
