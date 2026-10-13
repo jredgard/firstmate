@@ -895,6 +895,123 @@ test_herdr_endpoint_bindings_follow_crew_state_metadata() {
 }
 
 
+test_dispatch_endpoint_diagnostics_respect_caller_sink() {
+  local state out rc
+  state="$TMP_ROOT/endpoint-diagnostics/state"
+  mkdir -p "$state"
+  STATE="$state" LIB="$ROOT/.pi/extensions/lib/fm-branch-dispatch.ts" DISPATCH="$DISPATCH" \
+    node --input-type=module > "$TMP_ROOT/endpoint-diagnostics.out" 2> "$TMP_ROOT/endpoint-diagnostics.err" <<'JS'
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+
+const { branchOfferForWake, branchWakePrompt, scopeForUnreadWake } = await import(pathToFileURL(process.env.LIB).href);
+const state = process.env.STATE;
+const endpoint = "fm-Mosaiq:w8D:p2";
+const message = `stale: ${endpoint}`;
+const record = `project=demo\nbackend=herdr\nwindow=${endpoint}\n`;
+const consoleCalls = [];
+for (const method of ["error", "warn", "log", "info", "debug"]) {
+  console[method] = (...args) => consoleCalls.push([method, ...args]);
+}
+writeFileSync(`${state}/.wake-queue`, `1\t1\tstale\t${endpoint}\t${message}\n`);
+
+function host(command, args = []) {
+  const result = spawnSync(process.execPath, [process.env.DISPATCH, command, ...args], {
+    encoding: "utf8",
+    input: `${message}\n`,
+    env: { ...process.env, FM_STATE_OVERRIDE: state },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  return result;
+}
+
+function rejectedCalls(expectedPromptDetail) {
+  for (const afk of [false, true]) {
+    const scope = scopeForUnreadWake(state, false, afk);
+    assert.equal(scope.corrupted, true);
+    assert.deepEqual(scope.eligibleTasks, []);
+    const offer = branchOfferForWake(state, message, afk);
+    assert.equal(offer.eligible, false);
+    assert.deepEqual(offer.scope.eligibleSeqs, []);
+  }
+  const prompt = branchWakePrompt(message, "fm_branch_report", "", "", state);
+  assert.ok(prompt.includes(expectedPromptDetail), prompt);
+  assert.ok(!prompt.includes(`"endpoint":"${endpoint}","task":`), prompt);
+  return prompt;
+}
+
+function misses() {
+  const prompt = rejectedCalls("endpoint lookup miss:");
+  assert.ok(prompt.includes('"compared":'), prompt);
+  const diagnostics = [];
+  const sink = (detail) => diagnostics.push(detail);
+  scopeForUnreadWake(state, false, false, false, sink);
+  assert.equal(diagnostics.length, 1);
+  branchOfferForWake(state, message, false, false, sink);
+  assert.equal(diagnostics.length, 2);
+  branchOfferForWake(state, message, true, false, sink);
+  assert.equal(diagnostics.length, 4);
+  assert.equal(branchWakePrompt(message, "fm_branch_report", "", "", state, sink), prompt);
+  assert.equal(diagnostics.length, 5);
+  for (const detail of diagnostics) {
+    const data = JSON.parse(detail.slice("endpoint lookup miss: ".length));
+    assert.equal(data.state, state);
+    assert.equal(data.endpoint, endpoint);
+    assert.ok(Array.isArray(data.compared));
+  }
+  for (const [command, args] of [["scope", ["--afk"]], ["offer", ["--afk"]], ["wake-prompt", ["--report", "report"]]]) {
+    const result = host(command, args);
+    assert.ok(result.stderr.includes(diagnostics[0]), result.stderr);
+    if (command === "wake-prompt") assert.ok(result.stdout.includes(diagnostics[0]), result.stdout);
+    else {
+      assert.ok(!result.stdout.includes("endpoint lookup"), result.stdout);
+      assert.ok(result.stdout.includes("corrupted=1"), result.stdout);
+      if (command === "offer") assert.ok(result.stdout.includes("eligible=0"), result.stdout);
+    }
+  }
+}
+
+misses();
+writeFileSync(`${state}/demo.meta`, record);
+writeFileSync(`${state}/other.meta`, record);
+misses();
+rmSync(`${state}/other.meta`);
+for (const afk of [false, true]) {
+  assert.deepEqual(scopeForUnreadWake(state, false, afk).eligibleTasks, ["demo"]);
+  assert.equal(branchOfferForWake(state, message, afk).eligible, true);
+}
+assert.ok(branchWakePrompt(message, "fm_branch_report", "", "", state).includes(`"endpoint":"${endpoint}","task":"demo"`));
+for (const [command, args] of [["scope", ["--afk"]], ["offer", ["--afk"]], ["wake-prompt", ["--report", "report"]]]) {
+  const result = host(command, args);
+  assert.equal(result.stderr, "");
+  assert.ok(result.stdout.includes(command === "wake-prompt" ? '"task":"demo"' : "tasks=demo"), result.stdout);
+}
+
+symlinkSync(`${state}/absent`, `${state}/broken.meta`);
+const unavailablePrompt = rejectedCalls("endpoint lookup unavailable:");
+assert.ok(unavailablePrompt.includes("Endpoint ownership is unproven"), unavailablePrompt);
+const diagnostics = [];
+assert.equal(branchWakePrompt(message, "fm_branch_report", "", "", state, (detail) => diagnostics.push(detail)), unavailablePrompt);
+assert.equal(diagnostics.length, 1);
+assert.ok(diagnostics[0].includes("unreadable endpoint metadata"), diagnostics[0]);
+for (const [command, args] of [["scope", ["--afk"]], ["offer", ["--afk"]], ["wake-prompt", ["--report", "report"]]]) {
+  const unavailable = host(command, args);
+  assert.ok(unavailable.stderr.includes("endpoint lookup unavailable:"), unavailable.stderr);
+  assert.ok(unavailable.stderr.includes("unreadable endpoint metadata"), unavailable.stderr);
+  if (command === "wake-prompt") assert.ok(unavailable.stdout.includes(diagnostics[0]), unavailable.stdout);
+  else assert.ok(unavailable.stdout.includes("corrupted=1"), unavailable.stdout);
+}
+assert.deepEqual(consoleCalls, []);
+JS
+  rc=$?
+  out=$(cat "$TMP_ROOT/endpoint-diagnostics.out" "$TMP_ROOT/endpoint-diagnostics.err")
+  expect_code 0 "$rc" "endpoint diagnostic routing must preserve silent Pi calls and host stderr: $out"
+  [ ! -s "$TMP_ROOT/endpoint-diagnostics.err" ] || fail "shared endpoint calls leaked stderr: $out"
+  pass "dispatch diagnostics use the caller sink, keep Pi silent, and preserve host output and ownership checks"
+}
+
 # BRANCH OUTCOMES belongs to a home that runs the host off Pi: on a Claude
 # primary that is the default and an `off` file opts out, while another
 # primary still needs the file; wherever the home does not run the host the
@@ -3452,6 +3569,7 @@ test_away_worker_input_handback_and_captain_hold
 test_away_handback_drains_only_the_handed_lane
 test_away_multiple_handbacks_keep_one_complete_reason_line
 test_herdr_endpoint_bindings_follow_crew_state_metadata
+test_dispatch_endpoint_diagnostics_respect_caller_sink
 test_branch_outcomes_only_on_a_host_home_off_pi
 test_branch_outcomes_put_captain_first_and_collapse_routine_overflow
 test_branch_outcomes_collapse_repeated_captain_outcomes_per_task

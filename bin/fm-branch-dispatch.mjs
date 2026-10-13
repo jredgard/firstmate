@@ -49,6 +49,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dispatch = await import(pathToFileURL(path.join(root, ".pi", "extensions", "lib", "fm-branch-dispatch.ts")).href);
+const diagnostic = (detail) => process.stderr.write(`${detail}\n`);
 
 function usage() {
   process.stderr.write(
@@ -93,7 +94,7 @@ if (command === "scope") {
     else if (arg === "--afk") afk = true;
     else usage();
   }
-  process.stdout.write(scopeLines(dispatch.scopeForUnreadWake(stateDir(), heartbeat, afk), heartbeat));
+  process.stdout.write(scopeLines(dispatch.scopeForUnreadWake(stateDir(), heartbeat, afk, false, diagnostic), heartbeat));
 } else if (command === "offer") {
   let afk = false;
   for (const arg of args) {
@@ -101,7 +102,7 @@ if (command === "scope") {
     else usage();
   }
   const message = readFileSync(0, "utf8").split(/\r?\n/)[0] ?? "";
-  const verdict = dispatch.branchOfferForWake(stateDir(), message, afk, true);
+  const verdict = dispatch.branchOfferForWake(stateDir(), message, afk, true, diagnostic);
   process.stdout.write(`eligible=${verdict.eligible ? 1 : 0}\n${scopeLines(verdict.scope, verdict.heartbeat)}`);
 } else if (command === "wake-prompt") {
   let report = "";
@@ -131,7 +132,7 @@ if (command === "scope") {
   }
   const tail = quiet ? dispatch.quietPostureTailFor(readOptional(readbackFile))
     : away ? dispatch.awayPostureTailFor(readOptional(readbackFile)) : "";
-  process.stdout.write(`${dispatch.branchWakePrompt(message, report, tail, mirror, stateDir())}\n`);
+  process.stdout.write(`${dispatch.branchWakePrompt(message, report, tail, mirror, stateDir(), diagnostic)}\n`);
 } else {
   usage();
 }
