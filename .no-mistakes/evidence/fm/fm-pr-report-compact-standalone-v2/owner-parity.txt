@@ -1,0 +1,10 @@
+''           owner_rc=0 tool_rc=0 same-stderr
+lint         owner_rc=0 tool_rc=0 same-stderr
+ci           owner_rc=1 tool_rc=2 same-stderr
+review       owner_rc=1 tool_rc=2 same-stderr
+lint\,ci     owner_rc=1 tool_rc=2 same-stderr
+lint\,       owner_rc=1 tool_rc=2 same-stderr
+Lint         owner_rc=1 tool_rc=2 same-stderr
+\ lint       owner_rc=1 tool_rc=2 same-stderr
+$'lint\n'    owner_rc=1 tool_rc=2 same-stderr
+$'\tlint'    owner_rc=1 tool_rc=2 same-stderr

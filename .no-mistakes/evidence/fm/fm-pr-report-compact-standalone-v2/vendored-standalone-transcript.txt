@@ -1,0 +1,61 @@
+================ revision bf552e2 ================
+tooling/ contents: fm-pr-report-compact
+--- S1: --stdin --nm-skip lint (registered lint skip), normal PATH
+exit=2
+stderr: _: line 1: /tmp/tmp.oHJ9Tww3B2/bf552e2/Factory/tooling/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+--- S2: --stdin with omitted/empty skip on a passed body
+exit=2
+stderr: _: line 1: /tmp/tmp.oHJ9Tww3B2/bf552e2/Factory/tooling/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+--- S3: invalid --nm-skip ci must exit 2, no body, owner diagnostic
+exit=2 stdout_bytes=0
+stderr: _: line 1: /tmp/tmp.oHJ9Tww3B2/bf552e2/Factory/tooling/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+--- S4: minimal PATH (python3 only, no bash), isolated python -I -S, --nm-skip lint
+exit=1
+stderr:     raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: 'bash'
+status lines: 0
+--- S5: network form, invalid skip, minimal PATH: must exit 2 before any az call
+exit=1
+stderr: FileNotFoundError: [Errno 2] No such file or directory: 'bash'
+az calls: 0
+--- S6: network form, --nm-skip lint, minimal PATH: validation passes, reaches az
+exit=1
+stderr: FileNotFoundError: [Errno 2] No such file or directory: 'bash'
+az calls: 0
+================ revision dc12aea ================
+tooling/ contents: fm-pr-report-compact
+--- S1: --stdin --nm-skip lint (registered lint skip), normal PATH
+exit=0
+stderr: 
+- ✅ intent - passed
+- ✅ review - passed
+- ⏭️ lint - skipped (registered)
+- ✅ pr - passed
+- ✅ ci - passed
+--- S2: --stdin with omitted/empty skip on a passed body
+exit=0
+stderr: 
+- ✅ intent - passed
+- ✅ review - passed
+- ✅ test - passed
+- ✅ pr - passed
+- ✅ ci - passed
+--- S3: invalid --nm-skip ci must exit 2, no body, owner diagnostic
+exit=2 stdout_bytes=0
+stderr: error: fm-pr-report-compact: invalid no-mistakes skip 'ci'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+--- S4: minimal PATH (python3 only, no bash), isolated python -I -S, --nm-skip lint
+exit=0
+stderr: 
+status lines: 5
+--- S5: network form, invalid skip, minimal PATH: must exit 2 before any az call
+exit=2
+stderr: error: fm-pr-report-compact: invalid no-mistakes skip 'review'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+az calls: 0
+--- S6: network form, --nm-skip lint, minimal PATH: validation passes, reaches az
+exit=1
+stderr: error: PR 1 could not be verified as existing (response did not contain a pull request); description not updated
+az calls: 1
+repos pr show --id 1 --organization https://dev.azure.com/x --query {description: description, repo: repository.name, project: repository.project.name, status: status} -o json
