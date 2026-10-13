@@ -1556,7 +1556,7 @@ ${context.command}
         // Same residual: archive during snapshot publish or read-back still
         // lets this prompt proceed; the guarded scripts revalidate, and the
         // durable queue keeps every row (bin/fm-lease-lib.sh role-partition).
-        const postureTail = posture !== "attended" ? await postureTailFor(posture) : "";
+        const postureTail = afk && posture !== "attended" ? await postureTailFor(posture) : "";
         try {
           await session.prompt(branchWakePrompt(message, "fm_branch_report", postureTail));
         } finally {

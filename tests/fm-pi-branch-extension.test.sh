@@ -2233,6 +2233,7 @@ let finish;
 globalThis.__fmOnBranchPrompt = () => new Promise((resolve) => { finish = resolve; });
 const attended = dispatch("signal: branch-driver.status");
 await settle(() => (globalThis.__fmPrompts ?? []).length === 1, "quiet wordless prompt");
+if (globalThis.__fmPrompts[0].includes("POSTURE: QUIET")) throw new Error("wordless quiet emitted a recorded-authority marker");
 const session = globalThis.__fmSessions[0];
 const report = session.options.customTools.find((tool) => tool.name === "fm_branch_report");
 await report.execute("c1", { task: "branch-driver", verdict: "captain", summary: "decision needed while quiet without words" }, undefined, undefined, {});
