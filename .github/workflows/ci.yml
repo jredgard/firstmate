@@ -120,7 +120,8 @@ jobs:
           npm install -g @earendil-works/pi-coding-agent@1.1.0
           # Pi 1.1.0 takes its sibling packages as ^1.1.0, which now resolves
           # them to 1.2.0 and fails to load; pin them to a coherent 1.1.0 tree.
-          npm install --prefix "$(npm root -g)/@earendil-works/pi-coding-agent" --no-save --omit=dev \
+          # --legacy-peer-deps: npm 10 crashes resolving the package's dev peer set.
+          npm install --prefix "$(npm root -g)/@earendil-works/pi-coding-agent" --no-save --omit=dev --legacy-peer-deps \
             @earendil-works/chord@1.1.0 @earendil-works/pi-agent-core@1.1.0 \
             @earendil-works/pi-ai@1.1.0 @earendil-works/pi-codemode@1.1.0 \
             @earendil-works/pi-mcp@1.1.0 @earendil-works/pi-telemetry@1.1.0 \
@@ -236,7 +237,8 @@ jobs:
           npm install -g @earendil-works/pi-coding-agent@1.1.0
           # Pi 1.1.0 takes its sibling packages as ^1.1.0, which now resolves
           # them to 1.2.0 and fails to load; pin them to a coherent 1.1.0 tree.
-          npm install --prefix "$(npm root -g)/@earendil-works/pi-coding-agent" --no-save --omit=dev \
+          # --legacy-peer-deps: npm 10 crashes resolving the package's dev peer set.
+          npm install --prefix "$(npm root -g)/@earendil-works/pi-coding-agent" --no-save --omit=dev --legacy-peer-deps \
             @earendil-works/chord@1.1.0 @earendil-works/pi-agent-core@1.1.0 \
             @earendil-works/pi-ai@1.1.0 @earendil-works/pi-codemode@1.1.0 \
             @earendil-works/pi-mcp@1.1.0 @earendil-works/pi-telemetry@1.1.0 \
