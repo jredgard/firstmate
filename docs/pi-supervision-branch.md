@@ -544,24 +544,25 @@ That is why `bin/fm-branch-prompt.sh`'s header is the contract's single owner an
 
 ## Postures
 
-One supervision session runs in two postures, attended and away.
-The posture is a file: the away-posture record `state/.afk-contract`.
-Only `bin/fm-afk-contract.sh` writes it, in the same turn as `/afk`.
-The return path archives it on the captain's first unmarked message.
+One supervision session runs attended, away, or quiet.
+`bin/fm-afk-contract.sh` AWAY OR QUIET owns the record's posture and authority reading; `bin/fm-afk-launch.sh` owns entry on Pi and pi-signed as on other primaries.
+Only an away record parks main and holds outcomes for the return.
+Quiet outcomes reach the present captain immediately; words lift routing exclusions, while quiet without words keeps attended routing.
+`tests/fm-pi-branch-extension.test.sh` and `tests/fm-afk-launch.test.sh` exercise both postures.
 
 ### Who reads the record
 
 The record is never inferred from chat and never placed in the branch's byte-stable prompt prefix.
 Three readers check it:
 
-- The dispatcher reads its presence at every routing decision.
+- The dispatcher reads its posture and authority through the record owner at every routing decision.
 - The branch reads it at the tail of every wake and immediately before every captain-outcome presentation.
 - The guarded scripts validate it through the record owner at every gate.
 
-On Pi the away daemon is never launched, so the watcher is the single owner of supervision in both postures.
+On Pi the away daemon is never launched, so the watcher is the single owner of supervision in every posture.
 A leftover `state/.afk` flag declines nothing.
 
-### While the record exists
+### While an away record exists
 
 - Every actionable row is branch-eligible.
   Check rows, decision-owned signal and stale rows, and heartbeat rows are claimed by the branch on whatever wake finds them unread.
@@ -589,7 +590,7 @@ A leftover `state/.afk` flag declines nothing.
 ### Authority relocation
 
 `fm_lease_forbid_branch` passes the branch actor only for the actions whose guarded script opts in.
-It does so only while `bin/fm-afk-contract.sh validate` succeeds on a complete, readable, live away record (`mode` is not quiet), except that PR merging alone (`--record-pr-authority`) also passes under a validated quiet record with words, which no Pi or pi-signed primary can write (`bin/fm-lease-lib.sh` and `bin/fm-afk-contract.sh` AWAY OR QUIET own that reading).
+It does so only while `bin/fm-afk-contract.sh validate` succeeds on a complete, readable, live away record (`mode` is not quiet), except that PR merging alone (`--record-pr-authority`) also passes under a validated quiet record with words (`bin/fm-lease-lib.sh` and `bin/fm-afk-contract.sh` AWAY OR QUIET own that reading).
 An archived, incomplete, or invalid record restores the attended refusal byte for byte, and a quiet record does the same for every relocation except that PR-merge authority.
 
 The captain's away words are the whole mandate:

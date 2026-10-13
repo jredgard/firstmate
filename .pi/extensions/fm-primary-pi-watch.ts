@@ -43,7 +43,8 @@ import { Box, Container, Text, type Component } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { registerFirstmateTool } from "./lib/fm-native-contract.ts";
 import {
-  afkPostureRecordPresent,
+  recordedPosture,
+  recordedAuthorityPresent,
   branchOfferForWake,
   createBranchDispatchOffer,
   FM_BRANCH_DISPATCH_EVENT,
@@ -713,13 +714,15 @@ export default function (pi: ExtensionAPI) {
     return confirmHandlingDelivery(recovery);
   }
 
-  function offerWakeToBranch(message: string): Promise<void> | null {
+  async function offerWakeToBranch(owner: SessionGeneration, message: string): Promise<{ settlement: Promise<void> } | null> {
     // lib/fm-branch-dispatch.ts owns the offer rule for one close, shared with
     // the supervision host off Pi (bin/fm-branch-dispatch.mjs offer).
-    const { scope, heartbeat, eligible, awayOnly } = branchOfferForWake(state, message, afkPostureRecordPresent(state));
+    const authority = await recordedAuthorityPresent(state, await recordedPosture(state));
+    if (!generationIsLive(owner) || lockOwnership() !== "owned") return null;
+    const { scope, heartbeat, eligible, awayOnly } = branchOfferForWake(state, message, authority);
     const offer = createBranchDispatchOffer(message, scope.projects, heartbeat, eligible, awayOnly);
     pi.events?.emit?.(FM_BRANCH_DISPATCH_EVENT, offer);
-    return offer.accepted ? offer.settlement : null;
+    return offer.accepted ? { settlement: offer.settlement } : null;
   }
 
   async function deliverActionableWake(
@@ -755,10 +758,10 @@ export default function (pi: ExtensionAPI) {
       }
     }
     if (!repairFailed) {
-      const branchDelivery = offerWakeToBranch(message);
+      const branchDelivery = await offerWakeToBranch(owner, message);
       if (branchDelivery) {
         try {
-          await branchDelivery;
+          await branchDelivery.settlement;
           return true;
         } catch {}
       }

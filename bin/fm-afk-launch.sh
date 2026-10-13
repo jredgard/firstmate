@@ -39,11 +39,9 @@
 # an away record (one without the quiet mode a quiet entry records) is live on
 # that home, whatever state/.afk says, `quiet-check` (exit 2) and a quiet
 # `enter` (exit 3) refuse and name it: the captain's return
-# (bin/fm-afk-return.sh and its catch-up gate) comes first. On a pi or
-# pi-signed primary a quiet `enter` also refuses (exit 3) before writing
-# anything: the attended Pi branch reads no quiet record, so quiet words are
-# never recorded there and recorded quiet authority is a non-Pi capability (a
-# documented limitation; the quiet skill's step 0 enters nothing on Pi).
+# (bin/fm-afk-return.sh and its catch-up gate) comes first. Pi and pi-signed
+# use the same quiet entry and quiet-check: their ordinary supervision branch
+# reads the quiet record, reports outcomes now, and needs no daemon.
 # Where the attended
 # host lacks one of those parts, `quiet-check` names it and quiet mode enters
 # through the daemon as it does without the host. A quiet `enter` records its
@@ -258,7 +256,7 @@ fm_afk_launch_requested_mode() {
 }
 
 # Whether /quiet needs anything here (the header's QUIET MODE): 0 when it needs
-# nothing; 2 while an away record is live on a home that runs the host;
+# nothing; 2 while an away record is live on Pi or a home that runs the host;
 # otherwise 1, with FM_AFK_LAUNCH_QUIET_WHY naming what the attended host
 # lacks on a home that runs it, or empty where quiet mode is the daemon's as
 # it is without the host (no host, another primary, or quiet mode already
@@ -267,6 +265,13 @@ fm_afk_launch_quiet_needs_nothing() {
   local harness config
   FM_AFK_LAUNCH_QUIET_WHY=
   harness=$(fm_afk_launch_primary_harness)
+  case "$harness" in
+    pi|pi-signed)
+      if fm_afk_contract_present "$FM_AFK_LAUNCH_STATE"; then
+        fm_afk_launch_record_quiet || return 2
+      fi
+      return 0 ;;
+  esac
   fm_afk_launch_host_primary "$harness" || return 1
   config=${FM_CONFIG_OVERRIDE:-$FM_HOME/config}
   fm_supervision_host_enabled "$config" "$harness" || return 1
@@ -285,7 +290,8 @@ fm_afk_launch_quiet_needs_nothing() {
 }
 
 fm_afk_launch_quiet_check() {
-  local rc retry
+  local rc retry harness
+  harness=$(fm_afk_launch_primary_harness)
   fm_afk_launch_quiet_needs_nothing
   rc=$?
   if [ "$rc" -eq 2 ]; then
@@ -297,7 +303,7 @@ fm_afk_launch_quiet_check() {
       || printf 'Quiet mode is not already the ordinary posture on this home, because %s, so every attended wake reaches this conversation; quiet mode enters through the quiet daemon instead.\n' "$FM_AFK_LAUNCH_QUIET_WHY"
     return 1
   fi
-  if retry=$(fm_supervision_host_paused_until "$FM_AFK_LAUNCH_STATE"); then
+  if [[ "$harness" != pi && "$harness" != pi-signed ]] && retry=$(fm_supervision_host_paused_until "$FM_AFK_LAUNCH_STATE"); then
     if [ "$(date +%s)" -lt "$retry" ]; then
       retry="its next retry is due at $(fm_supervision_host_clock "$retry")"
     else
@@ -307,7 +313,7 @@ fm_afk_launch_quiet_check() {
     return 0
   fi
   if fm_afk_launch_record_quiet; then
-    printf 'Quiet mode recorded on this home: the supervision host reads its words; the captain is present, outcomes reach this conversation now, and no daemon is launched.\n'
+    printf 'Quiet mode recorded on this home: the supervision session reads its words; the captain is present, outcomes reach this conversation now, and no daemon is launched.\n'
   else
     printf 'Quiet mode needs nothing on this home: the ordinary supervision session already handles the wakes it can while the captain is present, never opens a turn here for a routine outcome, and hands this conversation only what needs it; enter quiet mode with words to record them without a daemon.\n'
   fi
@@ -378,15 +384,8 @@ fm_afk_launch_record_require() {
 }
 
 fm_afk_launch_enter() {
-  local harness
   fm_afk_launch_catchup_pending && return 1
   if [ "${FM_AFK_MODE:-}" = quiet ]; then
-    harness=$(fm_afk_launch_primary_harness)
-    case "$harness" in
-      pi|pi-signed)
-        fm_afk_launch_log "quiet mode records nothing on a $harness primary: the attended branch reads no quiet record there, so a quiet enter refuses before writing (the quiet skill's step 0 enters nothing on Pi)"
-        return 3 ;;
-    esac
     fm_afk_launch_quiet_needs_nothing
     case $? in
       2)

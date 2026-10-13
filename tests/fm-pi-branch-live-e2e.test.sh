@@ -1020,6 +1020,13 @@ const outcome = (...args) => {
   if (result.status !== 0) throw new Error(result.stderr);
   return result.stdout.trim();
 };
+const posture = (mode) => {
+  const result = spawnSync("bash", [`${process.env.FM_ROOT_OVERRIDE}/bin/fm-afk-contract.sh`, "enter", "--words", "merge green PRs"], {
+    encoding: "utf8", env: { ...process.env, FM_AFK_MODE: mode },
+  });
+  if (result.status !== 0) throw new Error(`posture entry failed: ${result.stderr}`);
+};
+posture("quiet");
 outcome("processed-init");
 const seq = Number(outcome("append", "--task", "example", "--verdict", "captain", "--summary", "A decision is needed"));
 const original = "The requested result is complete and verified.";
@@ -1088,6 +1095,14 @@ const entries = readFileSync(manager.getSessionFile(), "utf8").split("\n").filte
 if (assistantText(entries.filter((entry) => entry.type === "message").map((entry) => entry.message)).length !== expectedFinals.length + 1) {
   throw new Error("persisted finals do not match the retained handling outcomes");
 }
+// Execute the async context hook through Pi's real ExtensionRunner. Quiet
+// retains the processing request, whereas away strips it before the provider.
+const processing = { role: "custom", customType: "fm-branch-process", content: "process outcome", display: false, timestamp: Date.now() };
+const quietContext = await session.extensionRunner.emitContext([processing]);
+if (quietContext.length !== 1 || quietContext[0].customType !== processing.customType) throw new Error("real Pi stripped quiet processing context");
+posture("away");
+const awayContext = await session.extensionRunner.emitContext([processing]);
+if (awayContext.length !== 0) throw new Error("real Pi retained away processing context");
 unsubscribe();
 session.dispose();
 console.log("RETRY_OK");
@@ -1099,4 +1114,4 @@ if [ "$status" -ne 0 ] || [ "$out" != "RETRY_OK" ]; then
   fail "real-SDK processing retry visibility guard ($retry_case) failed against pi-coding-agent $PI_VERSION: $out"
 fi
 done
-pass "real Pi SDK $PI_VERSION suppresses only empty or exact-repeat retry finals, retains first and differing replies after reopen, buffers retry streaming, and keeps outcomes retryable"
+pass "real Pi SDK $PI_VERSION processes quiet outcomes now, strips only away processing context, suppresses only empty or exact-repeat retry finals, and keeps outcomes retryable"
