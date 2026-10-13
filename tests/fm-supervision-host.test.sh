@@ -92,7 +92,7 @@ verdict=routine
 [ "$mode" != go-away ] || verdict=captain
 case "$mode" in
   fail) exit 3 ;;
-  handle|captain|captain-close-before-return|held|captain-held|hold-lease|return|return-silent|return-fail|return-fail-silent|return-many|return-lookup-fail|return-first|noack|emptyresult|go-away)
+  handle|handback-batch|captain|captain-close-before-return|held|captain-held|hold-lease|return|return-silent|return-fail|return-fail-silent|return-many|return-lookup-fail|return-first|noack|emptyresult|go-away)
     case "$mode" in held|captain-held) read -r _ < "$FM_HOME/stub-release" ;; esac
     [ "$mode" != return-first ] || "$FM_REPO/bin/fm-afk-contract.sh" archive >> "$FM_HOME/engine-return.log" 2>&1
     [ "$mode" != go-away ] || "$FM_REPO/bin/fm-afk-contract.sh" enter --words 'gone mid-turn' >> "$FM_HOME/engine-return.log" 2>&1
@@ -100,16 +100,25 @@ case "$mode" in
     if [ "$mode" = captain ] || [ "$mode" = captain-held ] \
       || [ "$mode" = captain-close-before-return ]; then
       "$FM_REPO/bin/fm-branch-report.sh" --task "$task" --verdict captain \
+        --main-action "$(cat "$FM_HOME/stub-main-action" 2>/dev/null || echo auto)" \
         --summary "stub escalated: $(printf '%s\n' "$drain" | grep -v '^WAKE_' | tr '\n' ' ' | cut -c1-400)" \
         >> "$FM_HOME/engine-report.log" 2>&1
     else
       report_args=(--task "$task" --verdict "$verdict" --summary "stub handled $task")
+      if [ -f "$FM_HOME/stub-main-action" ]; then
+        report_args+=(--main-action "$(cat "$FM_HOME/stub-main-action")")
+      fi
       case "$mode" in
         return-silent|return-fail-silent)
           report_args=(--task "$task" --verdict routine --summary 'still working; nothing new has happened; no action was taken' --silent true)
           ;;
       esac
       "$FM_REPO/bin/fm-branch-report.sh" "${report_args[@]}" >> "$FM_HOME/engine-report.log" 2>&1
+    fi
+    if [ "$mode" = handback-batch ]; then
+      "$FM_REPO/bin/fm-branch-report.sh" --task other --verdict routine \
+        --summary 'other worker remains busy; nothing new; no action taken' \
+        >> "$FM_HOME/engine-report.log" 2>&1
     fi
     if [ "$mode" = return-many ]; then
       awk -v task="$task" 'BEGIN { for (seq = 2; seq <= 1001; seq++)
@@ -387,6 +396,129 @@ test_report_after_the_return_is_queued_for_main() {
 }
 
 # --- dispatch entry -----------------------------------------------------------
+
+test_away_report_classifies_main_actions() {
+  local home state scenario action expected out rows
+  for scenario in progress 'done' merged teardown decision blocked resolved hold idle-ready heartbeat freed-slot; do
+    home=$(make_home "handback-report-$scenario" away)
+    state="$home/state"
+    printf 'turn=h1\nrows=1\ntasks=demo\nunscoped=0\nwake=signal: demo.status\nposture=away\n' > "$state/.supervision-host-turn"
+    action=auto expected=none
+    case "$scenario" in
+      progress) printf 'working: rebased onto merged work; PR ready later\n' > "$state/demo.status" ;;
+      done) printf 'done [at=1]: ready branch\n' > "$state/demo.status"; expected=dispatch; action=none ;;
+      merged) printf 'turn=h1\nrows=1\ntasks=\nunscoped=1\nwake=check: merge landed: demo https://example.test/o/r/pull/1\nposture=away\n' > "$state/.supervision-host-turn"; expected=dispatch ;;
+      teardown) rm "$state/demo.meta"; expected=dispatch ;;
+      decision) printf 'needs-decision [key=d1]: input needed\n' > "$state/demo.status"; expected=decision ;;
+      blocked) printf 'blocked [key=b1]: tooling refusal\n' > "$state/demo.status"; expected=decision ;;
+      resolved) printf 'needs-decision [key=d1]: input needed\nresolved [key=d1]: answered\nworking: resumed\n' > "$state/demo.status" ;;
+      hold) printf 'needs-decision [key=d1]: destructive choice\n' > "$state/demo.status"; action=captain-hold ;;
+      idle-ready) printf 'done: ready branch\n' > "$state/demo.status"; action=captain-hold; expected=dispatch ;;
+      heartbeat) printf 'turn=h1\nrows=1\ntasks=\nunscoped=1\nwake=heartbeat\nposture=away\n' > "$state/.supervision-host-turn" ;;
+      freed-slot) printf 'turn=h1\nrows=1\ntasks=\nunscoped=1\nwake=heartbeat\nposture=away\n' > "$state/.supervision-host-turn"; action=dispatch; expected=dispatch ;;
+    esac
+    out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=h1 "$REPORT" \
+      --task demo --verdict captain --summary 'event handled' --main-action "$action" 2>&1) \
+      || fail "$scenario: report failed: $out"
+    rows=$(cat "$state/.wake-queue" 2>/dev/null || true)
+    case "$expected" in
+      none) assert_not_contains "$rows" 'supervision-host-handback:' "$scenario must remain held or routine" ;;
+      *)
+        assert_contains "$rows" "check: supervision-host handback: $expected for demo" "$scenario must hand back to MAIN"
+        [ "$(awk -F '\t' '{ print $5 }' "$state/.supervision-host-receipts")" = "$expected" ] \
+          || fail "$scenario: receipt action missing"
+        ;;
+    esac
+    assert_absent "$state/.branch-outcomes-processed" "$scenario must not process the return outcome"
+    [ "$(FM_HOME="$home" "$CONTRACT" mode)" = away ] || fail "$scenario changed the away record"
+  done
+  pass "away reports: progress, resolved decisions and captain holds stay parked; terminal outcomes, freed slots and unanswered input hand back"
+}
+
+test_away_handback_survives_ack_and_resumes_host_after_main() {
+  local home watcher out calls
+  home=$(make_home away-handback-cycle away)
+  start_session "$home"
+  park_again "$home"
+  wait_until 150 watcher_live "$home" || fail "handback: watcher never started"
+  append_status "$home" 'worker ready' 'done'
+  wait_until 250 host_exited "$home" || fail "handback: done worker left MAIN parked"
+  assert_re '^supervision-host: away handback: dispatch for demo' "$home/host.out" "terminal wake needs a clear reason"
+  assert_no_grep 'demo.status' "$home/state/.wake-queue" "the original signal should be acknowledged"
+  assert_grep 'supervision-host-handback:' "$home/state/.wake-queue" "MAIN's action must survive acknowledgement"
+  [ "$(marker_kind "$home")" = downtime ] || fail "MAIN handback must restore downtime"
+  watcher_live "$home" && fail "handback left a competing watcher"
+  [ "$(FM_HOME="$home" "$CONTRACT" mode)" = away ] || fail "handback archived away posture"
+  calls=$(engine_calls "$home")
+  # Simulate an owner that dropped the first close: the next park must pass
+  # the durable handback to MAIN, rather than let another engine consume it.
+  park_again "$home"
+  wait_until 250 host_exited "$home" || fail "handback: next park swallowed the pending MAIN action"
+  [ "$(engine_calls "$home")" = "$calls" ] || fail "handback was offered to another engine"
+  main_drain_and_ack "$home"
+  park_again "$home"
+  wait_until 150 watcher_live "$home" || fail "handback: resumed watcher never started"
+  append_status "$home" 'next worker running'
+  wait_until 250 handled_at_least "$home" 2 || fail "handback: host did not resume after MAIN acknowledged: $(cat "$home/host.out" "$home/main-drain.out" "$home/state/.wake-queue" "$home/state/.supervision-host.log" 2>/dev/null)"
+  host_exited "$home" && fail "handback: routine successor woke MAIN"
+  watcher=$(cat "$home/state/.watch.lock/pid")
+  stop_home_processes "$home"
+  wait_until 100 sh -c '! kill -0 "$1" 2>/dev/null' _ "$watcher" || fail "handback: watcher not stopped"
+  pass "away handback: MAIN work survives engine acknowledgement and a dropped close, then the same posture resumes routine supervision"
+}
+
+test_away_worker_input_handback_and_captain_hold() {
+  local home
+  home=$(make_home away-input-handback away)
+  start_host "$home"
+  wait_until 150 watcher_live "$home" || fail "input: watcher never started"
+  append_status "$home" 'firstmate input needed' needs-decision
+  wait_until 250 host_exited "$home" || fail "input: unanswered decision left MAIN parked"
+  assert_re '^supervision-host: away handback: decision for demo' "$home/host.out" "input wake needs a clear reason"
+  assert_grep 'supervision-host-handback:' "$home/state/.wake-queue" "input wake must stay durable"
+  stop_home_processes "$home"
+
+  home=$(make_home away-captain-hold away)
+  echo captain-hold > "$home/stub-main-action"
+  start_host "$home"
+  wait_until 150 watcher_live "$home" || fail "hold: watcher never started"
+  append_status "$home" 'requires the captain' needs-decision
+  wait_until 250 handled_at_least "$home" 1 || fail "hold: engine did not handle the event"
+  host_exited "$home" && fail "hold: genuine captain call woke MAIN"
+  assert_no_grep 'supervision-host-handback:' "$home/state/.wake-queue" "hold must wait for return"
+  stop_home_processes "$home"
+  pass "away worker input reaches MAIN, while explicit captain-owned holds stay for return"
+}
+
+test_away_handback_drains_only_the_handed_lane() {
+  local home out
+  home=$(make_home away-handback-batch away)
+  echo handback-batch > "$home/stub-mode"
+  printf 'project=other\nwindow=fm-other\nharness=claude\n' > "$home/state/other.meta"
+  printf 'working: continuing\n' > "$home/state/other.status"
+  printf 'done: lane completed\n' > "$home/state/demo.status"
+  # Publish the status presentation once, as the watcher does, before seeding
+  # its two rows; otherwise startup also discovers duplicate fixture signals.
+  prime_status_seen "$home/state" "$home/state/demo.status"
+  prime_status_seen "$home/state" "$home/state/other.status"
+  append_wake "$home/state" signal demo.status "signal: $home/state/demo.status"
+  append_wake "$home/state" signal other.status "signal: $home/state/other.status"
+  start_host "$home"
+  wait_until 250 host_exited "$home" || fail "batch: host did not hand back the lane"
+  assert_grep 'other.status' "$home/engine-drain.1" "batch fixture must present both lanes to the engine"
+  assert_grep 'demo.status' "$home/engine-drain.1" "batch fixture must present the handed lane to the engine"
+  assert_re '^supervision-host: away handback: dispatch for demo' "$home/host.out" "handback must name lane and event"
+  assert_no_grep 'other.status' "$home/host.out" "handled lane must not cost MAIN close context"
+  out=$(FM_HOME="$home" "$ROOT/bin/fm-wake-drain.sh" 2>&1) || fail "batch: main drain failed: $out"
+  assert_contains "$out" 'check: supervision-host handback: dispatch for demo' "MAIN must see the handed lane"
+  assert_not_contains "$out" 'other.status' "MAIN must not re-read the handled lane"
+  assert_not_contains "$out" 'signal:' "MAIN must not re-read original acknowledged signals"
+  [ "$(awk -F '\t' 'NF >= 5 { n++ } END { print n+0 }' "$home/state/.wake-queue")" = 1 ] \
+    || fail "batch: MAIN queue contains rows beyond the handed lane"
+  main_drain_and_ack "$home"
+  stop_home_processes "$home"
+  pass "away handback: the engine acknowledges other handled lanes first; MAIN drains only the named handback lane"
+}
 
 test_dispatch_entry_scopes_rows_and_renders_the_away_tail() {
   local home state out rc
@@ -2680,6 +2812,7 @@ test_first_cycle_status_streams_and_owner_options_reach_it() {
 main_drain_and_ack() {  # <home>
   local out ack
   out=$(FM_HOME="$1" "$ROOT/bin/fm-wake-drain.sh" 2>&1)
+  printf '%s\n' "$out" > "$1/main-drain.out"
   ack=$(printf '%s\n' "$out" | sed -n 's/^WAKE_ACK_REQUIRED: after handling completes run bin\/fm-wake-drain.sh //p' | tail -1)
   # shellcheck disable=SC2086 # the printed acknowledgement arguments
   [ -z "$ack" ] || FM_HOME="$1" "$ROOT/bin/fm-wake-drain.sh" $ack >/dev/null 2>&1 || fail "main's acknowledgement failed: $ack"
@@ -2894,6 +3027,7 @@ test_unchanged_held_outcome_reaches_the_captain_once_until_a_new_event() {
   [ "$(captain_rows "$home")" -eq 1 ] || fail "held: the unchanged situation reached the captain $(captain_rows "$home") times"
   [ -s "$home/host.rc" ] && fail "held: the host handed a wake to main: $(cat "$home/host.out")"
 
+  echo captain-hold > "$home/stub-main-action"
   printf 'needs-decision [key=merge-153]: merge PR 153 now or hold it for the return?\n' >> "$home/state/held.status"
   wait_until 250 captain_rows_at_least "$home" 2 \
     || fail "held: the new decision never reached the captain path: $(cat "$home/state/branch-outcomes.jsonl")"
@@ -2978,6 +3112,17 @@ test_superseded_host_leaves_the_owner_untouched() {
   pass "host: a host under a superseded auto-arm generation stands down without touching the owner"
 }
 
+# Named cases permit targeted local verification; no arguments runs the whole
+# suite for CI. Only a function declared by this test script is executable.
+if [ "$#" -gt 0 ]; then
+  for selected_case in "$@"; do
+    case "$selected_case" in test_*) ;; *) fail "unknown test case: $selected_case" ;; esac
+    declare -F "$selected_case" >/dev/null || fail "unknown test case: $selected_case"
+    "$selected_case"
+  done
+  exit 0
+fi
+
 test_claude_stop_hook_restores_handoff_when_successor_closed_before_exit_to_main
 test_claude_stop_hook_restores_handoff_when_successor_closed_mid_engine_turn
 test_claude_stop_hook_notifies_when_closed_successor_downtime_restore_fails
@@ -2986,6 +3131,10 @@ test_park_exit_probe_uses_half_second_child_sleeps
 test_report_surface_enforces_actor_turn_and_scope
 test_report_after_the_return_is_queued_for_main
 test_dispatch_entry_scopes_rows_and_renders_the_away_tail
+test_away_report_classifies_main_actions
+test_away_handback_survives_ack_and_resumes_host_after_main
+test_away_worker_input_handback_and_captain_hold
+test_away_handback_drains_only_the_handed_lane
 test_branch_outcomes_only_on_a_host_home_off_pi
 test_branch_outcomes_put_captain_first_and_collapse_routine_overflow
 test_branch_outcomes_collapse_repeated_captain_outcomes_per_task
