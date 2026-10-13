@@ -33,6 +33,8 @@
 # return. none skips decision detection for a handled event with no MAIN work.
 # New terminal events hand back even when captain-hold or none was requested;
 # standing lane status never triggers a handback.
+# A derived dispatch handback is queued once per turn and task; an explicit
+# dispatch or decision always queues its own.
 # A handback is a durable check row keyed supervision-host-handback:<seq>,
 # published before acknowledgement, plus a fifth receipt column naming its
 # action. The host exits to MAIN after releasing the turn's leases; a later
