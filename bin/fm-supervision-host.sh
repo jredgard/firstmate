@@ -163,7 +163,7 @@
 # .supervision-host-health (the latch: errors, cooldown, and probe time, keyed
 # to the main session, engine, and model), and .supervision-host.log (a bounded
 # ledger of where every close went, with each engine turn's usage and
-# outcome).
+# outcome, plus the dispatch command's endpoint lookup diagnostics).
 #
 # Tunables (environment): FM_SUPERVISION_HOST_PARK_SECONDS (27000; a positive
 # integer below the 28800-second registration, any other value is the default),
