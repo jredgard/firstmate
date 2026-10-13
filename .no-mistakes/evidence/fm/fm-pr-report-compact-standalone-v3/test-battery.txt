@@ -1,0 +1,2 @@
+fm-pr-report-compact battery: OK
+battery exit=0

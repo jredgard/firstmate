@@ -1,0 +1,12 @@
+=== base: /usr/bin/bash on PATH, tooling/ has only fm-pr-report-compact; --nm-skip 'lint'
+_: line 1: /tmp/tmp.0kL9pPJ5u1/base/tooling/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+exit=2
+=== base: /usr/bin/bash on PATH, tooling/ has only fm-pr-report-compact; --nm-skip ''
+_: line 1: /tmp/tmp.0kL9pPJ5u1/base/tooling/fm-dod-lib.sh: No such file or directory
+_: line 1: fm_nm_skip_valid: command not found
+exit=2
+=== head: /usr/bin/bash on PATH, tooling/ has only fm-pr-report-compact; --nm-skip 'lint'
+exit=0
+=== head: /usr/bin/bash on PATH, tooling/ has only fm-pr-report-compact; --nm-skip ''
+exit=0

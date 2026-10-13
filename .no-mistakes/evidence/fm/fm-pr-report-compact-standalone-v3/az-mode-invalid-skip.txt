@@ -1,0 +1,8 @@
+=== vendored alone, az mode, --nm-skip 'ci'
+error: fm-pr-report-compact: invalid no-mistakes skip 'ci'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+exit=2
+az calls: 0
+=== vendored alone, az mode, --nm-skip 'lint,ci'
+error: fm-pr-report-compact: invalid no-mistakes skip 'lint,ci'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+exit=2
+az calls: 0

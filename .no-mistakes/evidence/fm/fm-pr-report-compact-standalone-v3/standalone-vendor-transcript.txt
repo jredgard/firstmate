@@ -1,0 +1,238 @@
+##### HEAD (target 33b2ad7) vendored alone
+=== S1 omitted --nm-skip, all passed
+$ ls /tmp/fm-vendor-lab.dF3iVj/factory/tooling
+fm-pr-report-compact
+$ env -i PATH=/tmp/fm-vendor-lab.dF3iVj/bin HOME=/tmp/fm-vendor-lab.dF3iVj python3 -I -S /tmp/fm-vendor-lab.dF3iVj/factory/tooling/fm-pr-report-compact --stdin 
+[audit] exit=0 child_processes=[] non_stdlib_modules=[]
+## Intent
+
+Ship it.
+
+## What Changed
+
+Files.
+
+## Risk Assessment
+
+Low.
+
+## Pipeline
+
+<!-- no-mistakes-pipeline-attestation:v1 {"head_sha":"d4aeca250cf6e5927915d23a55a7b51c2aac2d34","steps":[{"step":"intent","status":"completed"},{"step":"review","status":"completed"},{"step":"test","status":"completed"},{"step":"pr","status":"running"},{"step":"ci","status":"pending"}]} -->
+
+- ✅ intent - passed
+- ✅ review - passed
+- ✅ test - passed
+- ✅ pr - passed
+- ✅ ci - passed[shell] exit=0
+
+=== S1 --nm-skip '' , all passed
+$ ls /tmp/fm-vendor-lab.dF3iVj/factory/tooling
+fm-pr-report-compact
+$ env -i PATH=/tmp/fm-vendor-lab.dF3iVj/bin HOME=/tmp/fm-vendor-lab.dF3iVj python3 -I -S /tmp/fm-vendor-lab.dF3iVj/factory/tooling/fm-pr-report-compact --stdin --nm-skip 
+[audit] exit=0 child_processes=[] non_stdlib_modules=[]
+## Intent
+
+Ship it.
+
+## What Changed
+
+Files.
+
+## Risk Assessment
+
+Low.
+
+## Pipeline
+
+<!-- no-mistakes-pipeline-attestation:v1 {"head_sha":"d4aeca250cf6e5927915d23a55a7b51c2aac2d34","steps":[{"step":"intent","status":"completed"},{"step":"review","status":"completed"},{"step":"test","status":"completed"},{"step":"pr","status":"running"},{"step":"ci","status":"pending"}]} -->
+
+- ✅ intent - passed
+- ✅ review - passed
+- ✅ test - passed
+- ✅ pr - passed
+- ✅ ci - passed[shell] exit=0
+
+=== S1 --nm-skip lint, attested lint skip
+$ ls /tmp/fm-vendor-lab.dF3iVj/factory/tooling
+fm-pr-report-compact
+$ env -i PATH=/tmp/fm-vendor-lab.dF3iVj/bin HOME=/tmp/fm-vendor-lab.dF3iVj python3 -I -S /tmp/fm-vendor-lab.dF3iVj/factory/tooling/fm-pr-report-compact --stdin --nm-skip lint
+[audit] exit=0 child_processes=[] non_stdlib_modules=[]
+## Intent
+
+Ship it.
+
+## What Changed
+
+Files.
+
+## Risk Assessment
+
+Low.
+
+## Pipeline
+
+<!-- no-mistakes-pipeline-attestation:v1 {"head_sha":"d4aeca250cf6e5927915d23a55a7b51c2aac2d34","steps":[{"step":"intent","status":"completed"},{"step":"review","status":"completed"},{"step":"test","status":"completed"},{"step":"lint","status":"skipped"},{"step":"pr","status":"running"},{"step":"ci","status":"pending"}]} -->
+
+- ✅ intent - passed
+- ✅ review - passed
+- ✅ test - passed
+- ⏭️ lint - skipped (registered)
+- ✅ pr - passed
+- ✅ ci - passed[shell] exit=0
+
+=== S2 invalid --nm-skip ci
+$ ls /tmp/fm-vendor-lab.dF3iVj/factory/tooling
+fm-pr-report-compact
+$ env -i PATH=/tmp/fm-vendor-lab.dF3iVj/bin HOME=/tmp/fm-vendor-lab.dF3iVj python3 -I -S /tmp/fm-vendor-lab.dF3iVj/factory/tooling/fm-pr-report-compact --stdin --nm-skip ci
+error: fm-pr-report-compact: invalid no-mistakes skip 'ci'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[audit] exit=2 child_processes=[] non_stdlib_modules=[]
+[shell] exit=2
+
+=== S2 invalid --nm-skip review
+$ ls /tmp/fm-vendor-lab.dF3iVj/factory/tooling
+fm-pr-report-compact
+$ env -i PATH=/tmp/fm-vendor-lab.dF3iVj/bin HOME=/tmp/fm-vendor-lab.dF3iVj python3 -I -S /tmp/fm-vendor-lab.dF3iVj/factory/tooling/fm-pr-report-compact --stdin --nm-skip review
+error: fm-pr-report-compact: invalid no-mistakes skip 'review'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[audit] exit=2 child_processes=[] non_stdlib_modules=[]
+[shell] exit=2
+
+=== S2 invalid --nm-skip lint\,ci
+$ ls /tmp/fm-vendor-lab.dF3iVj/factory/tooling
+fm-pr-report-compact
+$ env -i PATH=/tmp/fm-vendor-lab.dF3iVj/bin HOME=/tmp/fm-vendor-lab.dF3iVj python3 -I -S /tmp/fm-vendor-lab.dF3iVj/factory/tooling/fm-pr-report-compact --stdin --nm-skip lint,ci
+error: fm-pr-report-compact: invalid no-mistakes skip 'lint,ci'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[audit] exit=2 child_processes=[] non_stdlib_modules=[]
+[shell] exit=2
+
+=== S2 invalid --nm-skip Lint
+$ ls /tmp/fm-vendor-lab.dF3iVj/factory/tooling
+fm-pr-report-compact
+$ env -i PATH=/tmp/fm-vendor-lab.dF3iVj/bin HOME=/tmp/fm-vendor-lab.dF3iVj python3 -I -S /tmp/fm-vendor-lab.dF3iVj/factory/tooling/fm-pr-report-compact --stdin --nm-skip Lint
+error: fm-pr-report-compact: invalid no-mistakes skip 'Lint'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[audit] exit=2 child_processes=[] non_stdlib_modules=[]
+[shell] exit=2
+
+=== S2 invalid --nm-skip \ lint
+$ ls /tmp/fm-vendor-lab.dF3iVj/factory/tooling
+fm-pr-report-compact
+$ env -i PATH=/tmp/fm-vendor-lab.dF3iVj/bin HOME=/tmp/fm-vendor-lab.dF3iVj python3 -I -S /tmp/fm-vendor-lab.dF3iVj/factory/tooling/fm-pr-report-compact --stdin --nm-skip  lint
+error: fm-pr-report-compact: invalid no-mistakes skip ' lint'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[audit] exit=2 child_processes=[] non_stdlib_modules=[]
+[shell] exit=2
+
+=== S2 invalid --nm-skip lint\ 
+$ ls /tmp/fm-vendor-lab.dF3iVj/factory/tooling
+fm-pr-report-compact
+$ env -i PATH=/tmp/fm-vendor-lab.dF3iVj/bin HOME=/tmp/fm-vendor-lab.dF3iVj python3 -I -S /tmp/fm-vendor-lab.dF3iVj/factory/tooling/fm-pr-report-compact --stdin --nm-skip lint 
+error: fm-pr-report-compact: invalid no-mistakes skip 'lint '; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[audit] exit=2 child_processes=[] non_stdlib_modules=[]
+[shell] exit=2
+
+=== S2 invalid --nm-skip $'lint\n'
+$ ls /tmp/fm-vendor-lab.dF3iVj/factory/tooling
+fm-pr-report-compact
+$ env -i PATH=/tmp/fm-vendor-lab.dF3iVj/bin HOME=/tmp/fm-vendor-lab.dF3iVj python3 -I -S /tmp/fm-vendor-lab.dF3iVj/factory/tooling/fm-pr-report-compact --stdin --nm-skip lint
+
+error: fm-pr-report-compact: invalid no-mistakes skip 'lint
+'; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[audit] exit=2 child_processes=[] non_stdlib_modules=[]
+[shell] exit=2
+
+=== S2 invalid --nm-skip lint\'\;\ touch\ /tmp/fm-vendor-lab.dF3iVj/pwned\;\ echo\ \'
+$ ls /tmp/fm-vendor-lab.dF3iVj/factory/tooling
+fm-pr-report-compact
+$ env -i PATH=/tmp/fm-vendor-lab.dF3iVj/bin HOME=/tmp/fm-vendor-lab.dF3iVj python3 -I -S /tmp/fm-vendor-lab.dF3iVj/factory/tooling/fm-pr-report-compact --stdin --nm-skip lint'; touch /tmp/fm-vendor-lab.dF3iVj/pwned; echo '
+error: fm-pr-report-compact: invalid no-mistakes skip 'lint'; touch /tmp/fm-vendor-lab.dF3iVj/pwned; echo ''; use lint only, or an empty value for no skips; all other steps cannot be skipped at intake
+[audit] exit=2 child_processes=[] non_stdlib_modules=[]
+[shell] exit=2
+
+[check] no injection side effect file
+
+##### BASE (3db8201) vendored alone - regression reproduction
+=== S3 base --nm-skip lint
+$ ls /tmp/fm-vendor-lab.dF3iVj/base/tooling
+fm-pr-report-compact
+$ env -i PATH=/tmp/fm-vendor-lab.dF3iVj/bin HOME=/tmp/fm-vendor-lab.dF3iVj python3 -I -S /tmp/fm-vendor-lab.dF3iVj/base/tooling/fm-pr-report-compact --stdin --nm-skip lint
+Traceback (most recent call last):
+  File "<string>", line 10, in <module>
+    runpy.run_path(tool, run_name="__main__")
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen runpy>", line 294, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "/tmp/fm-vendor-lab.dF3iVj/base/tooling/fm-pr-report-compact", line 684, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/tmp/fm-vendor-lab.dF3iVj/base/tooling/fm-pr-report-compact", line 584, in main
+    if subprocess.run(
+       ~~~~~~~~~~~~~~^
+        ["bash", "-c", '. "$1"; fm_nm_skip_valid "$2" fm-pr-report-compact',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         "_", os.path.join(os.path.dirname(os.path.abspath(__file__)), "fm-dod-lib.sh"),
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         args.nm_skip],
+         ^^^^^^^^^^^^^^
+    ).returncode != 0:
+    ^
+  File "/usr/lib/python3.14/subprocess.py", line 555, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1990, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: 'bash'
+[shell] exit=1
+
+=== S3 base omitted --nm-skip
+$ ls /tmp/fm-vendor-lab.dF3iVj/base/tooling
+fm-pr-report-compact
+$ env -i PATH=/tmp/fm-vendor-lab.dF3iVj/bin HOME=/tmp/fm-vendor-lab.dF3iVj python3 -I -S /tmp/fm-vendor-lab.dF3iVj/base/tooling/fm-pr-report-compact --stdin 
+Traceback (most recent call last):
+  File "<string>", line 10, in <module>
+    runpy.run_path(tool, run_name="__main__")
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen runpy>", line 294, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "/tmp/fm-vendor-lab.dF3iVj/base/tooling/fm-pr-report-compact", line 684, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/tmp/fm-vendor-lab.dF3iVj/base/tooling/fm-pr-report-compact", line 584, in main
+    if subprocess.run(
+       ~~~~~~~~~~~~~~^
+        ["bash", "-c", '. "$1"; fm_nm_skip_valid "$2" fm-pr-report-compact',
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         "_", os.path.join(os.path.dirname(os.path.abspath(__file__)), "fm-dod-lib.sh"),
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         args.nm_skip],
+         ^^^^^^^^^^^^^^
+    ).returncode != 0:
+    ^
+  File "/usr/lib/python3.14/subprocess.py", line 555, in run
+    with Popen(*popenargs, **kwargs) as process:
+         ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1039, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/subprocess.py", line 1990, in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+FileNotFoundError: [Errno 2] No such file or directory: 'bash'
+[shell] exit=1
+
