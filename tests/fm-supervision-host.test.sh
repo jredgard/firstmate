@@ -10,7 +10,6 @@
 # what a branch turn does through the same scripts, so the real argument
 # construction, bounding, and reaping are exercised without a model. A real
 # status append drives each wake through the real watcher.
-# Pass --unsticking-only for the focused operational-remedy and closed-sweep fixtures.
 # shellcheck disable=SC2016 # single-quoted scripts expand inside their own shells
 set -u
 
@@ -94,7 +93,10 @@ printf '%s\n' "$drain" > "$FM_HOME/engine-drain.$n"
 ack=$(printf '%s\n' "$drain" | sed -n 's/^WAKE_ACK_REQUIRED: after handling completes run bin\/fm-wake-drain.sh //p' | tail -1)
 task=$(sed -n 's/^tasks=//p' "$STATE/.supervision-host-turn" | awk '{ print $1 }')
 [ -n "$task" ] || task=fleet
-case "$mode" in handback-check|merged-sweep) task=demo ;; esac
+case "$mode" in
+  handback-check) task=demo ;;
+  merged-sweep) task=$(sed -n 's/^merged-task=//p' "$STATE/.supervision-host-turn" | head -n 1) ;;
+esac
 verdict=routine
 [ "$mode" != go-away ] || verdict=captain
 case "$mode" in
@@ -3657,11 +3659,13 @@ test_routine_unsticking_closes_each_stop_without_main_handback() {
 }
 
 test_merged_sweep_skips_already_closed_tasks() {
-  local home state kind out rc
-  for kind in missing closed active; do
+  local home state kind out rc expected_task
+  for kind in missing closed active builtin; do
     home=$(make_home "closed-sweep-$kind" away)
     state="$home/state"
     echo merged-sweep > "$home/stub-mode"
+    printf 'pr=https://dev.azure.com/acme/project/_git/Mosaiq.Codegraph/pullrequest/59397\n' >> "$state/demo.meta"
+    printf 'project=demo\npr=https://dev.azure.com/acme/project/_git/Other.Repository/pullrequest/59397\n' > "$state/ado-pr-sweep.meta"
     if [ "$kind" != active ]; then
       rm "$state/demo.meta"
       if [ "$kind" = closed ]; then
@@ -3676,16 +3680,25 @@ test_merged_sweep_skips_already_closed_tasks() {
     fi
     start_host "$home"
     wait_until 450 watcher_live "$home" || fail "sweep watcher not live: $(cat "$home/host.out" "$home/claude.err" "$home/state/.supervision-host.log" 2>/dev/null)"
-    append_wake "$state" check ado-pr-sweep 'check: merge landed: demo https://example.test/o/r/pull/1'
+    expected_task=fleet
+    if [ "$kind" = builtin ]; then
+      expected_task=demo
+      append_wake "$state" check merged-demo 'check: merge landed: demo https://dev.azure.com/acme/project/_git/Mosaiq.Codegraph/pullrequest/59397'
+    else
+      append_wake "$state" check ado-pr-sweep "check: $state/ado-pr-sweep.check.sh: ado-pr-sweep: PR 59397 MERGED (Mosaiq.Codegraph) - task pull request"
+    fi
     if [ "$kind" = active ]; then
       wait_until 250 host_exited "$home" || fail 'actual cleanup did not hand back freed slot'
       [ -e "$home/teardown-attempted" ] || fail 'active task cleanup was skipped'
       assert_grep 'handback: dispatch for demo' "$home/host.out" 'actual cleanup lost dispatch handback'
+      assert_grep 'merged-task=demo' "$home/engine-call.1" 'owning task resolution was not delivered to the engine'
     else
       wait_until 250 handled_at_least "$home" 1 || fail "closed sweep not handled: $(cat "$home/engine-report.log" 2>/dev/null)"
       [ ! -e "$home/teardown-attempted" ] || fail 'already closed task attempted teardown'
       [ ! -s "$home/host.rc" ] || fail 'duplicate sweep handed back'
       assert_grep '"verdict":"routine"' "$state/branch-outcomes.jsonl" 'closed sweep became captain outcome'
+      assert_grep "\"task\":\"$expected_task\"" "$state/branch-outcomes.jsonl" 'sweep used a check name or an unrelated task as its owner'
+      assert_grep "closed-task=$expected_task" "$home/engine-call.1" 'closed resolution was not delivered to the engine'
       assert_no_grep 'supervision-host-handback:' "$state/.wake-queue" 'closed sweep queued a handback'
     fi
     stop_home_processes "$home"
@@ -3721,12 +3734,47 @@ closed-task=demo
     expect_code 3 "$rc" "$kind must refuse closed-task suppression"
     [ ! -e "$state/branch-outcomes.jsonl" ] || fail 'refused suppression wrote an outcome'
   done
+  for kind in owner different-pr different-repo different-provider duplicate-pr; do
+    home=$(make_home "custom-sweep-owner-$kind" away)
+    state="$home/state"
+    printf 'pr=https://dev.azure.com/acme/project/_git/Mosaiq.Codegraph/pullrequest/59397\n' >> "$state/demo.meta"
+    case "$kind" in
+      different-pr) sed 's/59397/59398/' "$state/demo.meta" > "$home/meta"; mv "$home/meta" "$state/demo.meta" ;;
+      different-repo) sed 's/Mosaiq.Codegraph/Other.Repository/' "$state/demo.meta" > "$home/meta"; mv "$home/meta" "$state/demo.meta" ;;
+      different-provider) sed 's|https://dev.azure.com/acme/project/_git/Mosaiq.Codegraph/pullrequest/59397|https://github.com/acme/Mosaiq.Codegraph/pull/59397|' "$state/demo.meta" > "$home/meta"; mv "$home/meta" "$state/demo.meta" ;;
+      duplicate-pr) printf 'pr=https://dev.azure.com/acme/project/_git/Mosaiq.Codegraph/pullrequest/59397\n' >> "$state/demo.meta" ;;
+    esac
+    printf 'turn=t1\nrows=1\ntasks=\nunscoped=1\nposture=away\ncheck=check: %s/ado-pr-sweep.check.sh: ado-pr-sweep: PR 59397 MERGED (Mosaiq.Codegraph) - task pull request\n' "$state" > "$state/.supervision-host-turn"
+    out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=t1 "$REPORT" --task demo --verdict routine --summary handled 2>&1) \
+      || fail "$kind report failed: $out"
+    case "$kind" in
+      owner|duplicate-pr) assert_grep 'handback: dispatch for demo' "$state/.wake-queue" "$kind lost the owning lane's handback" ;;
+      *) assert_no_grep 'supervision-host-handback:' "$state/.wake-queue" "$kind handed back an unrelated lane" ;;
+    esac
+  done
+  for kind in new-owner ambiguous-owner check-name no-snapshot foreign; do
+    home=$(make_home "custom-sweep-guard-$kind" away)
+    state="$home/state"
+    rm "$state/demo.meta"
+    expected_task=fleet
+    printf 'turn=t1\nrows=1\ntasks=\nunscoped=1\nposture=away\ncheck=check: %s/ado-pr-sweep.check.sh: ado-pr-sweep: PR 59397 MERGED (Mosaiq.Codegraph) - task pull request\nclosed-task=fleet\n' "$state" > "$state/.supervision-host-turn"
+    case "$kind" in
+      new-owner|ambiguous-owner)
+        printf 'pr=https://dev.azure.com/acme/project/_git/Mosaiq.Codegraph/pullrequest/59397\n' > "$state/demo.meta"
+        [ "$kind" != ambiguous-owner ] || cp "$state/demo.meta" "$state/other.meta"
+        ;;
+      check-name) expected_task=ado-pr-sweep; printf 'closed-task=ado-pr-sweep\n' >> "$state/.supervision-host-turn" ;;
+      no-snapshot) sed '/^closed-task=/d' "$state/.supervision-host-turn" > "$home/turn"; mv "$home/turn" "$state/.supervision-host-turn" ;;
+      foreign) sed 's/ MERGED / ACTIVE /' "$state/.supervision-host-turn" > "$home/turn"; mv "$home/turn" "$state/.supervision-host-turn" ;;
+    esac
+    out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=t1 "$REPORT" --task "$expected_task" --verdict routine --main-action already-closed --summary skipped 2>&1); rc=$?
+    expect_code 3 "$rc" "$kind must refuse custom sweep suppression"
+    [ ! -e "$state/branch-outcomes.jsonl" ] || fail 'refused custom suppression wrote an outcome'
+    [ ! -e "$state/.supervision-host-receipts" ] || fail 'refused custom suppression wrote a receipt'
+    [ ! -e "$state/.wake-queue" ] || fail 'refused custom suppression queued a handback'
+  done
   pass 'merged sweep: closed and missing tasks skip teardown with routine notes; active cleanup hands back, and suppression fails closed'
 }
-
-test_routine_unsticking_closes_each_stop_without_main_handback
-test_merged_sweep_skips_already_closed_tasks
-if [ "${1:-}" = --unsticking-only ]; then exit 0; fi
 
 test_claude_stop_hook_restores_handoff_when_successor_closed_before_exit_to_main
 test_claude_stop_hook_restores_handoff_when_successor_closed_mid_engine_turn
@@ -3741,6 +3789,8 @@ test_away_merge_handback_scopes_the_reported_lane
 test_away_merge_handback_in_a_batch
 test_away_explicit_decision_trigger_is_lane_local
 test_away_derived_dispatch_is_once_per_turn_and_task
+test_routine_unsticking_closes_each_stop_without_main_handback
+test_merged_sweep_skips_already_closed_tasks
 test_away_handback_survives_ack_and_resumes_host_after_main
 test_away_worker_input_handback_and_captain_hold
 test_away_handback_drains_only_the_handed_lane

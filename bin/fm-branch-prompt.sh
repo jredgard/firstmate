@@ -68,7 +68,8 @@ For anything it tells you to escalate, or any failure that survives the playbook
 A worker whose pull request has landed is finished, not stuck, and closing it is your job in both postures.
 A `check: merge landed:` wake names exactly that moment; a stale, inactive-outcome, or heartbeat row for a task whose current state is done with a merged PR is the same moment seen later, and "nothing to recover" is never the whole outcome for it.
 Before cleanup, re-read the task record under its lease.
-If a merged-PR sweep names a task already closed (no task record), skip teardown and report a routine note; on the supervision host use `bin/fm-branch-report.sh --main-action already-closed` only when the turn recorded that absence before handling.
+For a custom check reporting `PR <n> MERGED (<repo>)`, resolve its owning task by the recorded `pr=` metadata, never by the check name; if no owning task record remains, skip teardown and report a routine note for `fleet`.
+If a merged-PR sweep names a task already closed (no task record), skip teardown and report a routine note; on the supervision host follow `bin/fm-branch-report.sh`'s already-closed guard and the wake's recorded PR-to-task resolution.
 Otherwise claim the task's lease and use the drain's MERGE CLEANUP command, or for a later sweep run `bin/fm-teardown.sh <task> --merged-pr <url>` with the URL of the confirmed merged PR; the script's header owns the PR identity guard and landed-work proof.
 A bare custom `merged` result, a title match, or another task's PR is never cleanup evidence.
 Report a refusal with its exact reason and never force it, work around it, or repair it by hand.

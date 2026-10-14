@@ -23,7 +23,7 @@
 # or captain"); --silent true is legal only for a routine outcome.
 # --wake defaults to the wake reason the host recorded for the turn.
 # --main-action applies only to an away host turn while still away. auto
-# (the default) hands a granted merge-landed check for the task, a newly
+# (the default) hands a granted merged-PR check for the task, a newly
 # presented done or failed event, or a removed scoped task record to MAIN for
 # dispatch, and a newly presented needs-decision or blocked event that remains
 # open for decision handling. The turn record captures every granted check
@@ -34,7 +34,10 @@
 # return.
 # already-closed records a routine merged-PR sweep note without handing back:
 # the turn must have captured closed-task=<id> before handling, the task record
-# must still be absent, and its granted check must name that task's merged PR.
+# must still be absent, and its granted check must still resolve to that task.
+# bin/fm-pr-lib.sh resolves built-in merge-landed task IDs and custom check
+# PR <n> MERGED (<repo>) rows through recorded Azure DevOps pr= metadata,
+# never check names; no matching task resolves to fleet for a routine note.
 # It refuses for a task removed during this turn, so successful cleanup still
 # hands back the freed slot. It is away-host-only and requires a rendered routine verdict.
 # New terminal events hand back even when captain-hold was requested;
@@ -81,6 +84,8 @@ TURN_FILE="$STATE/.supervision-host-turn"
 RECEIPTS="$STATE/.supervision-host-receipts"
 # shellcheck source=bin/fm-afk-contract.sh
 . "$SCRIPT_DIR/fm-afk-contract.sh"
+# shellcheck source=bin/fm-pr-lib.sh
+. "$SCRIPT_DIR/fm-pr-lib.sh"
 
 usage() {
   sed -n '/^# Usage:/,/^# --wake/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
@@ -154,12 +159,13 @@ fi
 
 # Host-only routing: never infer an action from the free-text outcome summary
 # or parse the captain's mandate. Shared status readers own open decisions.
+MERGED_TASKS=$(fm_pr_merged_check_tasks "$STATE" "$TURN_FILE")
 if [ "$MAIN_ACTION" = already-closed ]; then
   if ! { [ "$(turn_field posture)" = away ] && fm_afk_contract_away_present "$STATE" \
     && [ "$VERDICT" = routine ] && [ "$SILENT" = false ] && [ ! -e "$STATE/$TASK.meta" ] \
     && [ ! -L "$STATE/$TASK.meta" ] \
     && grep -Fxq "closed-task=$TASK" "$TURN_FILE" \
-    && awk -v task="$TASK" 'index($0, "check=check: merge landed: " task " ") == 1 { found=1 } END { exit !found }' "$TURN_FILE"; }; then
+    && printf '%s\n' "$MERGED_TASKS" | grep -Fxq "$TASK"; }; then
     refuse "already-closed requires a routine merged-PR sweep for a task absent before and after handling"
   fi
 fi
@@ -175,7 +181,8 @@ if [ "$(turn_field posture)" = away ] && fm_afk_contract_away_present "$STATE"; 
     decision) TRIGGER=decision ;;
   esac
   TERMINAL_EVENT=''
-  if awk -v task="$TASK" 'index($0, "check=check: merge landed: " task " ") == 1 { found=1 } END { exit !found }' "$TURN_FILE"; then
+  if [ "$TASK" != fleet ] && { grep -Fxq "merged-task=$TASK" "$TURN_FILE" \
+    || printf '%s\n' "$MERGED_TASKS" | grep -Fxq "$TASK"; }; then
     TERMINAL_EVENT='merge landed'
   fi
   EVENTS=$(awk -F '\t' -v task="$TASK" '$1 == "event=" task { sub(/^[^\t]*\t/, ""); print }' "$TURN_FILE")
