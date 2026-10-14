@@ -6,8 +6,9 @@
 # head is that named head and is already stored on the forge.
 # The watcher check source is byte-for-byte bin/fm-pr-poll.sh; task and PR data
 # live only in a private sidecar and are never interpolated into shell source.
-# GitHub and canonical dev.azure.com PR URLs require a source branch matching
-# the task's recorded branch. Other forges refuse without a supported lookup.
+# GitHub, GitLab, Gerrit, and canonical dev.azure.com PR URLs are accepted.
+# A readable ownership mismatch refuses registration; an unreadable lookup
+# records pr_owner_verified=no and warns while retaining merge monitoring.
 # Azure DevOps requires an authenticated REST read and records its live head.
 # bin/fm-pr-poll.sh owns its merge, conflict, and abandonment notifications.
 # A GitHub or Azure DevOps pull request the forge reports as a draft is refused,
@@ -71,18 +72,9 @@ if [ "$KIND" = secondmate ]; then
   exit 1
 fi
 
-case "$PROVIDER" in
-  github|ado) ;;
-  *)
-    echo "error: cannot verify source-branch ownership for $PROVIDER PR $URL and task $ID; no supported lookup, nothing recorded or armed" >&2
-    exit 1
-    ;;
-esac
 TASK_BRANCH=$(grep '^branch=' "$META" | tail -1 | cut -d= -f2- || true)
-if [ -z "$TASK_BRANCH" ]; then
-  echo "error: cannot verify PR $URL for task $ID without a recorded branch; nothing recorded or armed" >&2
-  exit 1
-fi
+SOURCE_BRANCH=
+PR_OWNER_VERIFIED=no
 
 # A prior exact merged result may have queued its durable wake immediately
 # before interruption.
@@ -97,18 +89,33 @@ fm_pr_poll_retirement_recover_one "$STATE" "$ID" "$SCRIPT_DIR/fm-pr-poll.sh" || 
 # change that is never merged. Arming is the one point where that can be
 # reported, so the absent tool stops the watch here instead of watching nothing.
 if [ "$PROVIDER" = github ]; then
-  if ! command -v gh >/dev/null 2>&1; then
-    echo "error: verifying GitHub PR $URL for task $ID requires gh on PATH; nothing recorded or armed" >&2
+  SOURCE_BRANCH=$(fm_run_timed 20 gh pr view "$URL" --json headRefName -q '.headRefName // empty' 2>/dev/null) || SOURCE_BRANCH=
+fi
+if [ "$PROVIDER" = gitlab ]; then
+  OWNER_JSON=
+  if command -v glab >/dev/null 2>&1; then
+    OWNER_JSON=$(GITLAB_HOST="$HOST" fm_run_timed 20 glab mr view "$NUMBER" -R "https://$HOST/$PROJECT_PATH" --output json 2>/dev/null) || OWNER_JSON=
+  elif command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+    ENCODED_PROJECT=$(jq -rn --arg path "$PROJECT_PATH" '$path | @uri')
+    OWNER_JSON=$(curl -fsS --max-time 20 "https://$HOST/api/v4/projects/$ENCODED_PROJECT/merge_requests/$NUMBER" 2>/dev/null) || OWNER_JSON=
+  fi
+  SOURCE_BRANCH=$(printf '%s' "$OWNER_JSON" | jq -r 'if (.source_branch | type) == "string" then .source_branch else empty end' 2>/dev/null) || SOURCE_BRANCH=
+fi
+if [ "$PROVIDER" = gerrit ]; then
+  if ! command -v gerrit-axi >/dev/null 2>&1; then
+    echo "error: watching a Gerrit change requires gerrit-axi on PATH" >&2
     exit 1
   fi
-  if ! SOURCE_BRANCH=$(gh pr view "$URL" --json headRefName -q .headRefName 2>/dev/null) || [ -z "$SOURCE_BRANCH" ]; then
-    echo "error: could not verify the source branch of GitHub PR $URL for task $ID; nothing recorded or armed" >&2
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "error: watching a Gerrit change requires jq on PATH" >&2
     exit 1
   fi
-  if [ "$SOURCE_BRANCH" != "$TASK_BRANCH" ]; then
-    echo "error: GitHub pull request $URL does not belong to task $ID's recorded branch $TASK_BRANCH; nothing recorded or armed" >&2
-    exit 1
-  fi
+  OWNER_JSON=$(fm_pr_gerrit_read_change "$HOST" "$NUMBER" 2>/dev/null) || OWNER_JSON=
+  SOURCE_BRANCH=$(printf '%s' "$OWNER_JSON" | jq -r '
+    if (.topic | type) == "string" and .topic != "" then .topic
+    elif (.ref | type) == "string" and (.ref | startswith("refs/heads/")) then .ref
+    elif (.branch | type) == "string" and .branch == $branch then .branch
+    else empty end' --arg branch "$TASK_BRANCH" 2>/dev/null) || SOURCE_BRANCH=
 fi
 if [ "$PROVIDER" = ado ]; then
   for tool in az curl jq; do
@@ -151,11 +158,7 @@ if [ "$PROVIDER" = ado ]; then
     echo "error: $URL is a draft pull request; mark it ready before arming merge monitoring" >&2
     exit 1
   fi
-  if ! printf '%s' "$FM_PR_ADO_JSON" | jq -e \
-      --arg source "refs/heads/$TASK_BRANCH" '.sourceRefName == $source' >/dev/null; then
-    echo "error: Azure DevOps pull request $URL does not belong to task $ID's recorded branch $TASK_BRANCH; nothing recorded or armed" >&2
-    exit 1
-  fi
+  SOURCE_BRANCH=$(printf '%s' "$FM_PR_ADO_JSON" | jq -r 'if (.sourceRefName | type) == "string" then .sourceRefName else empty end' 2>/dev/null) || SOURCE_BRANCH=
   PR_HEAD=$(printf '%s' "$FM_PR_ADO_JSON" | jq -er '.lastMergeSourceCommit.commitId // empty') || {
     echo "error: could not read the Azure DevOps pull request head for $URL" >&2
     exit 1
@@ -166,12 +169,29 @@ if [ "$PROVIDER" = ado ]; then
   }
 fi
 
+SOURCE_BRANCH=${SOURCE_BRANCH#refs/heads/}
+case "$SOURCE_BRANCH" in
+  *$'\n'*|*$'\r'*) SOURCE_BRANCH= ;;
+esac
+if [ -n "$TASK_BRANCH" ] && [ -n "$SOURCE_BRANCH" ]; then
+  if [ "$SOURCE_BRANCH" != "$TASK_BRANCH" ]; then
+    echo "error: $PROVIDER pull request $URL does not belong to task $ID's recorded branch $TASK_BRANCH; nothing recorded or armed" >&2
+    exit 1
+  fi
+  PR_OWNER_VERIFIED=yes
+fi
+if [ "$PROVIDER" = gitlab ] && ! command -v glab >/dev/null 2>&1; then
+  echo "error: watching a GitLab merge request requires glab on PATH" >&2
+  exit 1
+fi
+
 "$FM_ROOT/bin/fm-guard.sh" || true
 
 MODE=$(grep '^mode=' "$META" | tail -1 | cut -d= -f2- || true)
 PROJECT=$(grep '^project=' "$META" | tail -1 | cut -d= -f2- || true)
-case "$MODE" in
-  no-mistakes|'') DONE_LINE="done: PR $URL checks green" ;;
+case "$PROVIDER:$MODE" in
+  gerrit:*) DONE_LINE="done: PR $URL published for review" ;;
+  *:no-mistakes|*:) DONE_LINE="done: PR $URL checks green" ;;
   *) DONE_LINE="done: PR $URL" ;;
 esac
 if { [ -z "$PR_HEAD" ] || ! fm_dod_forge_head_is_named_head "$MODE"; } \
@@ -217,10 +237,11 @@ STATE_DEVICE=$(fm_pr_file_device "$STATE") || exit 1
 META_TMP=$(mktemp "$STATE/.fm-pr-meta.XXXXXX") || exit 1
 while IFS= read -r line || [ -n "$line" ]; do
   case "$line" in
-    pr=*|pr_head=*) ;;
+    pr=*|pr_head=*|pr_owner_verified=*) ;;
     *) printf '%s\n' "$line" >> "$META_TMP" || exit 1 ;;
   esac
 done < "$META"
+printf 'pr_owner_verified=%s\n' "$PR_OWNER_VERIFIED" >> "$META_TMP" || exit 1
 printf 'pr=%s\n' "$URL" >> "$META_TMP" || exit 1
 [ -z "$PR_HEAD" ] || printf 'pr_head=%s\n' "$PR_HEAD" >> "$META_TMP" || exit 1
 chmod 0600 "$META_TMP" || exit 1
@@ -251,6 +272,9 @@ else
   PR_POLL_PUBLISH_LOCK_HELD=0
   echo "error: could not publish PR poll" >&2
   exit 1
+fi
+if [ "$PR_OWNER_VERIFIED" = no ]; then
+  echo "warning: cannot verify ownership of $PROVIDER PR $URL for task $ID (recorded branch ${TASK_BRANCH:-<missing>}); pr_owner_verified=no, merge monitoring remains armed" >&2
 fi
 # Opt-in fleet activity ledger (docs/fleet-ledger.md); off costs one file test.
 # The merge-time re-record is not a new review-ready PR, so it writes nothing.

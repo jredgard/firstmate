@@ -1772,31 +1772,78 @@ test_parses_pr_url_for_gh_axi() {
   pass "fm-pr-merge parses a GitHub PR URL into gh-axi number and --repo arguments"
 }
 
+test_gitlab_url_resolves_and_merges() {
+  local case_dir rc merge_line
+  case_dir=$(make_gitlab_case gitlab-merges)
 
+  set +e
+  run_pr_merge "$case_dir" task-x1 "$MR_URL" \
+    > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
 
+  expect_code 0 "$rc" "gitlab-merges: a well-formed merge request URL should merge, not error"
+  assert_grep "pr=$MR_URL" "$case_dir/state/task-x1.meta" \
+    "gitlab-merges: pr= was not recorded before merging"
+  assert_grep "GITLAB_HOST=$MR_HOST mr view 7 -R $MR_PROJECT_URL -F json" "$case_dir/glab.log" \
+    "gitlab-merges: the pre-merge state was not read from the project URL"
+  merge_line=$(glab_merge_line "$case_dir/glab.log")
+  [ "$merge_line" = "GITLAB_HOST=$MR_HOST mr merge 7 -R $MR_PROJECT_URL --sha $MR_HEAD --yes" ] \
+    || fail "gitlab-merges: unexpected merge invocation: '$merge_line'"
+  assert_grep "successful pipeline at head $MR_HEAD" "$case_dir/stderr" \
+    "gitlab-merges: the verified head was not reported"
+  [ ! -s "$case_dir/gh-axi.log" ] || fail "gitlab-merges: a merge request reached the GitHub CLI"
+  pass "fm-pr-merge merges a GitLab merge request through glab instead of refusing it"
+}
 
-test_gitlab_ownership_refuses_before_recording_or_merge() {
-  local case_dir url rc variant
-  for variant in ordinary self-hosted; do
-    case_dir=$(make_gitlab_case "gitlab-unverified-$variant")
-    url=$MR_URL
-    [ "$variant" != self-hosted ] || url=https://gl.self-hosted.example/deep/group/project/-/merge_requests/31
-    cp "$case_dir/state/task-x1.meta" "$case_dir/meta.before"
-    rc=0
-    run_pr_merge "$case_dir" task-x1 "$url" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
-    expect_code 1 "$rc" "$variant: unsupported source lookup allowed a merge"
-    assert_grep 'no supported lookup' "$case_dir/stderr" "$variant: ownership refusal missing"
-    assert_grep "$url" "$case_dir/stderr" "$variant: refusal did not name the PR"
-    cmp -s "$case_dir/meta.before" "$case_dir/state/task-x1.meta" || fail "$variant: refusal altered task metadata"
-    assert_absent "$case_dir/state/task-x1.check.sh" "$variant: refusal armed a poll"
-    [ -z "$(glab_merge_line "$case_dir/glab.log")" ] || fail "$variant: merge ran without source ownership"
-    assert_absent "$case_dir/state/.wake-queue" "$variant: refusal announced a merge"
+test_gitlab_host_comes_from_the_url() {
+  local case_dir rc host path project_url url
+  host=gl.self-hosted.example
+  path=deep/nested/group/project
+  project_url="https://$host/$path"
+  url="$project_url/-/merge_requests/31"
+  case_dir=$(make_gitlab_case gitlab-host-from-url)
+
+  set +e
+  run_pr_merge "$case_dir" task-x1 "$url" \
+    > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 0 "$rc" "gitlab-host-from-url: a self-hosted merge request should merge"
+  assert_grep "GITLAB_HOST=$host mr view 31 -R $project_url -F json" "$case_dir/glab.log" \
+    "gitlab-host-from-url: the read did not use the host from the URL"
+  assert_grep "GITLAB_HOST=$host mr merge 31 -R $project_url" "$case_dir/glab.log" \
+    "gitlab-host-from-url: the merge did not use the host from the URL"
+  assert_no_grep 'gitlab.com' "$case_dir/glab.log" \
+    "gitlab-host-from-url: a host was assumed instead of taken from the URL"
+  assert_no_grep '<unset>' "$case_dir/glab.log" \
+    "gitlab-host-from-url: glab was left to resolve the instance from its own default"
+  pass "fm-pr-merge takes the GitLab instance from the URL rather than assuming one"
+}
+
+test_gitlab_imposes_no_merge_method() {
+  local case_dir rc merge_line flag
+  case_dir=$(make_gitlab_case gitlab-no-method)
+
+  set +e
+  run_pr_merge "$case_dir" task-x1 "$MR_URL" \
+    > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 0 "$rc" "gitlab-no-method: merge should succeed"
+  merge_line=$(glab_merge_line "$case_dir/glab.log")
+  for flag in --squash --rebase --merge --method; do
+    case "$merge_line" in
+      *"$flag"*) fail "gitlab-no-method: '$flag' was imposed on GitLab: '$merge_line'" ;;
+    esac
   done
-  pass "GitLab merge callers refuse unsupported source ownership before recording or merging"
+  pass "fm-pr-merge imposes no merge method on GitLab, leaving the project's own one"
 }
 
 test_gitlab_extra_args_forwarded() {
-  local case_dir rc
+  local case_dir rc merge_line
   case_dir=$(make_gitlab_case gitlab-extra-args)
 
   set +e
@@ -1815,12 +1862,29 @@ test_gitlab_extra_args_forwarded() {
     > "$case_dir/stdout" 2> "$case_dir/stderr"
   rc=$?
   set -e
-  expect_code 1 "$rc" "gitlab-extra-args-attended: an attended flag cannot bypass source ownership"
-  assert_grep 'no supported lookup' "$case_dir/stderr" "gitlab-extra-args-attended: ownership refusal missing"
-  [ -z "$(glab_merge_line "$case_dir/glab.log")" ] || fail "gitlab-extra-args-attended: merge ran without ownership"
-  pass "GitLab destructive flags and attended overrides retain source ownership checks"
+  expect_code 0 "$rc" "gitlab-extra-args-attended: attended override should merge"
+  merge_line=$(glab_merge_line "$case_dir/glab.log")
+  [ "$merge_line" = "GITLAB_HOST=$MR_HOST mr merge 7 -R $MR_PROJECT_URL --sha $MR_HEAD --yes --remove-source-branch" ] \
+    || fail "gitlab-extra-args-attended: extra glab flags were not forwarded: '$merge_line'"
+  pass "fm-pr-merge refuses GitLab source-branch deletion unless --attended-override is passed"
 }
 
+test_gitlab_merge_failure_propagates() {
+  local case_dir rc
+  case_dir=$(make_gitlab_case gitlab-merge-fails)
+  : > "$case_dir/glab-merge-fails"
+
+  set +e
+  run_pr_merge "$case_dir" task-x1 "$MR_URL" \
+    > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 1 "$rc" "gitlab-merge-fails: a failing glab merge should not report success"
+  assert_grep "pr=$MR_URL" "$case_dir/state/task-x1.meta" \
+    "gitlab-merge-fails: pr= should already be recorded even though the merge failed"
+  pass "fm-pr-merge propagates a real glab merge failure without silently succeeding"
+}
 
 # Each pre-merge condition, driven one at a time, so no condition can be
 # carried by another. The refusal names that condition, no merge is attempted,
@@ -1890,17 +1954,31 @@ test_gitlab_reports_every_failing_condition() {
   pass "fm-pr-merge reports every failing GitLab condition, not only the first"
 }
 
-test_gitlab_ownership_refusal_preserves_recorded_head() {
-  local case_dir rc
+test_gitlab_stale_recorded_head_is_reported() {
+  local case_dir rc merge_line
   case_dir=$(make_gitlab_case gitlab-stale-head)
+  # The recorded head is what a rebase leaves behind. It is read before
+  # fm-pr-check.sh rewrites the metadata, which drops a head it cannot resolve
+  # for a GitLab task, so reading it afterwards would find nothing at all.
   printf 'pr_head=%s\n' "$MR_STALE_HEAD" >> "$case_dir/state/task-x1.meta"
-  rc=0
-  run_pr_merge "$case_dir" task-x1 "$MR_URL" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
-  expect_code 1 "$rc" "gitlab-stale-head: source ownership must be verifiable"
-  assert_grep 'no supported lookup' "$case_dir/stderr" "gitlab-stale-head: ownership refusal missing"
-  assert_grep "pr_head=$MR_STALE_HEAD" "$case_dir/state/task-x1.meta" "gitlab-stale-head: refusal changed metadata"
-  [ -z "$(glab_merge_line "$case_dir/glab.log")" ] || fail 'unverified GitLab PR was merged'
-  pass "unverified GitLab ownership preserves the recorded head and refuses to merge"
+
+  set +e
+  run_pr_merge "$case_dir" task-x1 "$MR_URL" \
+    > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 0 "$rc" "gitlab-stale-head: the live head satisfies every condition, so it should merge"
+  assert_grep "recorded head $MR_STALE_HEAD disagrees with the live head $MR_HEAD" \
+    "$case_dir/stderr" "gitlab-stale-head: the stale recorded head was trusted silently"
+  merge_line=$(glab_merge_line "$case_dir/glab.log")
+  case "$merge_line" in
+    *"--sha $MR_HEAD"*) : ;;
+    *) fail "gitlab-stale-head: the merge was not bound to the live head: '$merge_line'" ;;
+  esac
+  assert_no_grep "pr_head=$MR_STALE_HEAD" "$case_dir/state/task-x1.meta" \
+    "gitlab-stale-head: the recording step no longer drops an unresolvable GitLab head"
+  pass "fm-pr-merge reports a stale recorded head and verifies the live one"
 }
 
 test_gitlab_unreadable_state_refuses() {
@@ -2141,7 +2219,41 @@ test_gitlab_refusal_reports_nothing() {
   pass "a GitLab merge refused before the forge call reports no outcome"
 }
 
+test_gitlab_merge_reports_upward() {
+  local case_dir url
+  case_dir=$(make_gitlab_case gitlab-merge-reports)
+  mkdir -p "$case_dir/home"
+  printf '%s\n' mate-x >"$case_dir/home/.fm-secondmate-home"
+  printf 'schema=fm-secondmate-parent.v1\nroute=remote\n' >"$case_dir/home/.fm-secondmate-parent"
+  url=$MR_URL
 
+  FM_TEST_HOME="$case_dir/home" run_pr_merge "$case_dir" task-x1 "$url" \
+    >"$case_dir/stdout" 2>"$case_dir/stderr" || fail "gitlab-merge-reports: merge failed"
+
+  assert_grep "done [key=merged-task-x1]: merged task-x1 $url" \
+    <(sed -E 's/ \[at=[0-9]+\]//' "$case_dir/state/parent-replies.status") \
+    "gitlab-merge-reports: a landed merge request was not reported upward"
+  pass "a landed GitLab merge request is reported upward on the same channel"
+}
+
+test_queued_gitlab_merge_leaves_the_poll_armed() {
+  local case_dir
+  case_dir=$(make_gitlab_case queued-gitlab-merge)
+  mkdir -p "$case_dir/home"
+  : >"$case_dir/glab-stays-open"
+
+  FM_TEST_HOME="$case_dir/home" run_pr_merge "$case_dir" task-x1 "$MR_URL" \
+    >"$case_dir/stdout" 2>"$case_dir/stderr" \
+    || fail "queued-gitlab-merge: accepted merge command failed"
+
+  assert_absent "$case_dir/state/.wake-queue" \
+    "queued-gitlab-merge: a queued merge was reported as landed"
+  [ -f "$case_dir/state/task-x1.check.sh" ] \
+    || fail "queued-gitlab-merge: the merge poll was not left armed"
+  [ ! -e "$case_dir/state/task-x1.pr-poll-merge-notified" ] \
+    || fail "queued-gitlab-merge: a queued merge was marked as reported"
+  pass "a queued GitLab merge stays silent and leaves confirmation to the armed poll"
+}
 
 test_main_home_merge_leaves_a_durable_wake() {
   local case_dir url
@@ -2290,17 +2402,6 @@ test_secondmate_without_parent_binding_is_loud() {
   pass "a secondmate home that cannot report upward says so instead of merging in silence"
 }
 
-if [ "${1:-}" = --merge-identity-only ]; then
-  test_verified_merge_records_pr_and_head
-  test_pr_metadata_is_recorded_before_the_forge_call
-  test_gitlab_ownership_refuses_before_recording_or_merge
-  test_gitlab_extra_args_forwarded
-  test_gitlab_ownership_refusal_preserves_recorded_head
-  exit 0
-fi
-
-test_gitlab_ownership_refuses_before_recording_or_merge
-
 test_github_zero_exit_queue_required_refuses_with_exact_retry
 test_github_closed_unqueued_outcome_omits_retry_flags
 test_github_agreeing_queue_rules_keep_retry_guidance
@@ -2344,10 +2445,14 @@ test_explicit_merge_method_not_overridden
 test_method_equals_merge_method_not_overridden
 test_parses_pr_url_for_gh_axi
 test_github_still_forwards_sha_arg
+test_gitlab_url_resolves_and_merges
+test_gitlab_host_comes_from_the_url
+test_gitlab_imposes_no_merge_method
 test_gitlab_extra_args_forwarded
+test_gitlab_merge_failure_propagates
 test_gitlab_each_condition_refuses_independently
 test_gitlab_reports_every_failing_condition
-test_gitlab_ownership_refusal_preserves_recorded_head
+test_gitlab_stale_recorded_head_is_reported
 test_gitlab_unreadable_state_refuses
 test_gitlab_invalid_head_refuses
 test_gitlab_missing_tool_refuses_before_recording
@@ -4515,6 +4620,8 @@ test_ado_completion_options_are_home_opt_ins
 test_ado_requests_are_bounded_and_keep_tokens_off_argv
 test_secondmate_merge_reports_upward_once
 test_secondmate_merge_reports_on_the_local_route
+test_gitlab_merge_reports_upward
+test_queued_gitlab_merge_leaves_the_poll_armed
 test_failed_merge_reports_nothing
 test_gitlab_refusal_reports_nothing
 test_main_home_merge_leaves_a_durable_wake

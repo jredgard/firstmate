@@ -157,7 +157,7 @@ case "${1:-} ${2:-}" in
         exit 0
         ;;
       *" --json headRefName "*)
-        [ "${FM_TEST_GH_SOURCE_FAIL:-0}" = 0 ] || exit 1
+        [ "${FM_TEST_GH_SOURCE_FAIL:-0}" = 0 ] || { printf 'fm/foreign\n'; exit 1; }
         [ -z "${FM_TEST_GH_SOURCE_HOOK:-}" ] || "$FM_TEST_GH_SOURCE_HOOK"
         printf '%s\n' "${FM_TEST_GH_SOURCE-fm/example}"
         exit 0
@@ -221,6 +221,13 @@ case "${1:-} ${2:-}" in
 esac
 exit "${FM_TEST_GH_AXI_RC:-0}"
 SH
+  cat > "$fakebin/curl" <<'SH'
+#!/usr/bin/env bash
+[ -n "${FM_TEST_GLAB_REST_JSON:-}" ] || exit 1
+[ -z "${FM_TEST_GLAB_REST_LOG:-}" ] || printf '%s\n' "$*" >> "$FM_TEST_GLAB_REST_LOG"
+printf '%s\n' "$FM_TEST_GLAB_REST_JSON"
+SH
+  chmod +x "$fakebin/curl"
   # Plain glab, reproducing the real CLI's contract: its field output on stdout
   # and exit 0 on success, and a non-zero exit with no stdout on any failure.
   cat > "$fakebin/glab" <<'SH'
@@ -228,6 +235,14 @@ SH
 printf '%s\n' "$*" >> "$FM_TEST_GLAB_LOG"
 [ "${FM_TEST_GLAB_FAIL:-0}" = 0 ] || exit 1
 [ "${FM_TEST_GLAB_SLEEP:-0}" = 0 ] || sleep "$FM_TEST_GLAB_SLEEP"
+case " $* " in
+  *" --output json "*)
+    [ "${FM_TEST_GLAB_SOURCE_FAIL:-0}" = 0 ] || { printf '{"source_branch":"fm/foreign"}\n'; exit 1; }
+    [ -z "${FM_TEST_GLAB_SOURCE_HOOK:-}" ] || "$FM_TEST_GLAB_SOURCE_HOOK"
+    printf '{"source_branch":"%s"}\n' "${FM_TEST_GLAB_SOURCE-fm/example}"
+    exit 0
+    ;;
+esac
 printf 'title:\tfixture merge request\nstate:\t%s\nauthor:\tsomeone\n' "${FM_TEST_GLAB_STATE:-opened}"
 SH
   # gerrit-axi, reproducing the real CLI's contract: one JSON record on stdout
@@ -239,6 +254,11 @@ SH
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$FM_TEST_GERRIT_AXI_LOG"
 [ "${FM_TEST_GERRIT_FAIL:-0}" = 0 ] || exit 1
+if [ -n "${FM_TEST_GERRIT_SOURCE_FAIL_ONCE:-}" ] && [ ! -e "$FM_TEST_GERRIT_SOURCE_FAIL_ONCE" ]; then
+  : > "$FM_TEST_GERRIT_SOURCE_FAIL_ONCE"
+  printf '{"ok":true,"changes":[{"change":4201,"topic":"fm/foreign"}]}\n'
+  exit 1
+fi
 if [ -n "${FM_TEST_GERRIT_RAW:-}" ]; then
   printf '%s\n' "$FM_TEST_GERRIT_RAW"
   exit 0
@@ -1017,34 +1037,98 @@ SH
   ln -s "$REAL_JQ" "$dir/fakebin/jq"
 }
 
-run_gerrit_done_entry() {
-  local dir=$1 id=$2 url=$3 mode
-  mode=$(sed -n 's/^mode=//p' "$dir/home/state/$id.meta")
-  FM_TEST_GERRIT_AXI_LOG="$dir/gerrit-axi.log" PATH="$dir/fakebin:$BASE_PATH" \
-    bash -c '. "$1/bin/fm-timeout-lib.sh"; . "$1/bin/fm-dod-lib.sh"
-      fm_dod_accept_ship_done ship "$2" "$3" "$4" "$5" "$6" "$7" "$8"' \
-    _ "$ROOT" "$mode" "$dir/wt" "$dir/project" "done: PR $url published for review" \
-    "$dir/home/state" "$id" "$dir/home/state/$id.meta"
+
+test_provider_ownership_registration() {
+  local dir state provider variant url source expected before rc
+  for provider in gitlab gerrit; do
+    for variant in matching foreign unreadable ref branch failed; do
+      dir=$(make_case "ownership-$provider-$variant")
+      state="$dir/home/state"
+      write_task_meta "$dir"
+      ln -s "$REAL_JQ" "$dir/fakebin/jq"
+      source=fm/example expected=yes
+      case "$variant" in
+        foreign) source=fm/foreign ;;
+        unreadable|failed) source='' expected=no ;;
+      esac
+      case "$provider" in
+        gitlab) url=https://gitlab.example/group/project/-/merge_requests/7 ;;
+        gerrit)
+          url=https://gerrit.example/c/group/project/+/4201
+          FM_TEST_GERRIT_RAW=$(jq -cn --arg source "$source" --arg variant "$variant" \
+            --arg revision "$(git -C "$dir/wt" rev-parse HEAD)" '
+            {ok:true,changes:[{change:4201,status:"NEW",revision:$revision,branch:"main"}
+              + (if $variant == "ref" then {ref:("refs/heads/"+$source)}
+                elif $variant == "branch" then {branch:$source}
+                else {topic:$source} end)]}')
+          export FM_TEST_GERRIT_RAW ;;
+      esac
+      before=$(state_snapshot "$state")
+      rc=0
+      if [ "$variant:$provider" = failed:gitlab ]; then
+        FM_TEST_GLAB_SOURCE_FAIL=1 run_check_entry "$dir" task-a "$url" > "$dir/out" 2> "$dir/err" || rc=$?
+      elif [ "$variant:$provider" = failed:gerrit ]; then
+        FM_TEST_GERRIT_SOURCE_FAIL_ONCE="$dir/failed-read" run_check_entry "$dir" task-a "$url" > "$dir/out" 2> "$dir/err" || rc=$?
+      else
+        FM_TEST_GLAB_SOURCE="$source" run_check_entry "$dir" task-a "$url" > "$dir/out" 2> "$dir/err" || rc=$?
+      fi
+      unset FM_TEST_GERRIT_RAW
+      if [ "$variant" = foreign ]; then
+        [ "$rc" -ne 0 ] || fail "$provider: foreign ownership was registered"
+        assert_grep "does not belong to task task-a's recorded branch fm/example" "$dir/err" "$provider: ownership mismatch not diagnosed"
+        [ "$(state_snapshot "$state")" = "$before" ] || fail "$provider: mismatch changed task state"
+        if [ "$provider" = gitlab ]; then
+          rc=0
+          FM_TEST_GLAB_SOURCE="$source" run_merge_entry "$dir" task-a "$url" > "$dir/merge.out" 2> "$dir/merge.err" || rc=$?
+          [ "$rc" -ne 0 ] || fail 'GitLab merge registered a foreign task PR'
+          assert_grep 'does not belong to task task-a' "$dir/merge.err" 'GitLab merge did not reach the ownership refusal'
+          [ "$(state_snapshot "$state")" = "$before" ] || fail 'GitLab merge mismatch changed task state'
+          assert_no_grep 'mr merge' "$dir/glab.log" 'GitLab merged despite an ownership mismatch'
+        fi
+      else
+        [ "$rc" -eq 0 ] || fail "$provider/$variant: registration failed: $(cat "$dir/err")"
+        fm_pr_poll_artifacts_valid "$state" task-a "$POLL" || fail "$provider/$variant: no authenticated poll was armed"
+        grep -qxF "pr_owner_verified=$expected" "$state/task-a.meta" || fail "$provider/$variant: ownership verdict not recorded"
+        if [ "$expected" = no ]; then
+          assert_grep 'warning: cannot verify ownership' "$dir/err" "$provider: unreadable ownership did not warn"
+          assert_grep "$url" "$dir/err" "$provider: warning did not name the PR"
+        fi
+      fi
+    done
+  done
+  pass "GitLab and Gerrit register matching or unreadable ownership, record the verdict, and refuse foreign task identities"
 }
 
-test_registration_refuses_unsupported_forges() {
-  local dir url provider before
-  for provider in gitlab gerrit; do
-    dir=$(make_case "registration-unsupported-$provider")
+test_gitlab_rest_ownership_without_glab() {
+  local dir state variant url before rc noglab
+  noglab=$(fm_test_base_path_sans "$BASE_PATH" glab)
+  url=https://gitlab.example/group/subgroup/project/-/merge_requests/7
+  for variant in matching foreign unreadable; do
+    dir=$(make_case "ownership-gitlab-rest-$variant")
+    state="$dir/home/state"
     write_task_meta "$dir"
-    case "$provider" in
-      gitlab) url=https://gitlab.example/group/project/-/merge_requests/7 ;;
-      gerrit) url=https://gerrit.example/c/group/project/+/4201 ;;
+    rm -f "$dir/fakebin/glab"
+    ln -s "$REAL_JQ" "$dir/fakebin/jq"
+    before=$(state_snapshot "$state")
+    case "$variant" in
+      matching) FM_TEST_GLAB_REST_JSON='{"source_branch":"fm/example"}' ;;
+      foreign) FM_TEST_GLAB_REST_JSON='{"source_branch":"fm/foreign"}' ;;
+      unreadable) FM_TEST_GLAB_REST_JSON='{}' ;;
     esac
-    before=$(state_snapshot "$dir/home/state")
-    run_check_entry "$dir" task-a "$url" > "$dir/out" 2> "$dir/err" \
-      && fail "$provider: unsupported ownership lookup accepted registration"
-    assert_grep 'no supported lookup' "$dir/err" "$provider: unsupported lookup was not diagnosed"
-    assert_grep "$url" "$dir/err" "$provider: refusal did not name the PR"
-    assert_grep 'task task-a' "$dir/err" "$provider: refusal did not name the task"
-    [ "$(state_snapshot "$dir/home/state")" = "$before" ] || fail "$provider: refusal altered state"
+    export FM_TEST_GLAB_REST_JSON
+    rc=0
+    FM_TEST_GLAB_REST_LOG="$dir/rest.log" BASE_PATH="$noglab" run_check_entry "$dir" task-a "$url" > "$dir/out" 2> "$dir/err" || rc=$?
+    unset FM_TEST_GLAB_REST_JSON
+    [ "$rc" -ne 0 ] || fail 'GitLab armed a poll without its required monitoring CLI'
+    assert_grep 'https://gitlab.example/api/v4/projects/group%2Fsubgroup%2Fproject/merge_requests/7' "$dir/rest.log" 'GitLab ownership REST read addressed the wrong project'
+    if [ "$variant" = foreign ]; then
+      assert_grep 'does not belong to task task-a' "$dir/err" 'GitLab REST ownership mismatch did not refuse'
+    else
+      assert_grep 'requires glab on PATH' "$dir/err" 'GitLab lost its existing monitoring dependency check'
+    fi
+    [ "$(state_snapshot "$state")" = "$before" ] || fail 'GitLab REST refusal changed task state'
   done
-  pass "unsupported forges cannot register a task PR without an ownership lookup"
+  pass "GitLab reads REST ownership without glab and preserves its monitoring dependency boundary"
 }
 
 test_github_registration_requires_the_recorded_branch() {
@@ -1076,11 +1160,23 @@ test_github_registration_requires_the_recorded_branch() {
         FM_TEST_GH_SOURCE_HOOK="$dir/source-hook" run_check_entry "$dir" task-a "$url" > "$dir/out" 2> "$dir/err" || rc=$? ;;
       *) run_check_entry "$dir" task-a "$url" > "$dir/out" 2> "$dir/err" || rc=$? ;;
     esac
-    if [ "$variant" = matching ]; then
-      [ "$rc" -eq 0 ] || fail "own GitHub source branch refused: $(cat "$dir/err")"
+    case "$variant" in
+      matching|missing|unreadable|empty)
+      [ "$rc" -eq 0 ] || fail "GitHub registration refused: $(cat "$dir/err")"
       fm_pr_poll_artifacts_valid "$state" task-a "$POLL" || fail "own GitHub source did not arm a bound poll"
-      continue
-    fi
+      if [ "$variant" = matching ]; then
+        grep -qxF 'pr_owner_verified=yes' "$state/task-a.meta" || fail 'matching ownership was not recorded'
+      else
+        grep -qxF 'pr_owner_verified=no' "$state/task-a.meta" || fail "$variant: unreadable ownership was not recorded"
+        assert_grep 'warning: cannot verify ownership' "$dir/err" "$variant: unreadable ownership did not warn"
+      fi
+      if [ "$variant" = unreadable ]; then
+        run_check_entry "$dir" task-a "$url" > "$dir/recheck.out" 2> "$dir/recheck.err" || fail 'ownership recheck failed'
+        grep -qxF 'pr_owner_verified=yes' "$state/task-a.meta" || fail 'a successful recheck did not replace the unverified verdict'
+        [ "$(grep -c '^pr_owner_verified=' "$state/task-a.meta")" -eq 1 ] || fail 'ownership recheck duplicated its verdict'
+      fi
+      continue ;;
+    esac
     [ "$rc" -ne 0 ] || fail "$variant: unverified GitHub source was registered"
     assert_grep 'task-a' "$dir/err" "$variant: refusal did not name the task"
     if [ "$variant" = changed ]; then
@@ -1092,7 +1188,7 @@ test_github_registration_requires_the_recorded_branch() {
       [ "$(state_snapshot "$state")" = "$before" ] || fail "$variant: refusal altered task state"
     fi
   done
-  pass "GitHub registration requires a verified recorded source branch and rechecks it under lock"
+  pass "GitHub registration refuses readable mismatches, warns on unreadable ownership, and rechecks the branch under lock"
 }
 
 test_ado_registration_rejects_another_tasks_branch() {
@@ -1116,6 +1212,23 @@ test_ado_registration_rejects_another_tasks_branch() {
     || fail "exact source branch refused registration: $(cat "$dir/matching.err")"
   fm_pr_poll_artifacts_valid "$state" task-a "$POLL" || fail "own source branch did not arm a bound poll"
   pass "ADO PR registration rejects a foreign source branch and accepts the recorded task branch"
+}
+
+test_ado_unreadable_ownership_still_arms() {
+  local dir state url
+  dir=$(make_case ado-unreadable-ownership)
+  state="$dir/home/state"
+  url=https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42
+  add_ado_mocks "$dir"
+  write_task_meta "$dir"
+  jq 'del(.sourceRefName)' "$ADO_FIXTURES/active.json" > "$dir/unreadable-owner.json"
+  FM_TEST_ADO_DIR="$dir" FM_TEST_ADO_FIXTURE="$dir/unreadable-owner.json" \
+    run_check_entry "$dir" task-a "$url" > "$dir/out" 2> "$dir/err" \
+    || fail "ADO registration refused unreadable ownership: $(cat "$dir/err")"
+  grep -qxF 'pr_owner_verified=no' "$state/task-a.meta" || fail 'ADO ownership verdict was not recorded'
+  assert_grep 'warning: cannot verify ownership' "$dir/err" 'ADO unreadable ownership did not warn'
+  fm_pr_poll_artifacts_valid "$state" task-a "$POLL" || fail 'ADO unreadable ownership did not arm its canonical poll'
+  pass "ADO retains merge monitoring with a warning when only ownership is unreadable"
 }
 
 test_ado_registration_and_poll() {
@@ -2129,7 +2242,7 @@ EOF
     set -e
     [ "$rc" -ne 0 ] || fail "arming a Gerrit watch succeeded with $tool absent"
     case "$out" in
-      *"no supported lookup"*) ;;
+      *"requires $tool on PATH"*) ;;
       *) fail "arming a Gerrit watch with $tool absent did not report the missing CLI" ;;
     esac
     [ ! -e "$state/task-no-$tool.check.sh" ] || fail "refused Gerrit arming left a poll armed"
@@ -2162,6 +2275,40 @@ EOF
 # anything is recorded or armed. Once arming has recorded the change as pr=, a
 # later done naming it is accepted from that record without a read, so a
 # reviewer's rebase or new patch set on the server does not revoke it.
+test_gerrit_arming_records_no_patch_set_revision() {
+  local dir state rc out
+  dir=$(make_case gerrit-arming)
+  state="$dir/home/state"
+  ln -sf "$REAL_JQ" "$dir/fakebin/jq"
+
+  write_task_meta "$dir" task-rev
+  FM_TEST_GERRIT_REVISION=$(git -C "$dir/wt" rev-parse HEAD) run_check_entry "$dir" task-rev \
+    https://gerrit.example/c/group/apps/console/+/4201 >/dev/null \
+    || fail "arming a Gerrit watch failed"
+  grep -qxF 'pr=https://gerrit.example/c/group/apps/console/+/4201' "$state/task-rev.meta" \
+    || fail "arming did not record the canonical Gerrit change URL"
+  grep -q '^pr_head=' "$state/task-rev.meta" \
+    && fail "arming recorded a Gerrit patch set revision as pr_head"
+  [ -e "$state/task-rev.check.sh" ] || fail "arming a Gerrit watch left no poll armed"
+
+  # Submitting a Gerrit change is refused outright, before anything is read or
+  # recorded, rather than left as a silently absent provider branch.
+  set +e
+  out=$(run_merge_entry "$dir" task-rev \
+    https://gerrit.example/c/group/apps/console/+/4201 2>&1)
+  rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "the merge path accepted a Gerrit change"
+  case "$out" in
+    *"does not submit a Gerrit change"*) ;;
+    *) fail "the Gerrit merge refusal did not say firstmate does not submit" ;;
+  esac
+  [ ! -e "$state/task-rev.merge-authority" ] || fail "a refused Gerrit merge recorded merge authority"
+
+  pass "Gerrit arming records no patch set revision and the merge path refuses to submit"
+}
+
+
 test_gerrit_ready_gate_reads_the_published_tree() {
   local dir state base published other out rc
   dir=$(make_case gerrit-ready-gate)
@@ -2182,7 +2329,7 @@ test_gerrit_ready_gate_reads_the_published_tree() {
 
   write_task_meta "$dir" task-mismatch
   set +e
-  out=$(FM_TEST_GERRIT_REVISION=$other run_gerrit_done_entry "$dir" task-mismatch \
+  out=$(FM_TEST_GERRIT_REVISION=$other run_check_entry "$dir" task-mismatch \
     https://gerrit.example/c/group/apps/console/+/4201 2>&1)
   rc=$?
   set -e
@@ -2196,7 +2343,7 @@ test_gerrit_ready_gate_reads_the_published_tree() {
 
   write_task_meta "$dir" task-unknown
   set +e
-  FM_TEST_GERRIT_REVISION=0123456789abcdef0123456789abcdef01234567 run_gerrit_done_entry "$dir" task-unknown \
+  FM_TEST_GERRIT_REVISION=0123456789abcdef0123456789abcdef01234567 run_check_entry "$dir" task-unknown \
     https://gerrit.example/c/group/apps/console/+/4201 >/dev/null 2>&1
   rc=$?
   set -e
@@ -2204,7 +2351,7 @@ test_gerrit_ready_gate_reads_the_published_tree() {
 
   write_task_meta "$dir" task-unread
   set +e
-  FM_TEST_GERRIT_FAIL=1 run_gerrit_done_entry "$dir" task-unread \
+  FM_TEST_GERRIT_FAIL=1 run_check_entry "$dir" task-unread \
     https://gerrit.example/c/group/apps/console/+/4201 >/dev/null 2>&1
   rc=$?
   set -e
@@ -2212,12 +2359,12 @@ test_gerrit_ready_gate_reads_the_published_tree() {
 
   : > "$dir/gerrit-axi.log"
   write_task_meta "$dir" task-published
-  FM_TEST_GERRIT_REVISION=$published run_gerrit_done_entry "$dir" task-published \
+  FM_TEST_GERRIT_REVISION=$published run_check_entry "$dir" task-published \
     https://gerrit.example/c/group/apps/console/+/4201 >/dev/null \
     || fail "arming refused a change whose current patch set carries this copy's HEAD tree"
   grep -qF -- "show 4201 --host gerrit.example --json" "$dir/gerrit-axi.log" \
     || fail "the gate did not read the change from its own server"
-  write_poll_meta "$state" task-published https://gerrit.example/c/group/apps/console/+/4201 'kind=ship' 'mode=no-mistakes'
+  [ -e "$state/task-published.check.sh" ] || fail "an accepted Gerrit arming left no poll armed"
   grep -q '^pr_head=' "$state/task-published.meta" \
     && fail "the gate's live revision was recorded as pr_head"
 
@@ -2272,7 +2419,7 @@ test_gerrit_nm_ready_gate_requires_recovered_custody() {
   write_task_meta "$dir" task-unrecovered
   set +e
   out=$(FM_TEST_GERRIT_REVISION=$unfixed FM_TEST_NM_PIPELINE_HEAD=$fixed \
-    FM_TEST_NM_NEXT_ACTION=recover_custody run_gerrit_done_entry "$dir" task-unrecovered "$url" 2>&1)
+    FM_TEST_NM_NEXT_ACTION=recover_custody run_check_entry "$dir" task-unrecovered "$url" 2>&1)
   rc=$?
   set -e
   [ "$rc" -ne 0 ] || fail "arming accepted a publish of the head before the pipeline's fixes were recovered"
@@ -2285,7 +2432,7 @@ test_gerrit_nm_ready_gate_requires_recovered_custody() {
 
   # The same state with no next action reported still refuses on the trees.
   set +e
-  out=$(FM_TEST_GERRIT_REVISION=$unfixed FM_TEST_NM_PIPELINE_HEAD=$fixed run_gerrit_done_entry "$dir" task-unrecovered "$url" 2>&1)
+  out=$(FM_TEST_GERRIT_REVISION=$unfixed FM_TEST_NM_PIPELINE_HEAD=$fixed run_check_entry "$dir" task-unrecovered "$url" 2>&1)
   rc=$?
   set -e
   [ "$rc" -ne 0 ] || fail "arming accepted a copy whose HEAD is not the run's result"
@@ -2296,13 +2443,13 @@ test_gerrit_nm_ready_gate_requires_recovered_custody() {
 
   set +e
   FM_TEST_GERRIT_REVISION=$unfixed FM_TEST_NM_NEXT_ACTION=continue_active_run \
-    run_gerrit_done_entry "$dir" task-unrecovered "$url" >/dev/null 2>&1
+    run_check_entry "$dir" task-unrecovered "$url" >/dev/null 2>&1
   rc=$?
   set -e
   [ "$rc" -ne 0 ] || fail "arming accepted a publish while the run is still active"
 
   set +e
-  out=$(FM_TEST_GERRIT_REVISION=$unfixed FM_TEST_NM_FAIL=1 run_gerrit_done_entry "$dir" task-unrecovered "$url" 2>&1)
+  out=$(FM_TEST_GERRIT_REVISION=$unfixed FM_TEST_NM_FAIL=1 run_check_entry "$dir" task-unrecovered "$url" 2>&1)
   rc=$?
   set -e
   [ "$rc" -ne 0 ] || fail "arming accepted a publish whose no-mistakes run could not be read"
@@ -2314,7 +2461,7 @@ test_gerrit_nm_ready_gate_requires_recovered_custody() {
   # A failed run whose own head was published has nothing to recover, so the
   # trees agree; its outcome alone refuses it, as does a missing outcome.
   set +e
-  out=$(FM_TEST_GERRIT_REVISION=$unfixed FM_TEST_NM_OUTCOME=failed run_gerrit_done_entry "$dir" task-unrecovered "$url" 2>&1)
+  out=$(FM_TEST_GERRIT_REVISION=$unfixed FM_TEST_NM_OUTCOME=failed run_check_entry "$dir" task-unrecovered "$url" 2>&1)
   rc=$?
   set -e
   [ "$rc" -ne 0 ] || fail "arming accepted a publish of a failed no-mistakes run"
@@ -2324,7 +2471,7 @@ test_gerrit_nm_ready_gate_requires_recovered_custody() {
   esac
   grep -q '^pr=' "$state/task-unrecovered.meta" && fail "a refused failed-run publish recorded pr="
   set +e
-  FM_TEST_GERRIT_REVISION=$unfixed FM_TEST_NM_OUTCOME='' run_gerrit_done_entry "$dir" task-unrecovered "$url" >/dev/null 2>&1
+  FM_TEST_GERRIT_REVISION=$unfixed FM_TEST_NM_OUTCOME='' run_check_entry "$dir" task-unrecovered "$url" >/dev/null 2>&1
   rc=$?
   set -e
   [ "$rc" -ne 0 ] || fail "arming accepted a publish of a run with no outcome"
@@ -2369,16 +2516,16 @@ test_gerrit_nm_ready_gate_requires_recovered_custody() {
   [ "$rc" -eq 0 ] || fail "the done gate refused a recovered, published copy: $out"
 
   write_task_meta "$dir" task-recovered
-  FM_TEST_GERRIT_REVISION=$squash FM_TEST_NM_PIPELINE_HEAD=$fixed run_gerrit_done_entry "$dir" task-recovered "$url" >/dev/null \
+  FM_TEST_GERRIT_REVISION=$squash FM_TEST_NM_PIPELINE_HEAD=$fixed run_check_entry "$dir" task-recovered "$url" >/dev/null \
     || fail "arming refused a recovered copy whose squash carries the pipeline's result"
-  assert_no_grep '^pr=' "$state/task-recovered.meta" "the done gate changed task metadata"
+  grep -qxF "pr=$url" "$state/task-recovered.meta" || fail "the recovered publish was not recorded"
 
   # A direct-PR task never runs the pipeline, so no run is asked about.
   : > "$dir/nm.log"
   write_task_meta "$dir" task-direct
   sed -i.bak 's/^mode=no-mistakes$/mode=direct-PR/' "$state/task-direct.meta" && rm -f "$state/task-direct.meta.bak"
   FM_TEST_GERRIT_REVISION=$squash FM_TEST_NM_FAIL=1 FM_TEST_NM_LOG="$dir/nm.log" \
-    run_gerrit_done_entry "$dir" task-direct "$url" >/dev/null \
+    run_check_entry "$dir" task-direct "$url" >/dev/null \
     || fail "a direct-PR Gerrit publish was refused over a pipeline it never runs"
   [ ! -s "$dir/nm.log" ] || fail "a direct-PR Gerrit publish consulted no-mistakes"
   pass "a no-mistakes Gerrit ready report requires the pipeline's fixes recovered into the published copy"
@@ -2471,7 +2618,7 @@ EOF
   set -e
   [ "$rc" -ne 0 ] || fail "arming a GitLab watch succeeded with glab absent"
   case "$out" in
-    *"no supported lookup"*) ;;
+    *"requires glab on PATH"*) ;;
     *) fail "arming a GitLab watch with glab absent did not report the missing CLI" ;;
   esac
   [ ! -e "$state/task-b.check.sh" ] || fail "refused GitLab arming left a poll armed"
@@ -3898,20 +4045,9 @@ SH
   pass "device re-record publication waits without rewriting its registration"
 }
 
-if [ "${1:-}" = --merge-identity-only ]; then
-  test_ado_registration_rejects_another_tasks_branch
-  test_github_registration_requires_the_recorded_branch
-  test_registration_refuses_unsupported_forges
-  test_draft_pull_request_is_not_armed
-  test_valid_recording_and_merge_derivation
-  test_custom_merged_result_is_not_a_task_merge
-  test_gerrit_ready_gate_reads_the_published_tree
-  test_gerrit_nm_ready_gate_requires_recovered_custody
-  exit 0
-fi
-
 if [ "${1:-}" = --ado-only ]; then
   test_ado_registration_rejects_another_tasks_branch
+  test_ado_unreadable_ownership_still_arms
   test_ado_registration_and_poll
   test_ado_poll_states_and_watch_wakes
   test_ado_wake_failure_retries
@@ -3925,6 +4061,7 @@ fi
 test_parser_matrix
 test_github_registration_requires_the_recorded_branch
 test_ado_registration_rejects_another_tasks_branch
+test_ado_unreadable_ownership_still_arms
 test_ado_registration_and_poll
 test_ado_poll_states_and_watch_wakes
 test_ado_wake_failure_retries
@@ -3932,7 +4069,9 @@ test_ado_wakes_allow_sibling_merge
 test_validated_six_argument_compatibility
 test_gitlab_merge_watch
 test_gerrit_merge_watch
-test_registration_refuses_unsupported_forges
+test_provider_ownership_registration
+test_gitlab_rest_ownership_without_glab
+test_gerrit_arming_records_no_patch_set_revision
 test_gerrit_ready_gate_reads_the_published_tree
 test_gerrit_nm_ready_gate_requires_recovered_custody
 test_custom_merged_result_is_not_a_task_merge

@@ -1610,14 +1610,6 @@ test_already_gone_endpoint_still_completes_without_a_refusal() {
   pass "fm-teardown: an already-exited endpoint, and a server that is already gone, still complete cleanup silently"
 }
 
-if [ "${1:-}" = --merge-identity-only ]; then
-  test_merge_cleanup_requires_the_tasks_own_pr
-  test_branch_teardown_preserves_pushed_work_without_a_pr
-  test_branch_teardown_requires_its_completed_pr
-  test_branch_local_only_keeps_the_landed_work_proof
-  exit 0
-fi
-
 test_merge_cleanup_requires_the_tasks_own_pr
 test_branch_teardown_preserves_pushed_work_without_a_pr
 test_branch_teardown_requires_its_completed_pr

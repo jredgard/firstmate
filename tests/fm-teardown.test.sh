@@ -4945,13 +4945,6 @@ test_retained_sources_still_reach_the_ordinary_refusal() {
   pass "present required sources still reach the ordinary teardown refusal"
 }
 
-if [ "${1:-}" = --merge-identity-only ]; then
-  test_no_mistakes_origin_remote_allows
-  test_pr_check_does_not_refresh_stale_pr_head
-  test_pr_check_records_remote_head_when_local_lags
-  exit 0
-fi
-
 test_missing_startup_source_refuses_before_cleanup
 test_unreadable_startup_source_refuses_before_cleanup
 test_missing_adapter_sibling_refuses_before_cleanup

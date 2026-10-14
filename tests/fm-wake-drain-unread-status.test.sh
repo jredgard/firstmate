@@ -480,11 +480,6 @@ test_routine_working_and_covered_done_stay_silent_on_the_empty_queue() {
   pass "routine working and branch-covered done lines print nothing on an empty-queue drain"
 }
 
-if [ "${1:-}" = --merge-identity-only ]; then
-  test_merge_wake_guidance_preserves_pr_identity
-  exit 0
-fi
-
 test_merge_wake_guidance_preserves_pr_identity
 test_incident_note_answer_buried_under_routine_note_surfaces_both
 test_already_presented_notes_are_not_replayed
