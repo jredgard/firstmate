@@ -3617,6 +3617,7 @@ test_routine_unsticking_closes_each_stop_without_main_handback() {
       replaced-target) assert_grep 'verify the old target disappeared because of that roll' "$home/engine-prompt.1" 'revision evidence absent from emitted prompt' ;;
       cancelled-custody) assert_grep 'live pushed head equals the observed required head' "$home/engine-prompt.1" 'custody evidence absent from emitted prompt' ;;
     esac
+    assert_grep 'never pass `--main-action dispatch` or `decision` for it' "$home/engine-prompt.1" 'routine report action absent from emitted prompt'
     assert_grep "$(cat "$home/remedy")" "$home/state/demo.inbox/001.msg" "$shape remedy was not delivered"
     out=$(FM_HOME="$home" "$ROOT/bin/fm-wake-drain.sh" 2>&1)
     assert_not_contains "$out" 'OPEN DECISIONS' "$shape blocker remained open"

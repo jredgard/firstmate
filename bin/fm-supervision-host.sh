@@ -1005,7 +1005,7 @@ EOF
 
 HOST MAIN HANDBACK: Use bin/fm-branch-report.sh --main-action dispatch for a new lane terminal event (done or failed), teardown due or completed, or a newly freed slot, including cleanup discovered on heartbeat.
 Use --main-action decision for new needs-decision or blocked events you do not answer yourself; MAIN applies ask-user-authority and the recorded words.
-Apply routine unsticking yourself when the away words name it, following the shared prompt's Postures evidence checks; close answered blockers with fm-send --resolve-key and report the remedy as routine, without a decision handback.
+Apply routine unsticking yourself when the away words name it, following the shared prompt's Postures evidence checks; close answered blockers with fm-send --resolve-key and report the remedy as routine with the default --main-action auto; a remedied lane is still live and is not a terminal event, teardown, or freed slot, so never pass dispatch or decision for it.
 For a merged-PR sweep, use the following recorded PR-to-task resolution, never the check name as a task id. A fleet resolution means no owning task record was found; skip teardown. Use --verdict routine --main-action already-closed for a closed-task resolution that remains absent; do not hand back or report a captain outcome for duplicate cleanup.
 Use --main-action captain-hold only when the call genuinely requires the captain; it stays held for return.
 The report's default auto detects newly presented done or failed, needs-decision and blocked signal events, merged-PR wakes resolved to an owning task and removed scoped task records; standing task status never triggers a handback.
