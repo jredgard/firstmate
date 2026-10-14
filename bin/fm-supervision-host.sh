@@ -85,6 +85,9 @@
 # check row exits to MAIN with a supervision-host: away handback reason naming
 # those rows' payloads after releasing its leases; bin/fm-branch-report.sh owns
 # the action classification and durable check row.
+# The away turn snapshots merged-task=<id> for granted merged-PR checks and
+# closed-task=<id> when that task is absent before engine handling; bin/fm-pr-lib.sh
+# owns PR resolution and bin/fm-branch-report.sh the already-closed guard.
 # A queued handback is never offered to another engine turn. Other handled
 # away outcomes wait in the store for the return drain's BRANCH OUTCOMES section.
 # A handled
@@ -200,6 +203,8 @@ CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
 . "$SCRIPT_DIR/fm-supervision-engine-lib.sh"
 # shellcheck source=bin/fm-afk-contract.sh
 . "$SCRIPT_DIR/fm-afk-contract.sh"
+# shellcheck source=bin/fm-pr-lib.sh
+. "$SCRIPT_DIR/fm-pr-lib.sh"
 
 FIRST_ARM_RESTART=0
 case "${1:-}" in
@@ -851,7 +856,7 @@ health_record() {  # <engine-error 0|1> <reports>
 # never a subshell, because it advances the host's grant and turn state.
 handle_wake() {  # <reason-lines>
   local reason=$1 first scope status corrupted rows tasks unscoped rc turn readback
-  local receipts usage result errors unacked mirror signal_keys key events
+  local receipts usage result errors unacked mirror signal_keys key events closed_task merged_tasks
   LAST_TURN=
   ENGINE_ERROR=0
   HEALTH_NOTE=
@@ -922,6 +927,19 @@ handle_wake() {  # <reason-lines>
       $2 in want && $3 == "check" { print "check=" $5 }
     ' "$STATE/.wake-queue" >> "$TURN_FILE" \
       || { HANDLE_WHY="the granted check rows could not be recorded"; return 1; }
+    merged_tasks=$(fm_pr_merged_check_tasks "$STATE" "$TURN_FILE") \
+      || { HANDLE_WHY="the merged-PR tasks could not be resolved"; return 1; }
+    while IFS= read -r closed_task; do
+      case "$closed_task" in ''|*[!A-Za-z0-9._-]*) continue ;; esac
+      printf 'merged-task=%s\n' "$closed_task" >> "$TURN_FILE" \
+        || { HANDLE_WHY="the merged-task snapshot could not be recorded"; return 1; }
+      if [ ! -e "$STATE/$closed_task.meta" ] && [ ! -L "$STATE/$closed_task.meta" ]; then
+        printf 'closed-task=%s\n' "$closed_task" >> "$TURN_FILE" \
+          || { HANDLE_WHY="the closed-task snapshot could not be recorded"; return 1; }
+      fi
+    done <<EOF
+$merged_tasks
+EOF
     _fm_wake_require_classify
     signal_keys=$(awk -F '\t' -v rows="$rows" '
       BEGIN { n = split(rows, list, " "); for (i = 1; i <= n; i++) want[list[i]] = 1 }
@@ -987,10 +1005,13 @@ EOF
 
 HOST MAIN HANDBACK: Use bin/fm-branch-report.sh --main-action dispatch for a new lane terminal event (done or failed), teardown due or completed, or a newly freed slot, including cleanup discovered on heartbeat.
 Use --main-action decision for new needs-decision or blocked events you do not answer yourself; MAIN applies ask-user-authority and the recorded words.
+Apply routine unsticking yourself when the away words name it, following the shared prompt's Postures evidence checks; close answered blockers with fm-send --resolve-key and report the remedy as routine with the default --main-action auto; a remedied lane is still live and is not a terminal event, teardown, or freed slot, so never pass dispatch or decision for it.
+For a merged-PR sweep, use the following recorded PR-to-task resolution, never the check name as a task id. A fleet resolution means no owning task record was found; skip teardown. Use --verdict routine --main-action already-closed for a closed-task resolution that remains absent; do not hand back or report a captain outcome for duplicate cleanup.
 Use --main-action captain-hold only when the call genuinely requires the captain; it stays held for return.
-The report's default auto detects newly presented done or failed, needs-decision and blocked signal events, merge-landed wakes and removed scoped task records; standing task status never triggers a handback.
+The report's default auto detects newly presented done or failed, needs-decision and blocked signal events, merged-PR wakes resolved to an owning task and removed scoped task records; standing task status never triggers a handback.
 Report every event separately, acknowledge only the granted rows, release leases, and end the turn; MAIN handles the durable handback under the same away record and then parks again.
 INSTRUCTIONS
+    sed -n '/^merged-task=/p; /^closed-task=/p' "$TURN_FILE" >> "$WAKE_FILE"
   fi
   [ -z "$readback" ] || rm -f "$readback"
   rm -f "$mirror"

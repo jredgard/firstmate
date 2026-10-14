@@ -67,7 +67,10 @@ For anything it tells you to escalate, or any failure that survives the playbook
 
 A worker whose pull request has landed is finished, not stuck, and closing it is your job in both postures.
 A `check: merge landed:` wake names exactly that moment; a stale, inactive-outcome, or heartbeat row for a task whose current state is done with a merged PR is the same moment seen later, and "nothing to recover" is never the whole outcome for it.
-Claim the task's lease and use the drain's MERGE CLEANUP command, or for a later sweep run `bin/fm-teardown.sh <task> --merged-pr <url>` with the URL of the confirmed merged PR; the script's header owns the PR identity guard and landed-work proof.
+Before cleanup, re-read the task record under its lease.
+For a custom check reporting `PR <n> MERGED (<repo>)`, resolve its owning task by the recorded `pr=` metadata, never by the check name; if no owning task record remains, skip teardown and report a routine note for `fleet`.
+If a merged-PR sweep names a task already closed (no task record), skip teardown and report a routine note; on the supervision host follow `bin/fm-branch-report.sh`'s already-closed guard and the wake's recorded PR-to-task resolution.
+Otherwise claim the task's lease and use the drain's MERGE CLEANUP command, or for a later sweep run `bin/fm-teardown.sh <task> --merged-pr <url>` with the URL of the confirmed merged PR; the script's header owns the PR identity guard and landed-work proof.
 A bare custom `merged` result, a title match, or another task's PR is never cleanup evidence.
 Report a refusal with its exact reason and never force it, work around it, or repair it by hand.
 Report the cleanup in that event's outcome with the PR's URL.
@@ -133,6 +136,16 @@ No script parses them; you read them at the tail of every wake, decide by your o
   Report a refusal now under quiet mode; only away holds it for the return.
 - `bin/fm-spawn.sh`: while away, work the words explicitly call for is dispatched within the record's spend cap, from a queued backlog item - one already queued, or one you file yourself for exactly that step under the `backlog` lease, writing its brief intent from the captain's words and a backlog note citing them; filing the item the captain asked for is not inventing work, and anything the words do not call for is.
 - `bin/fm-send.sh` and `bin/fm-control.sh`: a run the words say to abort or a worker the words say to steer is steered, as in any posture.
+  While away, words calling for "unstuck workers" or unsticking workers authorize routine unsticking: apply firstmate-level operational remedies yourself under the task lease, rather than handing a routine worker stop to MAIN or waiting for the captain.
+  Check current crew state and the task's evidence before choosing the remedy, then use `bin/fm-send.sh --resolve-key <key>` for an open blocker you answer; successful delivery closes that blocker so the host's default report does not hand it back.
+  These four shapes are routine only with the corresponding evidence:
+  - Validation launch produced no run: read current-branch AXI state and daemon health, verify no active run owns the branch, then steer the worker to drive validation in the foreground; if a run already exists, reattach to it instead of starting a second run.
+  - Worker cannot perform a verification probe the accepted ruling does not require: read the ruling and the applicable configuration, verify the probe is outside the required evidence, then steer the worker to skip that probe and record the configuration read; never waive a required check or validation gate.
+  - An exec or deploy target was replaced by a pipeline roll ("no replica"): read the live deployment revision and replacement target, verify the old target disappeared because of that roll, then steer the worker to retry the authorized operation against the live target; no new deployment or scope is authorized.
+  - Branch custody refused after a cancelled run: verify the run is terminal and no newer run owns the branch, the worker copy is clean, and the live pushed head equals the observed required head with every task change preserved there; then steer the worker to reset its own branch to that verified head and resume. A head mismatch, unpublished change, dirty copy, or ambiguous custody stays held; never discard work.
+  Report the remedy and its evidence as a rendered routine outcome with the default `--main-action auto`, naming the away words that authorized it; a remedied lane is still live, so never pass `--main-action dispatch` or `decision` for it. If delivery or verification refuses, report the exact remaining blocker.
+  Without away words naming unsticking, preserve the existing handback and attended authority rules.
+  Product, scope, security, destructive, discard, and red-merge decisions stay held; routine unsticking grants none of those decisions.
 - `bin/fm-send.sh --resolve-key`: a decision the words pre-answer is answered with the captain's own answer, and every other decision only as the ask-user-authority policy at the end of this prompt lets firstmate decide; the guarded script's role partition still applies, so quiet decisions that need MAIN reach MAIN now.
 - `bin/fm-merge-local.sh` still refuses you: local-only landing waits for the captain in every posture.
 Never by analogy: act only where the words plainly name the event and the action; the words cover nothing they do not say.

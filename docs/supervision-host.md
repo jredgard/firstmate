@@ -148,6 +148,9 @@ The record relocates its covered PR merge authority to the engine while main is 
 Main is woken for dispatch and worker input as well as a declined engine turn.
 The host passes new lane terminal events (done or failed), cleanup due or completed, and newly freed slots back to main, so a freed slot can serve the next queued item; standing lane status does not trigger a handback.
 A newly presented needs-decision or blocked event the engine does not answer also reaches main, unless the engine identifies a genuine captain-owned hold for return.
+When away words name unsticking workers, the engine applies routine operational remedies itself using the four evidence checks owned by `bin/fm-branch-prompt.sh` "Postures", closes an answered blocker through `fm-send --resolve-key`, and reports the remedy as routine without handing back.
+Without those words, the existing handback applies; product, scope, security, destructive, discard, and red-merge decisions retain their holds.
+A merged-PR sweep for a task already closed or a custom merged PR with no recorded owner skips teardown and records a routine note through the guard owned by `bin/fm-branch-report.sh`; actual cleanup still hands back the freed slot.
 `bin/fm-branch-report.sh` owns handback classification, its `--main-action` report flag, and durable check publication; the host's away wake includes those reporting instructions without changing Pi's prompt.
 The durable handback survives an acknowledged original wake and a host that exits before delivering its close, and the next host passes it to main without offering it to another engine turn.
 The host completes acknowledgement of every row the engine handled before handing back, and names the lane and event in its reason, so main drains the new handback rows without re-reading other handled lanes.
@@ -436,7 +439,7 @@ Each arm owner's own suite covers its host mode against a stub host.
 
 | Test | What it covers |
 |---|---|
-| `tests/fm-supervision-host.test.sh` | Drives the real host, auto-arm, grant, drain, report, and lease scripts against a stub engine, in both postures, including the shared offer rule and the drain's `BRANCH OUTCOMES` section. |
+| `tests/fm-supervision-host.test.sh` | Drives the real host, auto-arm, grant, drain, report, and lease scripts against a stub engine, in both postures, including the shared offer rule, the drain's `BRANCH OUTCOMES` section, routine unsticking fixtures, and closed-task sweep guards. |
 | `tests/fm-claude-stop-autoarm.test.sh` | The Claude arm owner's host mode against a stub host. |
 | `tests/fm-cursor-primary.test.sh` | The Cursor arm owner's host mode against a stub host. |
 | `tests/fm-pi-watch-extension.test.sh` | The OpenCode plugin's host mode against a stub host. |

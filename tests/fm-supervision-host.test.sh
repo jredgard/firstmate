@@ -71,6 +71,11 @@ n=$(( $(ls "$FM_HOME"/engine-call.* 2>/dev/null | wc -l) + 1 ))
     "${FM_LEASE_HOLDER_PID:-}" "${FM_SUPERVISION_PRIMARY_HARNESS:-}" "${FM_BRANCH_REPORT_TURN:-}"
   for a in "$@"; do printf 'arg=%s\n' "$a"; done
 } > "$FM_HOME/engine-call.$n"
+prompt_next=0
+for a in "$@"; do
+  if [ "$prompt_next" = 1 ]; then cat "$a" > "$FM_HOME/engine-prompt.$n"; break; fi
+  [ "$a" != --system-prompt-file ] || prompt_next=1
+done
 case "$mode" in held|captain-held) printf 'ready\n' > "$FM_HOME/stub-ready" ;; esac
 # Like Claude, the reported cost is the conversation's running total.
 result() {
@@ -88,16 +93,41 @@ printf '%s\n' "$drain" > "$FM_HOME/engine-drain.$n"
 ack=$(printf '%s\n' "$drain" | sed -n 's/^WAKE_ACK_REQUIRED: after handling completes run bin\/fm-wake-drain.sh //p' | tail -1)
 task=$(sed -n 's/^tasks=//p' "$STATE/.supervision-host-turn" | awk '{ print $1 }')
 [ -n "$task" ] || task=fleet
-[ "$mode" != handback-check ] || task=demo
+case "$mode" in handback-check) task=demo ;; esac
 verdict=routine
 [ "$mode" != go-away ] || verdict=captain
 case "$mode" in
   fail) exit 3 ;;
-  handle|handback-batch|handback-multiple|handback-check|captain|captain-close-before-return|held|captain-held|hold-lease|return|return-silent|return-fail|return-fail-silent|return-many|return-lookup-fail|return-first|noack|emptyresult|go-away)
+  merged-sweep)
+    while IFS= read -r task; do
+      "$FM_REPO/bin/fm-lease.sh" claim "$task" >> "$FM_HOME/engine-lease.log" 2>&1 || exit 3
+      if [ ! -e "$STATE/$task.meta" ]; then
+        "$FM_REPO/bin/fm-branch-report.sh" --task "$task" --verdict routine \
+          --main-action already-closed --summary 'merged task already closed; skipped duplicate cleanup' \
+          >> "$FM_HOME/engine-report.log" 2>&1 || exit 3
+      else
+        printf '%s\n' "$task" >> "$FM_HOME/teardown-attempted"
+        rm "$STATE/$task.meta"
+        "$FM_REPO/bin/fm-branch-report.sh" --task "$task" --verdict captain \
+          --summary 'merged task cleanup completed' >> "$FM_HOME/engine-report.log" 2>&1 || exit 3
+      fi
+      "$FM_REPO/bin/fm-lease.sh" release "$task" >> "$FM_HOME/engine-lease.log" 2>&1
+    done < <(sed -n 's/^merged-task=//p' "$STATE/.supervision-host-turn")
+    # shellcheck disable=SC2086
+    [ -z "$ack" ] || "$FM_REPO/bin/fm-wake-drain.sh" $ack >> "$FM_HOME/engine-ack.log" 2>&1
+    result
+    ;;
+  handle|routine-unstick|handback-batch|handback-multiple|handback-check|captain|captain-close-before-return|held|captain-held|hold-lease|return|return-silent|return-fail|return-fail-silent|return-many|return-lookup-fail|return-first|noack|emptyresult|go-away)
     case "$mode" in held|captain-held) read -r _ < "$FM_HOME/stub-release" ;; esac
     [ "$mode" != return-first ] || "$FM_REPO/bin/fm-afk-contract.sh" archive >> "$FM_HOME/engine-return.log" 2>&1
     [ "$mode" != go-away ] || "$FM_REPO/bin/fm-afk-contract.sh" enter --words 'gone mid-turn' >> "$FM_HOME/engine-return.log" 2>&1
     "$FM_REPO/bin/fm-lease.sh" claim "$task" >> "$FM_HOME/engine-lease.log" 2>&1
+    # Scripted engine decisions exercise the tool/report boundary, not model
+    # interpretation. Evidence and the selected remedy belong to the fixture.
+    if [ "$mode" = routine-unstick ]; then
+      "$FM_REPO/bin/fm-send.sh" "$task" --resolve-key routine-stop "$(cat "$FM_HOME/remedy")" \
+        >> "$FM_HOME/engine-steer.log" 2>&1 || exit 3
+    fi
     if [ "$mode" = captain ] || [ "$mode" = captain-held ] \
       || [ "$mode" = captain-close-before-return ]; then
       "$FM_REPO/bin/fm-branch-report.sh" --task "$task" --verdict captain \
@@ -106,6 +136,9 @@ case "$mode" in
         >> "$FM_HOME/engine-report.log" 2>&1
     else
       report_args=(--task "$task" --verdict "$verdict" --summary "stub handled $task")
+      if [ "$mode" = routine-unstick ]; then
+        report_args=(--task "$task" --verdict routine --summary "per your away instructions: unstuck workers; verified fixture evidence and sent $(cat "$FM_HOME/remedy")")
+      fi
       if [ -f "$FM_HOME/stub-main-action" ]; then
         report_args+=(--main-action "$(cat "$FM_HOME/stub-main-action")")
       fi
@@ -415,7 +448,7 @@ test_away_report_classifies_main_actions() {
       progress) printf 'working: rebased onto merged work; PR ready later\n' > "$state/demo.status" ;;
       done) event='done [at=1]: ready branch'; expected=dispatch; trigger="done" ;;
       failed) event='failed [at=1]: build broke'; expected=dispatch; trigger=failed ;;
-      merged) printf 'turn=h1\nrows=1\ntasks=\nunscoped=1\nwake=check: merge landed: demo https://example.test/o/r/pull/1\nposture=away\ncheck=check: merge landed: demo https://example.test/o/r/pull/1\n' > "$state/.supervision-host-turn"; expected=dispatch; trigger='merge landed' ;;
+      merged) printf 'turn=h1\nrows=1\ntasks=\nunscoped=1\nwake=check: merge landed: demo https://example.test/o/r/pull/1\nposture=away\ncheck=check: merge landed: demo https://example.test/o/r/pull/1\nmerged-task=demo\n' > "$state/.supervision-host-turn"; expected=dispatch; trigger='merge landed' ;;
       teardown) rm "$state/demo.meta"; expected=dispatch; trigger=teardown ;;
       decision) event='needs-decision [key=d1]: input needed'; expected=decision; trigger='needs-decision [key=d1]' ;;
       blocked) event='blocked [key=b1]: tooling refusal'; expected=decision; trigger='blocked [key=b1]' ;;
@@ -492,7 +525,7 @@ test_away_merge_handback_scopes_the_reported_lane() {
   local home state task out rows
   home=$(make_home handback-merge-scope away)
   state="$home/state"
-  printf 'turn=h1\nrows=1 2\ntasks=\nunscoped=1\nwake=heartbeat\nposture=away\ncheck=check: merge landed: demo https://example.test/o/r/pull/1\n' > "$state/.supervision-host-turn"
+  printf 'turn=h1\nrows=1 2\ntasks=\nunscoped=1\nwake=heartbeat\nposture=away\ncheck=check: merge landed: demo https://example.test/o/r/pull/1\nmerged-task=demo\n' > "$state/.supervision-host-turn"
   for task in demo dem demo-extra other fleet; do
     out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=h1 "$REPORT" \
       --task "$task" --verdict routine --summary "handled $task" 2>&1) \
@@ -561,7 +594,7 @@ test_away_explicit_decision_trigger_is_lane_local() {
     printf 'turn=h1\nrows=1 2\ntasks=demo other\nunscoped=1\nwake=signal: other.status\nposture=away\ncheck=check: review finding for demo\n' > "$state/.supervision-host-turn"
     case "$terminal" in
       done|failed) printf 'event=demo\t%s: lane stopped\n' "$terminal" >> "$state/.supervision-host-turn" ;;
-      merged) printf 'check=check: merge landed: demo https://example.test/o/r/pull/1\n' >> "$state/.supervision-host-turn" ;;
+      merged) printf 'check=check: merge landed: demo https://example.test/o/r/pull/1\nmerged-task=demo\n' >> "$state/.supervision-host-turn" ;;
       teardown) rm "$state/demo.meta" ;;
     esac
     out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=h1 "$REPORT" \
@@ -603,7 +636,7 @@ test_away_derived_dispatch_is_once_per_turn_and_task() {
     case "$trigger" in
       done) printf 'event=demo\tdone: ready branch\nevent=other\tdone: other ready branch\n' >> "$state/.supervision-host-turn" ;;
       failed) printf 'event=demo\tfailed: build broke\nevent=other\tfailed: other build broke\n' >> "$state/.supervision-host-turn" ;;
-      merged) printf 'turn=h1\nrows=1\ntasks=demo other\nunscoped=1\nwake=check: merge landed: demo https://example.test/o/r/pull/1\nposture=away\ncheck=check: merge landed: demo https://example.test/o/r/pull/1\n' > "$state/.supervision-host-turn" ;;
+      merged) printf 'turn=h1\nrows=1\ntasks=demo other\nunscoped=1\nwake=check: merge landed: demo https://example.test/o/r/pull/1\nposture=away\ncheck=check: merge landed: demo https://example.test/o/r/pull/1\nmerged-task=demo\n' > "$state/.supervision-host-turn" ;;
       teardown) rm "$state/demo.meta" ;;
     esac
     for action in auto auto captain-hold captain-hold decision; do
@@ -3554,6 +3587,193 @@ test_superseded_host_leaves_the_owner_untouched() {
   pass "host: a host under a superseded auto-arm generation stands down without touching the owner"
 }
 
+# These deterministic fixtures prove delivery, blocker closure, and handback
+# routing through the real host. They do not claim that a stub proves language
+# interpretation by a live model.
+test_routine_unsticking_closes_each_stop_without_main_handback() {
+  local home shape out
+  for shape in no-run optional-probe replaced-target cancelled-custody; do
+    home=$(make_home "unstick-$shape" away)
+    echo routine-unstick > "$home/stub-mode"
+    case "$shape" in
+      no-run) echo 'AXI has no active run and daemon is healthy; foreground drive validation' > "$home/remedy" ;;
+      optional-probe) echo 'accepted ruling excludes browser probe; skip it and record configuration read' > "$home/remedy" ;;
+      replaced-target) echo 'pipeline roll replaced old replica; read live revision and retry authorized exec' > "$home/remedy" ;;
+      cancelled-custody) echo 'cancelled run, clean copy, all changes preserved and pushed head equals required head; reset own branch to verified head' > "$home/remedy" ;;
+    esac
+    FM_HOME="$home" "$CONTRACT" enter --words 'unstuck workers; merge nothing' >/dev/null 2>&1 || fail 'could not record unsticking words'
+    # Durable enqueue is the real send interface. A failing doorbell cannot
+    # undo delivery; the watcher remains on the fixture's unreachable tmux.
+    start_host "$home"
+    wait_until 450 watcher_live "$home" || fail "$shape watcher not live: $(cat "$home/host.out" "$home/claude.err" "$home/state/.supervision-host.log" 2>/dev/null)"
+    append_status "$home" "$shape needs routine remedy" 'blocked [key=routine-stop]'
+    wait_until 250 handled_at_least "$home" 1 || fail "$shape was not handled: $(cat "$home/engine-steer.log" 2>/dev/null)"
+    [ ! -s "$home/host.rc" ] || fail "$shape handed back to main"
+    # The final prompt sent to the engine is an owned generated interface;
+    # pin the evidence instruction separately from the scripted decisions.
+    case "$shape" in
+      no-run) assert_grep 'verify no active run owns the branch' "$home/engine-prompt.1" 'no-run evidence absent from emitted prompt' ;;
+      optional-probe) assert_grep 'verify the probe is outside the required evidence' "$home/engine-prompt.1" 'probe evidence absent from emitted prompt' ;;
+      replaced-target) assert_grep 'verify the old target disappeared because of that roll' "$home/engine-prompt.1" 'revision evidence absent from emitted prompt' ;;
+      cancelled-custody) assert_grep 'live pushed head equals the observed required head' "$home/engine-prompt.1" 'custody evidence absent from emitted prompt' ;;
+    esac
+    assert_grep 'never pass `--main-action dispatch` or `decision` for it' "$home/engine-prompt.1" 'routine report action absent from emitted prompt'
+    assert_grep "$(cat "$home/remedy")" "$home/state/demo.inbox/001.msg" "$shape remedy was not delivered"
+    out=$(FM_HOME="$home" "$ROOT/bin/fm-wake-drain.sh" 2>&1)
+    assert_not_contains "$out" 'OPEN DECISIONS' "$shape blocker remained open"
+    assert_no_grep 'supervision-host-handback:' "$home/state/.wake-queue" "$shape queued a handback"
+    assert_grep '"verdict":"routine"' "$home/state/branch-outcomes.jsonl" "$shape escalated routine recovery"
+    assert_grep '"silent":false' "$home/state/branch-outcomes.jsonl" "$shape hid the recovery note"
+    stop_home_processes "$home"
+  done
+  pass 'routine unsticking: four remedies deliver and close blockers without MAIN handback'
+}
+
+test_merged_sweep_skips_already_closed_tasks() {
+  local home state kind out rc expected_task check_task
+  for kind in missing active builtin; do
+    home=$(make_home "closed-sweep-$kind" away)
+    state="$home/state"
+    echo merged-sweep > "$home/stub-mode"
+    printf 'pr=https://dev.azure.com/acme/project/_git/Mosaiq.Codegraph/pullrequest/59397\n' >> "$state/demo.meta"
+    printf 'project=demo\npr=https://dev.azure.com/acme/project/_git/Other.Repository/pullrequest/59397\n' > "$state/ado-pr-sweep.meta"
+    if [ "$kind" != active ]; then
+      rm "$state/demo.meta"
+    fi
+    start_host "$home"
+    wait_until 450 watcher_live "$home" || fail "sweep watcher not live: $(cat "$home/host.out" "$home/claude.err" "$home/state/.supervision-host.log" 2>/dev/null)"
+    expected_task=fleet
+    if [ "$kind" = builtin ]; then
+      expected_task=demo
+      append_wake "$state" check merged-demo 'check: merge landed: demo https://dev.azure.com/acme/project/_git/Mosaiq.Codegraph/pullrequest/59397'
+    else
+      append_wake "$state" check ado-pr-sweep "check: $state/ado-pr-sweep.check.sh: ado-pr-sweep: PR 59397 MERGED (Mosaiq.Codegraph) - task pull request"
+    fi
+    if [ "$kind" = active ]; then
+      wait_until 250 host_exited "$home" || fail 'actual cleanup did not hand back freed slot'
+      [ -e "$home/teardown-attempted" ] || fail 'active task cleanup was skipped'
+      assert_grep 'handback: dispatch for demo' "$home/host.out" 'actual cleanup lost dispatch handback'
+      assert_grep 'merged-task=demo' "$home/engine-call.1" 'owning task resolution was not delivered to the engine'
+    else
+      wait_until 250 handled_at_least "$home" 1 || fail "closed sweep not handled: $(cat "$home/engine-report.log" 2>/dev/null)"
+      [ ! -e "$home/teardown-attempted" ] || fail 'already closed task attempted teardown'
+      [ ! -s "$home/host.rc" ] || fail 'duplicate sweep handed back'
+      assert_grep '"verdict":"routine"' "$state/branch-outcomes.jsonl" 'closed sweep became captain outcome'
+      assert_grep "\"task\":\"$expected_task\"" "$state/branch-outcomes.jsonl" 'sweep used a check name or an unrelated task as its owner'
+      assert_grep "closed-task=$expected_task" "$home/engine-call.1" 'closed resolution was not delivered to the engine'
+      assert_no_grep 'supervision-host-handback:' "$state/.wake-queue" 'closed sweep queued a handback'
+    fi
+    stop_home_processes "$home"
+  done
+  # The report flag cannot hide live records, missing pre-turn proof, foreign
+  # checks, or a captain outcome. It writes nothing on refusal.
+  home=$(make_home closed-sweep-guard away)
+  state="$home/state"
+  for kind in active no-snapshot foreign captain silent; do
+    check_task=demo
+    [ "$kind" != foreign ] || check_task=other
+    printf 'turn=t1\nrows=1\ntasks=demo\nunscoped=0\nposture=away\ncheck=check: merge landed: %s https://example.test/o/r/pull/1\nmerged-task=%s\n' "$check_task" "$check_task" > "$state/.supervision-host-turn"
+    [ "$kind" = no-snapshot ] || printf 'closed-task=demo\n' >> "$state/.supervision-host-turn"
+    [ "$kind" = active ] || rm -f "$state/demo.meta"
+    out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=t1 "$REPORT" --task demo --verdict "$([ "$kind" = captain ] && echo captain || echo routine)" --main-action already-closed --summary skipped --silent "$([ "$kind" = silent ] && echo true || echo false)" 2>&1); rc=$?
+    expect_code 3 "$rc" "$kind must refuse closed-task suppression"
+    [ ! -e "$state/branch-outcomes.jsonl" ] || fail 'refused suppression wrote an outcome'
+  done
+  for kind in owner different-pr different-repo different-provider duplicate-pr; do
+    home=$(make_home "custom-sweep-owner-$kind" away)
+    state="$home/state"
+    printf 'pr=https://dev.azure.com/acme/project/_git/Mosaiq.Codegraph/pullrequest/59397\n' >> "$state/demo.meta"
+    case "$kind" in
+      different-pr) sed 's/59397/59398/' "$state/demo.meta" > "$home/meta"; mv "$home/meta" "$state/demo.meta" ;;
+      different-repo) sed 's/Mosaiq.Codegraph/Other.Repository/' "$state/demo.meta" > "$home/meta"; mv "$home/meta" "$state/demo.meta" ;;
+      different-provider) sed 's|https://dev.azure.com/acme/project/_git/Mosaiq.Codegraph/pullrequest/59397|https://github.com/acme/Mosaiq.Codegraph/pull/59397|' "$state/demo.meta" > "$home/meta"; mv "$home/meta" "$state/demo.meta" ;;
+      duplicate-pr) printf 'pr=https://dev.azure.com/acme/project/_git/Mosaiq.Codegraph/pullrequest/59397\n' >> "$state/demo.meta" ;;
+    esac
+    printf 'turn=t1\nrows=1\ntasks=\nunscoped=1\nposture=away\ncheck=check: %s/ado-pr-sweep.check.sh: ado-pr-sweep: PR 59397 MERGED (Mosaiq.Codegraph) - task pull request\n' "$state" > "$state/.supervision-host-turn"
+    out=$(bash -c '. "$1"; fm_pr_merged_check_tasks "$2" "$3"' _ "$ROOT/bin/fm-pr-lib.sh" "$state" "$state/.supervision-host-turn") \
+      || fail "$kind snapshot resolution failed"
+    printf '%s\n' "$out" | sed 's/^/merged-task=/' >> "$state/.supervision-host-turn"
+    out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=t1 "$REPORT" --task demo --verdict routine --summary handled 2>&1) \
+      || fail "$kind report failed: $out"
+    case "$kind" in
+      owner|duplicate-pr) assert_grep 'handback: dispatch for demo' "$state/.wake-queue" "$kind lost the owning lane's handback" ;;
+      *) out=$(cat "$state/.wake-queue" 2>/dev/null || true); assert_not_contains "$out" 'supervision-host-handback:' "$kind handed back an unrelated lane" ;;
+    esac
+  done
+  for kind in new-owner ambiguous-owner check-name no-snapshot foreign; do
+    home=$(make_home "custom-sweep-guard-$kind" away)
+    state="$home/state"
+    rm "$state/demo.meta"
+    expected_task=fleet
+    printf 'turn=t1\nrows=1\ntasks=\nunscoped=1\nposture=away\ncheck=check: %s/ado-pr-sweep.check.sh: ado-pr-sweep: PR 59397 MERGED (Mosaiq.Codegraph) - task pull request\nmerged-task=fleet\nclosed-task=fleet\n' "$state" > "$state/.supervision-host-turn"
+    case "$kind" in
+      new-owner|ambiguous-owner)
+        printf 'pr=https://dev.azure.com/acme/project/_git/Mosaiq.Codegraph/pullrequest/59397\n' > "$state/demo.meta"
+        [ "$kind" != ambiguous-owner ] || cp "$state/demo.meta" "$state/other.meta"
+        ;;
+      check-name) expected_task=ado-pr-sweep; printf 'closed-task=ado-pr-sweep\n' >> "$state/.supervision-host-turn" ;;
+      no-snapshot) sed '/^closed-task=/d' "$state/.supervision-host-turn" > "$home/turn"; mv "$home/turn" "$state/.supervision-host-turn" ;;
+      foreign) sed 's/ MERGED / ACTIVE /' "$state/.supervision-host-turn" > "$home/turn"; mv "$home/turn" "$state/.supervision-host-turn" ;;
+    esac
+    out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=t1 "$REPORT" --task "$expected_task" --verdict routine --main-action already-closed --summary skipped 2>&1); rc=$?
+    expect_code 3 "$rc" "$kind must refuse custom sweep suppression"
+    [ ! -e "$state/branch-outcomes.jsonl" ] || fail 'refused custom suppression wrote an outcome'
+    [ ! -e "$state/.supervision-host-receipts" ] || fail 'refused custom suppression wrote a receipt'
+    [ ! -e "$state/.wake-queue" ] || fail 'refused custom suppression queued a handback'
+    if [ "$kind" = new-owner ]; then
+      out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=t1 "$REPORT" --task demo --verdict routine --summary 'task appeared after turn start' 2>&1); rc=$?
+      expect_code 0 "$rc" 'a new owner may report a routine outcome'
+      [ ! -e "$state/.wake-queue" ] || fail 'report-time ownership triggered a merge handback absent from the snapshot'
+    fi
+  done
+  pass 'merged sweep: absent owners skip teardown, active cleanup hands back, and new owners cannot trigger merge dispatch'
+}
+
+test_merged_sweep_handles_every_report_in_a_row() {
+  local home state kind payload tasks out
+  for kind in missing mixed; do
+    home=$(make_home "sweep-multiple-$kind" away)
+    state="$home/state"
+    echo merged-sweep > "$home/stub-mode"
+    payload="check: $state/ado-pr-sweep.check.sh: ado-pr-sweep: PR 59396 MERGED (Mosaiq.Codegraph) - first closed PR
+ado-pr-sweep: PR 59399 MERGED (Mosaiq.Codegraph) - last closed PR"
+    if [ "$kind" = mixed ]; then
+      printf 'pr=https://dev.azure.com/acme/project/_git/Mosaiq.Codegraph/pullrequest/59397\n' >> "$state/demo.meta"
+      printf 'project=demo\npr=https://dev.azure.com/acme/project/_git/Mosaiq.Codegraph/pullrequest/59398\n' > "$state/other.meta"
+      payload="check: $state/ado-pr-sweep.check.sh: ado-pr-sweep: PR 59390 has MERGE CONFLICTS (Mosaiq.X) - conflicts
+ado-pr-sweep: PR 59391 ABANDONED (Mosaiq.Codegraph) - abandoned
+ado-pr-sweep: PR 59396 MERGED (Mosaiq.Codegraph) - first closed PR
+ado-pr-sweep: PR 59397 MERGED (Mosaiq.Codegraph) - first live PR
+ado-pr-sweep: PR 59398 MERGED (Mosaiq.Codegraph) - second live PR
+ado-pr-sweep: PR 59399 MERGED (Mosaiq.Codegraph) - last closed PR"
+    else
+      rm "$state/demo.meta"
+    fi
+    start_host "$home"
+    wait_until 450 watcher_live "$home" || fail "$kind sweep watcher did not start"
+    append_wake "$state" check ado-pr-sweep "$payload"
+    if [ "$kind" = mixed ]; then
+      wait_until 250 host_exited "$home" || fail 'multi-PR cleanup did not hand back'
+      assert_grep 'handback: dispatch for demo' "$home/host.out" 'first live PR lost its dispatch'
+      assert_grep 'handback: dispatch for other' "$home/host.out" 'second live PR lost its dispatch'
+      [ "$(cat "$home/teardown-attempted")" = "$(printf 'demo\nother')" ] || fail 'sweep cleaned up an absent or non-merged owner'
+      tasks='demo fleet fleet other'
+    else
+      wait_until 250 handled_at_least "$home" 1 || fail 'two closed PRs were not handled'
+      [ ! -s "$home/host.rc" ] || fail 'closed multi-PR sweep handed back'
+      [ ! -e "$home/teardown-attempted" ] || fail 'closed multi-PR sweep attempted teardown'
+      tasks='fleet fleet'
+    fi
+    out=$(jq -sr '[.[].task] | sort | join(" ")' "$state/branch-outcomes.jsonl")
+    [ "$out" = "$tasks" ] || fail "$kind sweep did not report every merged PR: $out"
+    jq -es 'map(select(.task == "fleet")) | all(.verdict == "routine" and .silent == false)' "$state/branch-outcomes.jsonl" >/dev/null \
+      || fail 'closed PRs did not produce visible routine notes'
+    assert_grep 'merged-task=fleet' "$home/engine-call.1" 'closed PR resolution was not delivered'
+    stop_home_processes "$home"
+  done
+  pass 'merged sweep: every merged PR in flattened mixed and closed-only rows is handled'
+}
+
 test_claude_stop_hook_restores_handoff_when_successor_closed_before_exit_to_main
 test_claude_stop_hook_restores_handoff_when_successor_closed_mid_engine_turn
 test_claude_stop_hook_notifies_when_closed_successor_downtime_restore_fails
@@ -3567,6 +3787,9 @@ test_away_merge_handback_scopes_the_reported_lane
 test_away_merge_handback_in_a_batch
 test_away_explicit_decision_trigger_is_lane_local
 test_away_derived_dispatch_is_once_per_turn_and_task
+test_routine_unsticking_closes_each_stop_without_main_handback
+test_merged_sweep_skips_already_closed_tasks
+test_merged_sweep_handles_every_report_in_a_row
 test_away_handback_survives_ack_and_resumes_host_after_main
 test_away_worker_input_handback_and_captain_hold
 test_away_handback_drains_only_the_handed_lane
