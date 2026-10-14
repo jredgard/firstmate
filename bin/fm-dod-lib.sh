@@ -363,21 +363,22 @@ fm_nm_driving_block() {  # <forge> [<nm-skip>]
     followup_line="For follow-up commits such as verifier-feedback fixes or cosmetic rounds, use plain \`git pull --ff-only\` and \`git push origin <branch>\`."
     sync_line="Use \`no-mistakes axi sync\` only for custody recovery during an active run."
   fi
-  # config/wait-no-turns selects the foreground drive. Absent, the text matches
-  # the backgrounded drive a home had before that flag.
+  # The launch contract applies to every home and harness; wait-no-turns only
+  # adds its stricter foreground-only waiting posture.
+  drive_block="Run each bounded no-mistakes drive in the foreground of your own shell: use an explicit bounded \`--wait\` (for example \`--wait 5m\`) and \`> <log> 2>&1\` on both \`axi run\` and \`axi respond\`.
+A harness-backgrounded launch is forbidden: the harness can reap the child before a run exists, leaving an empty log.
+Declare that wait using the brief's status-reporting rule before the drive call.
+After each drive, read its log and follow rule 7 to inspect branch run state and record the run id; an empty log or a killed waiting process alone proves neither launch failure nor daemon failure.
+${pr_return_line}Whenever a drive call returns without a gate or an outcome, follow rule 7's run-versus-reattach guidance and daemon-error checks to decide whether to reattach; when reattaching, use \`no-mistakes axi run\` $reattach_flags and issue the same foreground call again with a log redirect, one at a time, until a gate or outcome comes back${pr_reattach_clause} if it refuses because no run is active, read the finished outcome from \`no-mistakes axi status\`."
   wait_cfg=${CONFIG:-${FM_CONFIG_OVERRIDE:-${FM_HOME:-}/config}}
   if [ -e "$wait_cfg/wait-no-turns" ]; then
-    drive_block="Drive the run with ONE foreground \`no-mistakes axi run\` and let it block.
-It bounds its own hold for you: \`--wait\` (default 8m) exists precisely so a harness with a ten-minute command cap gets a structured return instead of being killed mid-hold.
-Declare that wait using the brief's status-reporting rule before the foreground drive call.
-Never background a wait, and never arm a timer to stand in for one: a backgrounded call returns in milliseconds, so it does not wait at all, and every timer left behind fires later as a paid wake for nothing.
-${pr_return_line}Whenever a drive call returns without a gate or an outcome, follow rule 7's run-versus-reattach guidance and daemon-error checks to decide whether to reattach; when reattaching, use \`no-mistakes axi run\` $reattach_flags and issue the same foreground call again, one at a time, until a gate or outcome comes back${pr_reattach_clause} if it refuses because no run is active, read the finished outcome from \`no-mistakes axi status\`."
+    drive_block="$drive_block
+Drive the run with ONE foreground call and let it block.
+Never background a wait, and never arm a timer to stand in for one: a backgrounded call returns in milliseconds, so it does not wait at all, and every timer left behind fires later as a paid wake for nothing."
   else
-    drive_block="One drive call blocks until the next gate or outcome, which routinely outlives what your harness lets a single command run: Claude Code kills a command at ten minutes maximum, while one fix round is capped around thirty minutes and up to three rounds chain.
-So background the drive call instead of sitting in one blocking hold your harness will kill, and read its return when it finishes.
-Declare that wait using the brief's status-reporting rule before waiting on the backgrounded drive call.
-Where a harness's own command limit is not established, assume it bounds commands and use that same backgrounded shape.
-${pr_return_line}Whenever a drive call returns without a gate or an outcome, follow rule 7's run-versus-reattach guidance and daemon-error checks to decide whether to reattach; when reattaching, use \`no-mistakes axi run\` $reattach_flags, backgrounded the same way${pr_reattach_clause} if it refuses because no run is active, read the finished outcome from \`no-mistakes axi status\`."
+    drive_block="$drive_block
+The only permitted detached form is \`setsid -f nohup no-mistakes axi <run|respond> ... --wait <duration> > <log> 2>&1 < /dev/null\`; keep any required per-run skip flags and use \`--intent\` only when starting a new run.
+A detached launcher returning is not the drive's return: wait for the bounded drive to finish, then read its log before deciding the next action."
   fi
   if [ -n "$nm_skip" ]; then
     printf "Pass \`--skip %s\` on every \`no-mistakes axi run\` for this task, and skip nothing else.\n" "$run_skip"

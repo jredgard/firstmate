@@ -583,9 +583,10 @@ See [`fleet-ledger.md`](fleet-ledger.md) for the opt-in setup, record contract, 
 ## Waiting worker spends no turns (config/wait-no-turns)
 
 The optional local, gitignored `config/wait-no-turns` presence flag opts this home into keeping a waiting worker from spending turns until it is answered.
-With it present, ship and scout briefs gain the `# Waiting` section and the foreground no-mistakes drive text, every brief's inbox section keeps the natural-checkpoint check and adds that a waiting worker does not poll or list its inbox because a waiting instruction rings, a pending-reply recovery waits while that mate has its own open decision or blocker, and a fire-and-forget steer whose doorbell did not land gets one later ring.
-With the file absent, generated briefs omit the waiting section and the no-poll inbox line, the drive text backgrounds the call, recovery sends during an open decision, and a fire-and-forget steer is not owed a retry ring.
+With it present, ship and scout briefs gain the `# Waiting` section and require foreground-only no-mistakes waits, every brief's inbox section keeps the natural-checkpoint check and adds that a waiting worker does not poll or list its inbox because a waiting instruction rings, a pending-reply recovery waits while that mate has its own open decision or blocker, and a fire-and-forget steer whose doorbell did not land gets one later ring.
+With the file absent, generated briefs omit the waiting section and the no-poll inbox line, recovery sends during an open decision, and a fire-and-forget steer is not owed a retry ring.
 The flag is a home-local preference and is not inherited by secondmate homes.
+Every home follows the [worker launch contract](../bin/fm-dod-lib.sh) for bounded foreground no-mistakes drives with captured logs and its sole permitted detached form; [the brief status protocol](../bin/fm-brief.sh) owns run-id recording and the no-run launch-failure event.
 
 ## No-mistakes pipeline spend (config/pipeline-spend)
 
