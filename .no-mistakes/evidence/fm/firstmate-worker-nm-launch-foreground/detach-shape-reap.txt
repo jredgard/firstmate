@@ -1,0 +1,3 @@
+Harness-reaped launcher shapes (process group killed 0.3s after launch; stand-in drive writes after 2s)
+plain '&' background: log bytes=0 content=''
+setsid -f nohup ... < /dev/null: log bytes=36 content='run=01FAKE drive output from setsid'

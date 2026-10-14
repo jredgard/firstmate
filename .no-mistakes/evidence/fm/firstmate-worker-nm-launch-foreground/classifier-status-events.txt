@@ -1,0 +1,28 @@
+--- status file: /tmp/fm-lab.d30oPh/state/lane-a.status
+paused [at=1792007101]: no-mistakes pipeline run on fm/lane-noflag; resumes on gate or outcome
+paused [at=1792007131]: no-mistakes run=01ABCDEF log=/tmp/nm-drive-1.log; pipeline run on fm/lane-noflag; resumes on gate or outcome
+declared_wait_line: paused [at=1792007131]: no-mistakes run=01ABCDEF log=/tmp/nm-drive-1.log; pipeline run on fm/lane-noflag; resumes on gate or outcome
+latest event on unread surface (wakes firstmate): no
+latest event captain-relevant: no
+
+--- status file: /tmp/fm-lab.d30oPh/state/lane-b.status
+note [at=1792007101]: no-mistakes run=01ABCDEF log=/tmp/nm-drive-1.log
+paused [at=1792007106]: no-mistakes pipeline run on fm/lane-b; resumes on gate or outcome
+declared_wait_line: paused [at=1792007106]: no-mistakes pipeline run on fm/lane-b; resumes on gate or outcome
+latest event on unread surface (wakes firstmate): no
+latest event captain-relevant: no
+
+--- status file: /tmp/fm-lab.d30oPh/state/lane-c.status
+paused [at=1792007101]: no-mistakes pipeline run; resumes on gate or outcome
+note [at=1792007401]: no-mistakes run=01ABCDEF log=/tmp/nm-drive-1.log
+declared_wait_line: <none>
+latest event on unread surface (wakes firstmate): yes
+latest event captain-relevant: no
+
+--- status file: /tmp/fm-lab.d30oPh/state/lane-d.status
+paused [at=1792007101]: no-mistakes pipeline run; resumes on gate or outcome
+blocked [at=1792007161]: no-mistakes drive produced no run; log=/tmp/nm-drive-1.log
+declared_wait_line: <none>
+latest event on unread surface (wakes firstmate): no
+latest event captain-relevant: yes
+
