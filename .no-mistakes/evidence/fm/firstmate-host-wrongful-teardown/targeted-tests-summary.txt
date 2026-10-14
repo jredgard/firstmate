@@ -1,0 +1,21 @@
+== tests/fm-teardown-endpoint-safety.test.sh
+ok - merge cleanup refuses missing, ambiguous, and foreign PRs before mutation even under force; an exact match reaches ordinary safety checks
+ok - branch teardown requires a recorded completed PR on every forge; explicit identity, attended main, and local-only paths retain their contracts
+ok - fm-teardown: slot ownership across a remote-seeded home and its local child still refuses
+fm-teardown-endpoint-safety rc=0
+== tests/fm-pr-check-security.test.sh
+ok - GitHub registration refuses readable mismatches, warns on unreadable ownership, and rechecks the branch under lock
+ok - ADO PR registration rejects a foreign source branch and accepts the recorded task branch
+ok - ADO retains merge monitoring with a warning when only ownership is unreadable
+ok - GitLab registers matching or unreadable ownership, records the verdict, and refuses foreign task identities
+warning: cannot verify ownership of gerrit PR https://gerrit.example/c/group/apps/console/+/4201 for task task-rev; pr_owner_verified=no, merge monitoring remains armed
+warning: cannot verify ownership of gerrit PR https://gerrit.example/c/group/apps/console/+/4201 for task task-published; pr_owner_verified=no, merge monitoring remains armed
+warning: cannot verify ownership of gerrit PR https://gerrit.example/c/group/apps/console/+/4201 for task task-recovered; pr_owner_verified=no, merge monitoring remains armed
+warning: cannot verify ownership of gerrit PR https://gerrit.example/c/group/apps/console/+/4201 for task task-direct; pr_owner_verified=no, merge monitoring remains armed
+ok - task custom merge claims are refused with their original output; standalone and ordinary watches remain unchanged
+ok - refused custom merges preserve their evidence while later relaunched-task polls deliver merge wakes
+ok - a renumbered registration is never re-recorded around a tampered artifact: swapped-check altered-check swapped-sidecar altered-sidecar altered-template-hash wrong-mode hardlinked-check split-device foreign-device, or a pending retirement
+fm-pr-check-security rc=0
+== tests/fm-wake-drain-unread-status.test.sh
+ok - merge wake guidance requires the exact task PR and leaves custom checks to the watcher
+fm-wake-drain-unread-status rc=0

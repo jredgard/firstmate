@@ -1,0 +1,213 @@
+
+### Setup: lab home; lane sim-attestation-signer-verifier has local commit, NO PR; lane domain-cycle-name-assessment-restore owns ADO PR 59236
+lane sim-attestation-signer-verifier: state=[sim-attestation-signer-verifier.meta ] head=fa32f1b replay attestation signer + offline verifier windows=[control fm-sim-attestation-signer-verifier fm-domain-cycle-name-assessment-restore ]
+
+### S1 incident check: custom per-task check prints a bare 'merged' for the PR-less lane
+
+$ bin/fm-check-register.sh sim-attestation-signer-verifier
+registered: state/sim-attestation-signer-verifier.check.sh
+[exit 0]
+
+### S4 foreign PR: registering another task's PR 59236 to sim-attestation-signer-verifier is refused (ADO sourceRefName mismatch)
+
+$ bin/fm-pr-check.sh sim-attestation-signer-verifier https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/59236
+error: ado pull request https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/59236 does not belong to task sim-attestation-signer-verifier's recorded branch fm/sim-attestation-signer-verifier; nothing recorded or armed
+[exit 1]
+OK: sim-attestation-signer-verifier.meta still has no pr=
+
+### Own PR: domain-cycle-name-assessment-restore registers its own PR 59236 (ownership verified)
+
+$ bin/fm-pr-check.sh domain-cycle-name-assessment-restore https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/59236
+armed: state/domain-cycle-name-assessment-restore.check.sh
+[exit 0]
+project=/tmp/fm-lab.glPIsr/projects/Mosaiq
+pr_owner_verified=yes
+pr=https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/59236
+pr_head=94b33260762ef72c0e24f3db30a5cf2d41b874fe
+
+### PR 59236 completes on the forge and lands on origin/main
+
+$ timeout 60 env FM_CHECK_INTERVAL=0 FM_POLL=0.05 FM_HEARTBEAT=999999 FM_SIGNAL_GRACE=0 bin/fm-watch.sh
+check: $LAB/state/domain-cycle-name-assessment-restore.check.sh: merged
+[exit 0]
+
+$ bin/fm-wake-drain.sh
+1791957667	1	check	merged-domain-cycle-name-assessment-restore-https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/59236	check: merge landed: domain-cycle-name-assessment-restore https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/59236 external
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 1 --recovery-generation 2108597.1791957667.RP7Gt9
+MERGE CLEANUP: bin/fm-teardown.sh domain-cycle-name-assessment-restore --merged-pr https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/59236
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+[exit 0]
+
+### S3 incident teardown: host tries to retire sim-attestation-signer-verifier citing PR 59236 (branch actor, bare sweep, and main with --force)
+
+$ env FM_SUPERVISION_ACTOR=branch bin/fm-teardown.sh sim-attestation-signer-verifier --merged-pr https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/59236
+fm-gate-refuse: gate agent lifecycle permitted only against lab home $LAB
+REFUSED: merge cleanup for sim-attestation-signer-verifier requires one valid recorded pr=; preserving task and worktree.
+[exit 1]
+
+$ env FM_SUPERVISION_ACTOR=branch bin/fm-teardown.sh sim-attestation-signer-verifier
+fm-gate-refuse: gate agent lifecycle permitted only against lab home $LAB
+REFUSED: merge cleanup for sim-attestation-signer-verifier requires one valid recorded pr= (PR <missing or invalid>); preserving task and worktree.
+[exit 1]
+
+$ bin/fm-teardown.sh sim-attestation-signer-verifier --merged-pr https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/59236 --force
+fm-gate-refuse: gate agent lifecycle permitted only against lab home $LAB
+REFUSED: merge cleanup for sim-attestation-signer-verifier requires one valid recorded pr=; preserving task and worktree.
+[exit 1]
+lane sim-attestation-signer-verifier: state=[sim-attestation-signer-verifier.check.sh sim-attestation-signer-verifier.check-trust sim-attestation-signer-verifier.meta ] head=fa32f1b replay attestation signer + offline verifier windows=[control fm-sim-attestation-signer-verifier fm-domain-cycle-name-assessment-restore ]
+
+### S5 own-PR cleanup: host runs the drain's MERGE CLEANUP command for domain-cycle-name-assessment-restore
+
+$ env FM_SUPERVISION_ACTOR=branch bin/fm-lease.sh claim domain-cycle-name-assessment-restore
+[exit 0]
+
+$ env FM_SUPERVISION_ACTOR=branch bin/fm-teardown.sh domain-cycle-name-assessment-restore --merged-pr https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/59236
+fm-gate-refuse: gate agent lifecycle permitted only against lab home $LAB
+Mosaiq: synced c10b8f7..94b3326
+teardown domain-cycle-name-assessment-restore complete (window fm-lab:fm-domain-cycle-name-assessment-restore, worktree $LAB/wt/domain)
+Backlog: domain-cycle-name-assessment-restore just finished (this home keeps no markdown backlog at $LAB/data/backlog.md). Update $LAB/data/backlog.md - move domain-cycle-name-assessment-restore to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.
+[exit 0]
+
+$ env FM_SUPERVISION_ACTOR=branch bin/fm-lease.sh release domain-cycle-name-assessment-restore
+[exit 0]
+
+$ bin/fm-wake-drain.sh --ack-through 1 --recovery-generation 2108597.1791957667.RP7Gt9
+[exit 0]
+lane sim-attestation-signer-verifier: state=[sim-attestation-signer-verifier.check.sh sim-attestation-signer-verifier.check-trust sim-attestation-signer-verifier.meta ] head=fa32f1b replay attestation signer + offline verifier windows=[control fm-sim-attestation-signer-verifier ]
+
+### S1 cont.: next watcher cycle runs sim-attestation-signer-verifier's custom 'merged' check -> wake is REFUSED, no merge-landed event
+
+$ timeout 60 env FM_CHECK_INTERVAL=0 FM_POLL=0.05 FM_HEARTBEAT=999999 FM_SIGNAL_GRACE=0 bin/fm-watch.sh
+check: $LAB/state/sim-attestation-signer-verifier.check.sh: REFUSED: unbound merge result from custom check $LAB/state/sim-attestation-signer-verifier.check.sh; register the task's own PR with bin/fm-pr-check.sh instead of matching PR titles
+merged
+
+[exit 0]
+--- wake queue rows:
+check: $LAB/state/sim-attestation-signer-verifier.check.sh: REFUSED: unbound merge result from custom check $LAB/state/sim-attestation-signer-verifier.check.sh; register the task's own PR with bin/fm-pr-check.sh instead of matching PR titles merged
+
+$ bin/fm-wake-drain.sh
+1791957670	2	check	$LAB/state/sim-attestation-signer-verifier.check.sh	check: $LAB/state/sim-attestation-signer-verifier.check.sh: REFUSED: unbound merge result from custom check $LAB/state/sim-attestation-signer-verifier.check.sh; register the task's own PR with bin/fm-pr-check.sh instead of matching PR titles merged
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 2113858.1791957670.Df8gnh
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+[exit 0]
+
+$ bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 2113858.1791957670.Df8gnh
+[exit 0]
+lane sim-attestation-signer-verifier: state=[sim-attestation-signer-verifier.check.sh sim-attestation-signer-verifier.check-trust sim-attestation-signer-verifier.meta ] head=fa32f1b replay attestation signer + offline verifier windows=[control fm-sim-attestation-signer-verifier ]
+
+### S2 forged merge-landed wake naming sim-attestation-signer-verifier + PR 59236 -> drain refuses (no recorded pr=)
+
+$ bash -c . bin/fm-wake-lib.sh; fm_wake_append check forged-1 'check: merge landed: sim-attestation-signer-verifier https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/59236 external'
+[exit 0]
+
+$ bin/fm-wake-drain.sh
+1791957671	3	check	forged-1	check: merge landed: sim-attestation-signer-verifier https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/59236 external
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 3 --recovery-generation 2115429.1791957671.heyBGO
+REFUSED: merge cleanup for sim-attestation-signer-verifier requires one valid recorded pr=; preserving task and worktree.
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+[exit 0]
+
+$ bin/fm-wake-drain.sh --ack-through 3 --recovery-generation 2115429.1791957671.heyBGO
+[exit 0]
+
+### Lane sim-attestation-signer-verifier publishes its own PR 60001; forged wake for 59236 now refused as a mismatch
+
+$ bin/fm-check-unregister.sh sim-attestation-signer-verifier
+unregistered: state/sim-attestation-signer-verifier.check.sh
+[exit 0]
+
+$ bin/fm-pr-check.sh sim-attestation-signer-verifier https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/60001
+armed: state/sim-attestation-signer-verifier.check.sh
+[exit 0]
+
+$ bash -c . bin/fm-wake-lib.sh; fm_wake_append check forged-2 'check: merge landed: sim-attestation-signer-verifier https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/59236 external'
+[exit 0]
+
+$ bin/fm-wake-drain.sh
+1791957672	4	check	forged-2	check: merge landed: sim-attestation-signer-verifier https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/59236 external
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 4 --recovery-generation 2116945.1791957672.kSH5pN
+REFUSED: merge cleanup for sim-attestation-signer-verifier names https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/59236 but recorded pr=https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/60001; preserving task and worktree.
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+[exit 0]
+
+$ bin/fm-wake-drain.sh --ack-through 4 --recovery-generation 2116945.1791957672.kSH5pN
+[exit 0]
+
+$ env FM_SUPERVISION_ACTOR=branch bin/fm-teardown.sh sim-attestation-signer-verifier --merged-pr https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/59236
+fm-gate-refuse: gate agent lifecycle permitted only against lab home $LAB
+REFUSED: merge cleanup for sim-attestation-signer-verifier names https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/59236 but recorded pr=https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/60001; preserving task and worktree.
+[exit 1]
+
+$ env FM_SUPERVISION_ACTOR=branch bin/fm-teardown.sh sim-attestation-signer-verifier --merged-pr https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/60001
+fm-gate-refuse: gate agent lifecycle permitted only against lab home $LAB
+REFUSED: merge cleanup for sim-attestation-signer-verifier cannot verify PR https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/60001 as completed; preserving task and worktree.
+[exit 1]
+
+### S6 hung forge read: PR 60001 completed but the forge stalls 120s; branch teardown must refuse in bounded time and release locks
+
+$ env FM_SUPERVISION_ACTOR=branch bin/fm-teardown.sh sim-attestation-signer-verifier --merged-pr https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/60001
+fm-gate-refuse: gate agent lifecycle permitted only against lab home $LAB
+REFUSED: merge cleanup for sim-attestation-signer-verifier cannot verify PR https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/60001 as completed; preserving task and worktree.
+[exit 1]
+elapsed 11s
+
+$ timeout 30 bin/fm-pr-check.sh sim-attestation-signer-verifier https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/60001
+armed: state/sim-attestation-signer-verifier.check.sh
+[exit 0]
+metadata lock reacquired; re-registration took 0s
+lane sim-attestation-signer-verifier: state=[sim-attestation-signer-verifier.check.sh sim-attestation-signer-verifier.meta sim-attestation-signer-verifier.pr-poll sim-attestation-signer-verifier.pr-poll-registration ] head=fa32f1b replay attestation signer + offline verifier windows=[control fm-sim-attestation-signer-verifier ]
+
+### S5 waves continue: PR 60001 merges -> watcher wakes -> drain prints guarded command -> host cleanup completes
+
+$ timeout 60 env FM_CHECK_INTERVAL=0 FM_POLL=0.05 FM_HEARTBEAT=999999 FM_SIGNAL_GRACE=0 bin/fm-watch.sh
+check: $LAB/state/sim-attestation-signer-verifier.check.sh: merged
+[exit 0]
+1791957684	5	check	merged-sim-attestation-signer-verifier-https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/60001	check: merge landed: sim-attestation-signer-verifier https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/60001 external
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 5 --recovery-generation 2121051.1791957684.r7hmVN
+MERGE CLEANUP: bin/fm-teardown.sh sim-attestation-signer-verifier --merged-pr https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/60001
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+
+$ env FM_SUPERVISION_ACTOR=branch bin/fm-lease.sh claim sim-attestation-signer-verifier
+[exit 0]
+
+$ env FM_SUPERVISION_ACTOR=branch bin/fm-teardown.sh sim-attestation-signer-verifier --merged-pr https://dev.azure.com/tuvsud01/DS_mosaiq-poc/_git/Mosaiq/pullrequest/60001
+fm-gate-refuse: gate agent lifecycle permitted only against lab home $LAB
+Mosaiq: synced 94b3326..bfda17b
+teardown sim-attestation-signer-verifier complete (window fm-lab:fm-sim-attestation-signer-verifier, worktree $LAB/wt/sim)
+Backlog: sim-attestation-signer-verifier just finished (this home keeps no markdown backlog at $LAB/data/backlog.md). Update $LAB/data/backlog.md - move sim-attestation-signer-verifier to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.
+[exit 0]
+
+$ env FM_SUPERVISION_ACTOR=branch bin/fm-lease.sh release sim-attestation-signer-verifier
+[exit 0]
+
+$ bin/fm-wake-drain.sh --ack-through 5 --recovery-generation 2121051.1791957684.r7hmVN
+[exit 0]
+state: contributions.check.sh contributions.check-trust home-summary.json terminal-outcomes 
+
+### S4 cont.: GitHub/GitLab foreign PR registration refused via source-branch read
+
+$ bin/fm-pr-check.sh gh-task https://github.com/o/r/pull/59
+error: github pull request https://github.com/o/r/pull/59 does not belong to task gh-task's recorded branch fm/gh-task; nothing recorded or armed
+[exit 1]
+
+$ bin/fm-pr-check.sh gl-task https://gitlab.example/o/r/-/merge_requests/7
+error: gitlab pull request https://gitlab.example/o/r/-/merge_requests/7 does not belong to task gl-task's recorded branch fm/gl-task; nothing recorded or armed
+[exit 1]
+
+$ env FM_LAB_GH_HEAD=fm/gh-task bin/fm-pr-check.sh gh-task https://github.com/o/r/pull/59
+armed: state/gh-task.check.sh
+[exit 0]
+
+$ env FM_LAB_GL_HEAD=fm/gl-task bin/fm-pr-check.sh gl-task https://gitlab.example/o/r/-/merge_requests/7
+armed: state/gl-task.check.sh
+[exit 0]
+$LAB/state/gh-task.meta:project=$LAB/projects/Mosaiq
+$LAB/state/gh-task.meta:pr_owner_verified=yes
+$LAB/state/gh-task.meta:pr=https://github.com/o/r/pull/59
+$LAB/state/gh-task.meta:pr_head=0123456789abcdef0123456789abcdef01234567
+$LAB/state/gl-task.meta:project=$LAB/projects/Mosaiq
+$LAB/state/gl-task.meta:pr_owner_verified=yes
+$LAB/state/gl-task.meta:pr=https://gitlab.example/o/r/-/merge_requests/7
+
+### Teardown lab
+lab removed
