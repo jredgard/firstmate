@@ -10,6 +10,7 @@
 # what a branch turn does through the same scripts, so the real argument
 # construction, bounding, and reaping are exercised without a model. A real
 # status append drives each wake through the real watcher.
+# Pass --unsticking-only for the focused operational-remedy and closed-sweep fixtures.
 # shellcheck disable=SC2016 # single-quoted scripts expand inside their own shells
 set -u
 
@@ -71,6 +72,11 @@ n=$(( $(ls "$FM_HOME"/engine-call.* 2>/dev/null | wc -l) + 1 ))
     "${FM_LEASE_HOLDER_PID:-}" "${FM_SUPERVISION_PRIMARY_HARNESS:-}" "${FM_BRANCH_REPORT_TURN:-}"
   for a in "$@"; do printf 'arg=%s\n' "$a"; done
 } > "$FM_HOME/engine-call.$n"
+prompt_next=0
+for a in "$@"; do
+  if [ "$prompt_next" = 1 ]; then cat "$a" > "$FM_HOME/engine-prompt.$n"; break; fi
+  [ "$a" != --system-prompt-file ] || prompt_next=1
+done
 case "$mode" in held|captain-held) printf 'ready\n' > "$FM_HOME/stub-ready" ;; esac
 # Like Claude, the reported cost is the conversation's running total.
 result() {
@@ -88,17 +94,48 @@ printf '%s\n' "$drain" > "$FM_HOME/engine-drain.$n"
 ack=$(printf '%s\n' "$drain" | sed -n 's/^WAKE_ACK_REQUIRED: after handling completes run bin\/fm-wake-drain.sh //p' | tail -1)
 task=$(sed -n 's/^tasks=//p' "$STATE/.supervision-host-turn" | awk '{ print $1 }')
 [ -n "$task" ] || task=fleet
-[ "$mode" != handback-check ] || task=demo
+case "$mode" in handback-check|merged-sweep) task=demo ;; esac
 verdict=routine
 [ "$mode" != go-away ] || verdict=captain
 case "$mode" in
   fail) exit 3 ;;
-  handle|handback-batch|handback-multiple|handback-check|captain|captain-close-before-return|held|captain-held|hold-lease|return|return-silent|return-fail|return-fail-silent|return-many|return-lookup-fail|return-first|noack|emptyresult|go-away)
+  handle|routine-unstick|merged-sweep|handback-batch|handback-multiple|handback-check|captain|captain-close-before-return|held|captain-held|hold-lease|return|return-silent|return-fail|return-fail-silent|return-many|return-lookup-fail|return-first|noack|emptyresult|go-away)
     case "$mode" in held|captain-held) read -r _ < "$FM_HOME/stub-release" ;; esac
     [ "$mode" != return-first ] || "$FM_REPO/bin/fm-afk-contract.sh" archive >> "$FM_HOME/engine-return.log" 2>&1
     [ "$mode" != go-away ] || "$FM_REPO/bin/fm-afk-contract.sh" enter --words 'gone mid-turn' >> "$FM_HOME/engine-return.log" 2>&1
     "$FM_REPO/bin/fm-lease.sh" claim "$task" >> "$FM_HOME/engine-lease.log" 2>&1
-    if [ "$mode" = captain ] || [ "$mode" = captain-held ] \
+    # Scripted engine decisions exercise the tool/report boundary, not model
+    # interpretation. Evidence and the selected remedy belong to the fixture.
+    if [ "$mode" = routine-unstick ]; then
+      if [ "$(sed -n 's/^posture=//p' "$STATE/.supervision-host-turn")" = away ] \
+        && [ -e "$FM_HOME/unstick-authorized" ] && [ -e "$FM_HOME/evidence-verified" ]; then
+        "$FM_REPO/bin/fm-send.sh" "$task" --resolve-key routine-stop "$(cat "$FM_HOME/remedy")" \
+          >> "$FM_HOME/engine-steer.log" 2>&1 || exit 3
+      else
+        "$FM_REPO/bin/fm-branch-report.sh" --task "$task" --verdict captain \
+          --main-action decision --summary 'worker stop requires firstmate input' \
+          >> "$FM_HOME/engine-report.log" 2>&1
+        # shellcheck disable=SC2086 # the generation-bound arguments from the drain
+        "$FM_REPO/bin/fm-wake-drain.sh" $ack >> "$FM_HOME/engine-ack.log" 2>&1
+        "$FM_REPO/bin/fm-lease.sh" release "$task" >> "$FM_HOME/engine-lease.log" 2>&1
+        result
+        exit 0
+      fi
+    fi
+    if [ "$mode" = merged-sweep ]; then
+      if [ ! -e "$STATE/$task.meta" ]; then
+        "$FM_REPO/bin/fm-branch-report.sh" --task "$task" --verdict routine \
+          --main-action already-closed --summary 'merged task already closed; skipped duplicate cleanup' \
+          >> "$FM_HOME/engine-report.log" 2>&1 || exit 3
+      else
+        # A transport stand-in for teardown: record that the engine attempted
+        # it, then model successful removal without touching a real endpoint.
+        : > "$FM_HOME/teardown-attempted"
+        rm "$STATE/$task.meta"
+        "$FM_REPO/bin/fm-branch-report.sh" --task "$task" --verdict captain \
+          --summary 'merged task cleanup completed' >> "$FM_HOME/engine-report.log" 2>&1
+      fi
+    elif [ "$mode" = captain ] || [ "$mode" = captain-held ] \
       || [ "$mode" = captain-close-before-return ]; then
       "$FM_REPO/bin/fm-branch-report.sh" --task "$task" --verdict captain \
         --main-action "$(cat "$FM_HOME/stub-main-action" 2>/dev/null || echo auto)" \
@@ -106,6 +143,9 @@ case "$mode" in
         >> "$FM_HOME/engine-report.log" 2>&1
     else
       report_args=(--task "$task" --verdict "$verdict" --summary "stub handled $task")
+      if [ "$mode" = routine-unstick ]; then
+        report_args=(--task "$task" --verdict routine --summary "per your away instructions: unstuck workers; verified fixture evidence and sent $(cat "$FM_HOME/remedy")")
+      fi
       if [ -f "$FM_HOME/stub-main-action" ]; then
         report_args+=(--main-action "$(cat "$FM_HOME/stub-main-action")")
       fi
@@ -3553,6 +3593,140 @@ test_superseded_host_leaves_the_owner_untouched() {
     || fail "superseded: the owner host did not stop on TERM"
   pass "host: a host under a superseded auto-arm generation stands down without touching the owner"
 }
+
+# These deterministic fixtures prove delivery, blocker closure, and handback
+# routing through the real host. They do not claim that a stub proves language
+# interpretation by a live model.
+test_routine_unsticking_closes_each_stop_without_main_handback() {
+  local home shape posture variant out
+  for shape in no-run optional-probe replaced-target cancelled-custody; do
+    for variant in authorized unnamed attended unverified; do
+      # The four remedy payloads share one routing boundary; prove its three
+      # negative cases once rather than multiplying identical host cycles.
+      [ "$shape" = no-run ] || [ "$variant" = authorized ] || continue
+      posture=away
+      [ "$variant" != attended ] || posture=attended
+      home=$(make_home "unstick-$shape-$variant" "$posture")
+      echo routine-unstick > "$home/stub-mode"
+      case "$shape" in
+        no-run) echo 'AXI has no active run and daemon is healthy; foreground drive validation' > "$home/remedy" ;;
+        optional-probe) echo 'accepted ruling excludes browser probe; skip it and record configuration read' > "$home/remedy" ;;
+        replaced-target) echo 'pipeline roll replaced old replica; read live revision and retry authorized exec' > "$home/remedy" ;;
+        cancelled-custody) echo 'cancelled run, clean copy, all changes preserved and pushed head equals required head; reset own branch to verified head' > "$home/remedy" ;;
+      esac
+      if [ "$variant" != unnamed ] && [ "$posture" = away ]; then
+        FM_HOME="$home" "$CONTRACT" enter --words 'unstuck workers; merge nothing' >/dev/null 2>&1 || fail 'could not record unsticking words'
+        : > "$home/unstick-authorized"
+      fi
+      [ "$variant" = unverified ] || : > "$home/evidence-verified"
+      # Durable enqueue is the real send interface. A failing doorbell cannot
+      # undo delivery; the watcher remains on the fixture's unreachable tmux.
+      start_host "$home"
+      wait_until 450 watcher_live "$home" || fail "$shape/$variant watcher not live: $(cat "$home/host.out" "$home/claude.err" "$home/state/.supervision-host.log" 2>/dev/null)"
+      append_status "$home" "$shape needs routine remedy" 'blocked [key=routine-stop]'
+      if [ "$variant" = authorized ]; then
+        wait_until 250 handled_at_least "$home" 1 || fail "$shape was not handled: $(cat "$home/engine-steer.log" 2>/dev/null)"
+        [ ! -s "$home/host.rc" ] || fail "$shape handed back to main"
+        # The final prompt sent to the engine is an owned generated interface;
+        # pin the evidence instruction separately from the scripted decisions.
+        case "$shape" in
+          no-run) assert_grep 'verify no active run owns the branch' "$home/engine-prompt.1" 'no-run evidence absent from emitted prompt' ;;
+          optional-probe) assert_grep 'verify the probe is outside the required evidence' "$home/engine-prompt.1" 'probe evidence absent from emitted prompt' ;;
+          replaced-target) assert_grep 'verify the old target disappeared because of that roll' "$home/engine-prompt.1" 'revision evidence absent from emitted prompt' ;;
+          cancelled-custody) assert_grep 'live pushed head equals the observed required head' "$home/engine-prompt.1" 'custody evidence absent from emitted prompt' ;;
+        esac
+        assert_grep "$(cat "$home/remedy")" "$home/state/demo.inbox/001.msg" "$shape remedy was not delivered"
+        out=$(FM_HOME="$home" "$ROOT/bin/fm-wake-drain.sh" 2>&1)
+        assert_not_contains "$out" 'OPEN DECISIONS' "$shape blocker remained open"
+        assert_no_grep 'supervision-host-handback:' "$home/state/.wake-queue" "$shape queued a handback"
+        assert_grep '"verdict":"routine"' "$home/state/branch-outcomes.jsonl" "$shape escalated routine recovery"
+        assert_grep '"silent":false' "$home/state/branch-outcomes.jsonl" "$shape hid the recovery note"
+      else
+        wait_until 250 host_exited "$home" || fail "$shape/$variant did not hand back"
+        [ ! -e "$home/state/demo.inbox/001.msg" ] || fail "$shape/$variant sent an unauthorized remedy"
+        if [ "$posture" = away ]; then
+          assert_grep 'handback: decision for demo' "$home/host.out" "$shape/$variant lost worker input"
+        else
+          assert_grep 'supervision-host: branch-outcome:' "$home/host.out" "$shape attended input did not reach main"
+        fi
+      fi
+      stop_home_processes "$home"
+    done
+  done
+  pass 'routine unsticking: four remedies deliver and close blockers; absent authority, attended posture and unverified evidence still hand back'
+}
+
+test_merged_sweep_skips_already_closed_tasks() {
+  local home state kind out rc
+  for kind in missing closed active; do
+    home=$(make_home "closed-sweep-$kind" away)
+    state="$home/state"
+    echo merged-sweep > "$home/stub-mode"
+    if [ "$kind" != active ]; then
+      rm "$state/demo.meta"
+      if [ "$kind" = closed ]; then
+        mkdir -p "$home/data"
+        printf '# Backlog
+
+## Done
+
+- [x] demo: merged task
+' > "$home/data/backlog.md"
+      fi
+    fi
+    start_host "$home"
+    wait_until 450 watcher_live "$home" || fail "sweep watcher not live: $(cat "$home/host.out" "$home/claude.err" "$home/state/.supervision-host.log" 2>/dev/null)"
+    append_wake "$state" check ado-pr-sweep 'check: merge landed: demo https://example.test/o/r/pull/1'
+    if [ "$kind" = active ]; then
+      wait_until 250 host_exited "$home" || fail 'actual cleanup did not hand back freed slot'
+      [ -e "$home/teardown-attempted" ] || fail 'active task cleanup was skipped'
+      assert_grep 'handback: dispatch for demo' "$home/host.out" 'actual cleanup lost dispatch handback'
+    else
+      wait_until 250 handled_at_least "$home" 1 || fail "closed sweep not handled: $(cat "$home/engine-report.log" 2>/dev/null)"
+      [ ! -e "$home/teardown-attempted" ] || fail 'already closed task attempted teardown'
+      [ ! -s "$home/host.rc" ] || fail 'duplicate sweep handed back'
+      assert_grep '"verdict":"routine"' "$state/branch-outcomes.jsonl" 'closed sweep became captain outcome'
+      assert_no_grep 'supervision-host-handback:' "$state/.wake-queue" 'closed sweep queued a handback'
+    fi
+    stop_home_processes "$home"
+  done
+  # The report flag cannot hide live records, missing pre-turn proof, foreign
+  # checks, or a captain outcome. It writes nothing on refusal.
+  home=$(make_home closed-sweep-guard away)
+  state="$home/state"
+  printf 'turn=t1
+rows=1
+tasks=demo
+unscoped=0
+posture=away
+check=check: merge landed: demo https://example.test/o/r/pull/1
+closed-task=demo
+' > "$state/.supervision-host-turn"
+  for kind in active no-snapshot foreign captain silent; do
+    printf 'turn=t1\nrows=1\ntasks=demo\nunscoped=0\nposture=away\ncheck=check: merge landed: demo https://example.test/o/r/pull/1\nclosed-task=demo\n' > "$state/.supervision-host-turn"
+    [ "$kind" = active ] || rm -f "$state/demo.meta"
+    if [ "$kind" = no-snapshot ]; then
+      sed '/^closed-task=/d' "$state/.supervision-host-turn" > "$home/turn-without-snapshot"
+      mv "$home/turn-without-snapshot" "$state/.supervision-host-turn"
+    fi
+    [ "$kind" != foreign ] || printf 'turn=t1
+rows=1
+tasks=demo
+unscoped=0
+posture=away
+check=check: merge landed: other https://example.test/o/r/pull/1
+closed-task=demo
+' > "$state/.supervision-host-turn"
+    out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_BRANCH_REPORT_TURN=t1 "$REPORT" --task demo --verdict "$([ "$kind" = captain ] && echo captain || echo routine)" --main-action already-closed --summary skipped --silent "$([ "$kind" = silent ] && echo true || echo false)" 2>&1); rc=$?
+    expect_code 3 "$rc" "$kind must refuse closed-task suppression"
+    [ ! -e "$state/branch-outcomes.jsonl" ] || fail 'refused suppression wrote an outcome'
+  done
+  pass 'merged sweep: closed and missing tasks skip teardown with routine notes; active cleanup hands back, and suppression fails closed'
+}
+
+test_routine_unsticking_closes_each_stop_without_main_handback
+test_merged_sweep_skips_already_closed_tasks
+if [ "${1:-}" = --unsticking-only ]; then exit 0; fi
 
 test_claude_stop_hook_restores_handoff_when_successor_closed_before_exit_to_main
 test_claude_stop_hook_restores_handoff_when_successor_closed_mid_engine_turn

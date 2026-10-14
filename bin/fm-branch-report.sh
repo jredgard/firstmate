@@ -17,7 +17,7 @@
 # Usage:
 #   fm-branch-report.sh --task <id|fleet> --verdict routine|captain \
 #       --summary <text> [--silent true|false] [--wake <text>] \
-#       [--main-action auto|dispatch|decision|captain-hold]
+#       [--main-action auto|dispatch|decision|captain-hold|already-closed]
 #
 # The verdict criteria are owned by bin/fm-branch-prompt.sh ("Verdict: routine
 # or captain"); --silent true is legal only for a routine outcome.
@@ -32,6 +32,11 @@
 # including an action found on heartbeat; decision names input the engine
 # declines; captain-hold explicitly leaves a genuinely captain-owned call for
 # return.
+# already-closed records a routine merged-PR sweep note without handing back:
+# the turn must have captured closed-task=<id> before handling, the task record
+# must still be absent, and its granted check must name that task's merged PR.
+# It refuses for a task removed during this turn, so successful cleanup still
+# hands back the freed slot. It is away-host-only and requires a rendered routine verdict.
 # New terminal events hand back even when captain-hold was requested;
 # standing lane status never triggers a handback.
 # A derived dispatch handback is queued once per turn and task; an explicit
@@ -106,7 +111,7 @@ SUMMARY=$(printf '%s' "$SUMMARY" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
 case "$TASK" in ''|*[!A-Za-z0-9._-]*) usage ;; esac
 case "$VERDICT" in routine|captain) ;; *) VERDICT= ;; esac
 case "$SILENT" in true|false) ;; *) usage ;; esac
-case "$MAIN_ACTION" in auto|dispatch|decision|captain-hold) ;; *) usage ;; esac
+case "$MAIN_ACTION" in auto|dispatch|decision|captain-hold|already-closed) ;; *) usage ;; esac
 if [ "$SILENT" = true ]; then
   case "$MAIN_ACTION" in dispatch|decision) usage ;; esac
 fi
@@ -149,6 +154,15 @@ fi
 
 # Host-only routing: never infer an action from the free-text outcome summary
 # or parse the captain's mandate. Shared status readers own open decisions.
+if [ "$MAIN_ACTION" = already-closed ]; then
+  if ! { [ "$(turn_field posture)" = away ] && fm_afk_contract_away_present "$STATE" \
+    && [ "$VERDICT" = routine ] && [ "$SILENT" = false ] && [ ! -e "$STATE/$TASK.meta" ] \
+    && [ ! -L "$STATE/$TASK.meta" ] \
+    && grep -Fxq "closed-task=$TASK" "$TURN_FILE" \
+    && awk -v task="$TASK" 'index($0, "check=check: merge landed: " task " ") == 1 { found=1 } END { exit !found }' "$TURN_FILE"; }; then
+    refuse "already-closed requires a routine merged-PR sweep for a task absent before and after handling"
+  fi
+fi
 ACTION=none
 if [ "$(turn_field posture)" = away ] && fm_afk_contract_away_present "$STATE"; then
   # shellcheck source=bin/fm-classify-lib.sh
@@ -176,7 +190,9 @@ EOF
       *" $TASK "*) [ -e "$STATE/$TASK.meta" ] || TERMINAL_EVENT=teardown ;;
     esac
   fi
-  if [ -n "$TERMINAL_EVENT" ] && [ "$ACTION" != decision ]; then
+  if [ "$MAIN_ACTION" = already-closed ]; then
+    ACTION=none
+  elif [ -n "$TERMINAL_EVENT" ] && [ "$ACTION" != decision ]; then
     ACTION=dispatch
     TRIGGER=$TERMINAL_EVENT
     if [ "$MAIN_ACTION" != dispatch ] && [ -f "$RECEIPTS" ] \

@@ -85,6 +85,9 @@
 # check row exits to MAIN with a supervision-host: away handback reason naming
 # those rows' payloads after releasing its leases; bin/fm-branch-report.sh owns
 # the action classification and durable check row.
+# The away turn snapshots closed-task=<id> only for granted merged-PR checks
+# whose task record is absent before engine handling; the report surface
+# rechecks absence before accepting an already-closed routine sweep note.
 # A queued handback is never offered to another engine turn. Other handled
 # away outcomes wait in the store for the return drain's BRANCH OUTCOMES section.
 # A handled
@@ -851,7 +854,7 @@ health_record() {  # <engine-error 0|1> <reports>
 # never a subshell, because it advances the host's grant and turn state.
 handle_wake() {  # <reason-lines>
   local reason=$1 first scope status corrupted rows tasks unscoped rc turn readback
-  local receipts usage result errors unacked mirror signal_keys key events
+  local receipts usage result errors unacked mirror signal_keys key events closed_task
   LAST_TURN=
   ENGINE_ERROR=0
   HEALTH_NOTE=
@@ -922,6 +925,15 @@ handle_wake() {  # <reason-lines>
       $2 in want && $3 == "check" { print "check=" $5 }
     ' "$STATE/.wake-queue" >> "$TURN_FILE" \
       || { HANDLE_WHY="the granted check rows could not be recorded"; return 1; }
+    # Snapshot only granted merged-PR checks whose task was already absent.
+    # A record removed by this turn's cleanup must still hand back the freed slot.
+    while IFS= read -r closed_task; do
+      case "$closed_task" in ''|*[!A-Za-z0-9._-]*) continue ;; esac
+      if [ ! -e "$STATE/$closed_task.meta" ] && [ ! -L "$STATE/$closed_task.meta" ]; then
+        printf 'closed-task=%s\n' "$closed_task" >> "$TURN_FILE" \
+          || { HANDLE_WHY="the closed-task snapshot could not be recorded"; return 1; }
+      fi
+    done < <(sed -n 's/^check=check: merge landed: \([^ ]*\) .*/\1/p' "$TURN_FILE")
     _fm_wake_require_classify
     signal_keys=$(awk -F '\t' -v rows="$rows" '
       BEGIN { n = split(rows, list, " "); for (i = 1; i <= n; i++) want[list[i]] = 1 }
@@ -987,6 +999,8 @@ EOF
 
 HOST MAIN HANDBACK: Use bin/fm-branch-report.sh --main-action dispatch for a new lane terminal event (done or failed), teardown due or completed, or a newly freed slot, including cleanup discovered on heartbeat.
 Use --main-action decision for new needs-decision or blocked events you do not answer yourself; MAIN applies ask-user-authority and the recorded words.
+Apply routine unsticking yourself when the away words name it, following the shared prompt's Postures evidence checks; close answered blockers with fm-send --resolve-key and report the remedy as routine, without a decision handback.
+For a merged-PR sweep whose task record was already absent before handling and remains absent, skip teardown and use --verdict routine --main-action already-closed; do not hand back or report a captain outcome for duplicate cleanup.
 Use --main-action captain-hold only when the call genuinely requires the captain; it stays held for return.
 The report's default auto detects newly presented done or failed, needs-decision and blocked signal events, merge-landed wakes and removed scoped task records; standing task status never triggers a handback.
 Report every event separately, acknowledge only the granted rows, release leases, and end the turn; MAIN handles the durable handback under the same away record and then parks again.

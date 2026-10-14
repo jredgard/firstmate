@@ -602,6 +602,7 @@ The captain's away words are the whole mandate:
 
 `bin/fm-branch-prompt.sh` "Postures" owns those execution rules.
 It requires every action taken under the words to open its outcome summary with "per your away instructions:".
+Away words naming unsticking workers cover the routine operational remedies and evidence checks in that same owner; the branch applies them itself and closes answered blockers, while attended authority and nonroutine decision holds stay unchanged.
 
 Each relocated script keeps its own gate, enforcing exactly what a script can check without reading words:
 
@@ -630,7 +631,8 @@ It sets these limits:
 
 The ordinary cleanup of a task whose pull request has landed needs no relocation, because it is the branch's own job in both postures.
 `bin/fm-branch-prompt.sh` names the `check: merge landed:` wake, and any later stale or inactive-outcome row on that task, as the moment to run the drain's guarded MERGE CLEANUP command, or `bin/fm-teardown.sh <task> --merged-pr <url>` for a later sweep, without `--force`; [`bin/fm-teardown.sh`](../bin/fm-teardown.sh)'s header owns the PR identity guard.
-At that moment the branch reports any refusal instead of concluding there is "nothing to recover".
+Before cleanup the branch re-reads the task record under its lease; a later merged-PR sweep for an already closed task skips teardown and reports a routine note, as owned by `bin/fm-branch-prompt.sh`.
+For an existing task record the branch reports any refusal instead of concluding there is "nothing to recover".
 
 ## Verification
 
