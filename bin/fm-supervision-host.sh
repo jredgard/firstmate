@@ -86,8 +86,8 @@
 # those rows' payloads after releasing its leases; bin/fm-branch-report.sh owns
 # the action classification and durable check row.
 # The away turn snapshots merged-task=<id> for granted merged-PR checks and
-# closed-task=<id> when that task is absent before engine handling; the report
-# surface owns PR resolution and the already-closed guard (bin/fm-branch-report.sh).
+# closed-task=<id> when that task is absent before engine handling; bin/fm-pr-lib.sh
+# owns PR resolution and bin/fm-branch-report.sh the already-closed guard.
 # A queued handback is never offered to another engine turn. Other handled
 # away outcomes wait in the store for the return drain's BRANCH OUTCOMES section.
 # A handled

@@ -23,11 +23,12 @@
 # or captain"); --silent true is legal only for a routine outcome.
 # --wake defaults to the wake reason the host recorded for the turn.
 # --main-action applies only to an away host turn while still away. auto
-# (the default) hands a granted merged-PR check for the task, a newly
-# presented done or failed event, or a removed scoped task record to MAIN for
-# dispatch, and a newly presented needs-decision or blocked event that remains
-# open for decision handling. The turn record captures every granted check
-# payload and unread signal event before the engine drains them.
+# (the default) hands a merged-PR check the host's turn snapshot resolved to
+# the task (merged-task=<id>), a newly presented done or failed event, or a
+# removed scoped task record to MAIN for dispatch, and a newly presented
+# needs-decision or blocked event that remains open for decision handling.
+# The turn record captures every granted check payload and unread signal
+# event before the engine drains them.
 # dispatch also names cleanup or a worker stopped as idle after readiness,
 # including an action found on heartbeat; decision names input the engine
 # declines; captain-hold explicitly leaves a genuinely captain-owned call for
