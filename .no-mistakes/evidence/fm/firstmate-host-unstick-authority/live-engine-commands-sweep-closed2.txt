@@ -1,0 +1,6 @@
+bin/fm-wake-drain.sh
+grep -rl "59397" state/ 2>/dev/null; echo "---"; grep -rl "codegraph" state/ 2>/dev/null; echo "---"; ls state/*.meta 2>/dev/null | head -50
+bin/fm-branch-report.sh fleet --verdict routine --main-action already-closed --summary "Merged-PR sweep found PR 59397 (Mosaiq.Codegraph, 'add codegraph indexer') merged, but no owning task record exists in this fleet; skipping teardown as no-op." --silent true
+bin/fm-branch-report.sh --task fleet --verdict routine --main-action already-closed --summary "Merged-PR sweep found PR 59397 (Mosaiq.Codegraph, 'add codegraph indexer') merged, but no owning task record exists in this fleet; skipping teardown as no-op." --silent true
+bin/fm-branch-report.sh --task fleet --verdict routine --summary "Merged-PR sweep found PR 59397 (Mosaiq.Codegraph, 'add codegraph indexer') merged, but no owning task record exists in this fleet; skipping teardown as no-op." --silent true
+bin/fm-wake-drain.sh --ack-through 1 --recovery-generation 604766.1792008965.Tnu9YY

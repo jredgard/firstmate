@@ -1,0 +1,8 @@
+Lease claimed. Now resolving the blocker per the accepted ruling, which explicitly excludes the browser check from required evidence.
+The blocker is resolved. Now report, acknowledge, and release the lease.
+Handled and closed out:
+
+- **Event**: demo's ask-user blocker (`routine-stop`) — unit tests green, but worker couldn't run a browser check of the settings page.
+- **Action**: Read `RULING.md`, which explicitly states the browser check is *not* required evidence (only unit tests green + `FeatureFlags.NewHeader=true`, both already satisfied). Per ask-user-authority, this is unambiguous toward the accepted contract, so I decided it myself rather than holding for the captain's return, and answered via `fm-send --resolve-key routine-stop`. Delivery was durably queued (endpoint doorbell unreachable; watcher will re-ring) and the status log shows it resolved.
+- **Report**: verdict routine, rendered (not silent), logged with "per your away instructions" framing.
+- Lease claimed and released; wake acknowledged through seq 2.

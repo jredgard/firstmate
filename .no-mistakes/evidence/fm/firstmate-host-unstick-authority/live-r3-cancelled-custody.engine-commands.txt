@@ -1,0 +1,13 @@
+cd /tmp/fm-lab.odOrvB && bin/fm-wake-drain.sh
+bin/fm-crew-state.sh demo 2>&1
+echo "--- meta ---"; cat state/demo.meta 2>&1; echo "--- status tail ---"; tail -n 30 state/demo.status 2>&1; echo "--- worktree ---"; ls projects/demo-wt 2>&1; cd projects/demo-wt 2>/dev/null && git status && git log --oneline -5 && echo "branch:" && git branch -vv
+git remote -v; git fetch --all 2>&1; git log --oneline -10 origin/fm/demo 2>&1; echo "---"; git show d9592ed98512e2071b4df71440dabc7c905197cd --stat 2>&1 | head -30; echo "--- diff local vs pushed ---"; git diff d903ecd d9592ed98512e2071b4df71440dabc7c905197cd 2>&1
+cd /tmp/fm-lab.odOrvB && find . -iname "*01RUNCANCEL*" 2>/dev/null; find . -path "*no-mistakes*" -iname "*.json" 2>/dev/null | head -20; which no-mistakes 2>&1; no-mistakes axi status --run 01RUNCANCEL 2>&1
+bin/fm-lease.sh claim demo 2>&1
+bin/fm-lease.sh claim demo; echo "exit=$?"
+bin/fm-send.sh demo "Verified: run 01RUNCANCEL is terminal (cancelled), no newer run owns fm/demo, your worktree is clean, and the pushed head d9592ed98512e2071b4df71440dabc7c905197cd is your local commit d903ecd plus a preserved fix-round commit (no task work is lost). Reset your local branch fm/demo to d9592ed98512e2071b4df71440dabc7c905197cd and resume." 2>&1
+bin/fm-send.sh demo --resolve-key routine-stop "Reset your branch fm/demo to the pushed head d9592ed98512e2071b4df71440dabc7c905197cd (verified terminal cancelled run, no newer run, clean worktree, all task work preserved in that head) and resume." 2>&1
+bin/fm-branch-report.sh demo --verdict routine --main-action auto --silent false --summary "per your away instructions: unstuck workers — verified run 01RUNCANCEL was terminal (cancelled), no newer run owned fm/demo, the worktree was clean, and pushed head d9592ed preserved all task work (local d903ecd plus a fix-round commit); steered the worker to reset fm/demo to d9592ed and resume, and closed the routine-stop blocker via resolve-key." 2>&1
+bin/fm-branch-report.sh --task demo --verdict routine --main-action auto --silent false --summary "per your away instructions: unstuck workers — verified run 01RUNCANCEL was terminal (cancelled), no newer run owned fm/demo, the worktree was clean, and pushed head d9592ed preserved all task work (local d903ecd plus a fix-round commit); steered the worker to reset fm/demo to d9592ed and resume, and closed the routine-stop blocker via resolve-key." 2>&1
+bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 1171605.1792009816.n9pevu 2>&1
+bin/fm-lease.sh release demo 2>&1

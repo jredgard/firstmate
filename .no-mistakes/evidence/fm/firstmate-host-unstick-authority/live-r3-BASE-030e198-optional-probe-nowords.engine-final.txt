@@ -1,0 +1,5 @@
+Handled. Summary:
+
+- **Task `demo`**: wake was a `blocked` ask-user decision ("browser check of the settings page required?"). Read the accepted `RULING.md`, which explicitly states the browser check is NOT required evidence (only unit-tests-green + `FeatureFlags.NewHeader=true`, both already satisfied). This is unambiguous toward accepted intent per ask-user-authority, so I resolved it myself via `fm-send.sh --resolve-key routine-stop`, instructing the worker to skip the probe and proceed.
+- Reported verdict **routine** (not silent — an action was taken), acknowledged the wake, and released the `demo` lease.
+- No merges performed, consistent with "merge nothing"; this decision wasn't part of the away words but was handled under standing ask-user-authority policy.

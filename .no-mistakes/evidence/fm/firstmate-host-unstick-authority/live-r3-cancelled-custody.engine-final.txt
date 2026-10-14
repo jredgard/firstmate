@@ -1,0 +1,10 @@
+Lease claimed. Now steer the worker and resolve the blocker.
+Now report the outcome.
+Report succeeded. Now acknowledge the drain and release the lease.
+Handled. Summary of this wake:
+
+- **Event**: task `demo` blocked on `routine-stop` — run `01RUNCANCEL` was cancelled, relaunch refused due to branch-custody mismatch (local `d903ecd` vs pushed `d9592ed`).
+- **Evidence checked**: run status terminal (cancelled), no newer run owns `fm/demo`, worktree clean, pushed head `d9592ed` = local `d903ecd` + a preserved fix-round commit (no task work lost).
+- **Action under away words "unstuck workers"**: steered the worker to reset `fm/demo` to the verified pushed head and resume, and closed the blocker via `fm-send --resolve-key routine-stop`.
+- **Reported**: verdict routine, `--main-action auto` (remedied lane stays live, not a terminal/teardown event), recorded for MAIN's return brief.
+- Drain acknowledged through seq 2; lease released.

@@ -1,0 +1,26 @@
+bin/fm-wake-drain.sh
+grep -rn "rearm-resurface" bin/ docs/ 2>/dev/null | head -50
+sed -n '2550,2700p' bin/fm-watch.sh
+ls state/ | head -50 && echo --- && cat data/backlog.md 2>/dev/null | head -100
+echo "FM_HOME=$FM_HOME"; find / -maxdepth 6 -iname "fm-wake-drain.sh" 2>/dev/null
+ls /tmp/fm-lab.Ciecf3/state/ 2>/dev/null | head -80
+for f in /tmp/fm-lab.Ciecf3/state/*.meta; do echo "== $f =="; cat "$f"; echo; done
+find /tmp/fm-lab.Ciecf3 -maxdepth 4 -iname "*archive*" -o -iname "*closed*" 2>/dev/null; echo ---; cat /tmp/fm-lab.Ciecf3/state/home-summary.json 2>/dev/null
+bin/fm-lease.sh claim demo && bin/fm-crew-state.sh demo
+cat /tmp/fm-lab.Ciecf3/state/terminal-outcomes 2>/dev/null; echo ---; ls /tmp/fm-lab.Ciecf3/state/terminal-outcomes 2>/dev/null; find /tmp/fm-lab.Ciecf3 -maxdepth 3 -name "*.status" -o -maxdepth 3 -iname "*status*"
+sed -n '1,80p' bin/fm-teardown.sh | head -120
+bin/fm-teardown.sh demo --merged-pr https://dev.azure.com/acme/project/_git/Mosaiq.Codegraph/pullrequest/59397
+bin/fm-pr-check.sh demo https://dev.azure.com/acme/project/_git/Mosaiq.Codegraph/pullrequest/59397
+bin/fm-branch-report.sh --help 2>&1 | head -100
+sed -n '1,250p' bin/fm-branch-report.sh
+cat /tmp/fm-lab.Ciecf3/state/.supervision-host-turn 2>/dev/null
+grep -n "fm_pr_merged_check_tasks" -A 25 bin/fm-pr-lib.sh | head -40
+sed -n '297,360p' bin/fm-pr-lib.sh
+grep -rn "closed-task=" bin/ | grep -v "\.sh:.*#"
+sed -n '880,945p' bin/fm-supervision-host.sh
+command -v az 2>&1; echo "exit=$?"
+bin/fm-branch-report.sh --task fleet --verdict routine --main-action already-closed \
+  --summary "ado-pr-sweep: PR 59396 (Mosaiq.Codegraph, 'Earlier lane already torn down') reports merged but no task record owns it - already closed, no cleanup needed. PR 59390 (Mosaiq.X, 'Rework X') reports merge conflicts but also owns no task record in this fleet - nothing actionable here."
+bin/fm-branch-report.sh --task demo --verdict captain --main-action auto \
+  --summary "ado-pr-sweep: PR 59397 (Mosaiq.Codegraph) on task 'demo' reports MERGED. Attempted ordinary cleanup (fm-teardown.sh demo --merged-pr <url>) but it refused: could not verify the PR as completed - the Azure DevOps REST read-back failed. Worktree and task record preserved untouched; nothing forced. Needs a working ADO credential/connectivity check before cleanup can land."
+bin/fm-wake-drain.sh --ack-through 1 --recovery-generation 1319751.1792010038.UaDZEX && bin/fm-lease.sh release demo

@@ -1,0 +1,8 @@
+ok - away reports: progress, resolved decisions and captain holds stay parked; terminal outcomes, freed slots and unanswered input hand back
+ok - away merge handback: only the exact reported lane receives a derived dispatch
+ok - away explicit decisions: sibling wakes and terminal events cannot relabel a lane's input handback
+ok - away dispatch handback: derived terminal reports collapse per turn and task while explicit actions and outcomes survive
+ok - routine unsticking: four remedies deliver and close blockers without MAIN handback
+ok - merged sweep: absent owners skip teardown, active cleanup hands back, and new owners cannot trigger merge dispatch
+ok - merged sweep: every merged PR in flattened mixed and closed-only rows is handled
+env -u FM_HOME bash $T  29,28s user 14,81s system 103% cpu 42,564 total

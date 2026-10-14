@@ -1,0 +1,11 @@
+Lease claim produced no output — let me confirm it succeeded, then check current task state / resolve the blocker.
+Lease claimed. The ruling confirms the browser probe isn't required evidence, and the required config is already set correctly. This matches the "worker cannot perform a verification probe the accepted ruling does not require" routine-unsticking shape under the away words ("unstuck workers"). Resolving the blocker:
+The decision was resolved (status log shows `resolved [key=routine-stop]`). This is a remedied, still-live lane — routine with auto action.
+Done. Summary of this wake:
+
+- Drained the signal and found an open `blocked [key=routine-stop]` decision on task **demo**: the worker couldn't run a browser check of the settings page (no browser in the sandbox).
+- Checked the accepted ruling (`RULING.md`) — the browser probe is explicitly **not** required evidence; only green unit tests and `FeatureFlags.NewHeader=true` in `appsettings.json` are required, and both were already verified true.
+- Under the away-posture words ("unstuck workers"), this matched the routine-unsticking shape for a verification probe the ruling doesn't require, so I resolved the blocker via `fm-send --resolve-key`, instructing the worker to skip the probe and proceed.
+- Reported routine (not silent, since an action was taken) with `--main-action auto`, acknowledged the wake, and released the task lease.
+
+No merges or spawns occurred; nothing required captain-hold.

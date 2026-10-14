@@ -1,0 +1,64 @@
+=== scenario: optional-probe   away words: unstuck workers; merge nothing   elapsed: 36s
+=== host.rc: (host still parked - no exit to MAIN)
+=== host.out
+=== supervision-host.log
+1792009661	start	gen=host-1053486-1792009661	primary=claude
+1792009693	handled	turn=host-1053486-1792009661.1	posture=away	rc=0	reports=1	error=0 cost=0.080416 conversation_cost=0.080416 input=20 cache_read=199143 cache_write=5891 output=2582 turns=10	signal: /tmp/fm-lab.CM6SD8/state/demo.status
+=== branch-outcomes.jsonl
+{"seq":1,"epoch":1792009686,"task":"demo","wake":"signal: /tmp/fm-lab.CM6SD8/state/demo.status","verdict":"routine","summary":"per your away instructions: answered demo's routine-stop blocker (unstuck workers). Ruling confirms the browser probe isn't required evidence; unit tests green and config/appsettings.json FeatureFlags.NewHeader=true already verified, so steered the worker to skip the probe and proceed.","silent":false,"statusEndpoint":459,"statusIdent":"strong:55:5495742:2026-10-14 22:27:41.367586721 +0200"}
+=== worker inbox
+--- /tmp/fm-lab.CM6SD8/state/demo.inbox/001.msg
+schema=fm-task-inbox.v1
+at=2026-10-14T20:27:57Z
+--
+Per the accepted ruling (/tmp/fm-lab.CM6SD8/projects/demo-wt/RULING.md), the browser check is not required evidence. Required evidence is unit tests green (confirmed) and config/appsettings.json FeatureFlags.NewHeader=true (confirmed set). Skip the browser probe and proceed to completion.
+=== wake-queue handback rows
+(none)
+=== demo.meta present: yes
+=== demo.status tail
+blocked [key=routine-stop] [at=1792009661]: unit tests green; I cannot perform the browser check of the settings page (no browser in this sandbox). Ruling is /tmp/fm-lab.CM6SD8/projects/demo-wt/RULING.md. Should I skip the browser probe?
+resolved [key=routine-stop] [at=1792009677]: answered: Per the accepted ruling (/tmp/fm-lab.CM6SD8/projects/demo-wt/RULING.md), the browser check is not required evidence. Required evidence is unit tests gree [truncated]
+=== external CLI calls by the engine (fakes)
+tmux display-message -p -t fm-demo #{pane_id}
+no-mistakes axi status
+tmux display-message -p -t fm-demo #{pane_id}
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+no-mistakes axi status
+tmux display-message -p -t fm-demo #{pane_id}
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux display-message -p -t fm-demo #{cursor_y}
+tmux display-message -p -t fm-demo #{cursor_y}
+tmux capture-pane -p -t fm-demo -S -40
+tmux send-keys -t fm-demo -l : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your 'demo.inbox' steering inbox, read and act on each in numeric order, then mv each into its handled/.
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+=== engine-facing drain (OPEN DECISIONS after turn)
+(no OPEN DECISIONS section)

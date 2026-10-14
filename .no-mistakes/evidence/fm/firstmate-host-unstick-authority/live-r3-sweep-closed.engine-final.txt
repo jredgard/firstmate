@@ -1,0 +1,8 @@
+That succeeded. Now acknowledge and release any leases (none were claimed since no task lease needed for a fleet-level no-op).
+Handled the wake:
+
+- **Event**: check `ado-pr-sweep` reporting PR 59397 (Mosaiq.Codegraph, "Add codegraph indexer") merged.
+- **Resolution**: No owning task record exists for this PR (fleet-level resolution, no state/backlog records found at all in this home). Per the merged-PR sweep rule, teardown was skipped since there's nothing to clean up.
+- **Report**: `fm-branch-report.sh --task fleet --verdict routine --main-action auto --silent true` — recorded as seq 1, silent routine outcome.
+- **Acknowledged**: ran the drain's required `--ack-through 1 --recovery-generation ...` command.
+- No leases were claimed (no task to claim), nothing else pending.

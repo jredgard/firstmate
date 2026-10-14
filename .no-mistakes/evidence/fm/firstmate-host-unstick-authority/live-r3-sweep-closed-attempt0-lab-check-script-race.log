@@ -1,0 +1,19 @@
+=== scenario: sweep-closed   away words: unstuck workers; merge nothing   elapsed: 1s
+=== host.rc: 0
+=== host.out
+watcher: started pid=1260838 (beacon fresh)
+check: rearm-resurface
+supervision-host: the handling handoff to the successor watcher could not be confirmed; this wake is yours
+=== supervision-host.log
+1792009938	start	gen=host-1260531-1792009938	primary=claude
+1792009939	to-main	the handling handoff to the successor watcher could not be confirmed; this wake is yours
+=== branch-outcomes.jsonl
+=== worker inbox
+=== wake-queue handback rows
+(none)
+=== demo.meta present: no
+=== demo.status tail
+=== external CLI calls by the engine (fakes)
+(none)
+=== engine-facing drain (OPEN DECISIONS after turn)
+(no OPEN DECISIONS section)

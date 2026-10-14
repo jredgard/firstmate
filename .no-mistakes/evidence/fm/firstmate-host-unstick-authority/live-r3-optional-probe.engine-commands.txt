@@ -1,0 +1,9 @@
+bin/fm-wake-drain.sh
+bin/fm-crew-state.sh demo; echo ---; cat /tmp/fm-lab.CM6SD8/projects/demo-wt/RULING.md 2>/dev/null; echo ---; cat /tmp/fm-lab.CM6SD8/state/demo.status 2>/dev/null; echo ---; cat /tmp/fm-lab.CM6SD8/state/demo.meta 2>/dev/null
+cat /tmp/fm-lab.CM6SD8/projects/demo-wt/config/appsettings.json 2>/dev/null; echo ---lease---; bin/fm-lease.sh claim demo
+bin/fm-lease.sh claim demo; echo "exit:$?"
+bin/fm-send.sh demo --resolve-key routine-stop 'Per the accepted ruling (/tmp/fm-lab.CM6SD8/projects/demo-wt/RULING.md), the browser check is not required evidence. Required evidence is unit tests green (confirmed) and config/appsettings.json FeatureFlags.NewHeader=true (confirmed set). Skip the browser probe and proceed to completion.'
+cat /tmp/fm-lab.CM6SD8/state/demo.status; echo ---; ls /tmp/fm-lab.CM6SD8/state/demo.inbox/; echo ---; cat /tmp/fm-lab.CM6SD8/state/demo.inbox/001.msg
+bin/fm-branch-report.sh demo --verdict routine --main-action auto --silent false --summary "per your away instructions: answered demo's routine-stop blocker (unstuck workers). Ruling confirms the browser probe isn't required evidence; unit tests green and config/appsettings.json FeatureFlags.NewHeader=true already verified, so steered the worker to skip the probe and proceed."
+bin/fm-branch-report.sh --task demo --verdict routine --main-action auto --silent false --summary "per your away instructions: answered demo's routine-stop blocker (unstuck workers). Ruling confirms the browser probe isn't required evidence; unit tests green and config/appsettings.json FeatureFlags.NewHeader=true already verified, so steered the worker to skip the probe and proceed."
+bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 1053647.1792009661.0Ub0bL; echo ---; bin/fm-lease.sh release demo

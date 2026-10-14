@@ -1,0 +1,78 @@
+=== scenario: optional-probe   away words: unstuck workers; merge nothing   elapsed: 52s
+=== host.rc: (host still parked - no exit to MAIN)
+=== host.out
+=== supervision-host.log
+1792009548	start	gen=host-986119-1792009548	primary=claude
+1792009597	handled	turn=host-986119-1792009548.1	posture=away	rc=0	reports=1	error=0 cost=0.172823 conversation_cost=0.172823 input=32 cache_read=341745 cache_write=26040 output=3931 turns=16	signal: /tmp/fm-lab.eWz6xQ/state/demo.status
+=== branch-outcomes.jsonl
+{"seq":1,"epoch":1792009587,"task":"demo","wake":"signal: /tmp/fm-lab.eWz6xQ/state/demo.status","verdict":"routine","summary":"per your away instructions: worker demo was blocked asking whether to skip a browser check of the settings page; the accepted ruling (RULING.md) states that check is not required evidence, and the config read confirms FeatureFlags.NewHeader=true with unit tests green, so I answered the routine-stop decision to skip the browser probe and proceed.","silent":false,"statusEndpoint":459,"statusIdent":"strong:55:5494717:2026-10-14 22:25:49.118447897 +0200"}
+=== worker inbox
+--- /tmp/fm-lab.eWz6xQ/state/demo.inbox/001.msg
+schema=fm-task-inbox.v1
+at=2026-10-14T20:26:21Z
+--
+Per the accepted ruling (RULING.md), a browser check of the settings page is not required evidence for this task. Required evidence is unit tests green (confirmed) and config/appsettings.json setting FeatureFlags.NewHeader to true (confirmed). Skip the browser probe and proceed to completion.
+=== wake-queue handback rows
+(none)
+=== demo.meta present: yes
+=== demo.status tail
+blocked [key=routine-stop] [at=1792009549]: unit tests green; I cannot perform the browser check of the settings page (no browser in this sandbox). Ruling is /tmp/fm-lab.eWz6xQ/projects/demo-wt/RULING.md. Should I skip the browser probe?
+resolved [key=routine-stop] [at=1792009581]: answered: Per the accepted ruling (RULING.md), a browser check of the settings page is not required evidence for this task. Required evidence is unit tests green ( [truncated]
+=== external CLI calls by the engine (fakes)
+tmux display-message -p -t fm-demo #{pane_id}
+no-mistakes axi status
+tmux display-message -p -t fm-demo #{pane_id}
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+no-mistakes axi status
+tmux display-message -p -t fm-demo #{pane_id}
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux display-message -p -t fm-demo #{cursor_y}
+tmux display-message -p -t fm-demo #{cursor_y}
+tmux capture-pane -p -t fm-demo -S -40
+tmux send-keys -t fm-demo -l : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your 'demo.inbox' steering inbox, read and act on each in numeric order, then mv each into its handled/.
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+=== engine-facing drain (OPEN DECISIONS after turn)
+(no OPEN DECISIONS section)

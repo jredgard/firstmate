@@ -1,0 +1,12 @@
+cd /tmp/fm-lab.DHHqRi && bin/fm-wake-drain.sh
+bin/fm-lease.sh claim demo && bin/fm-crew-state.sh demo
+ls state/ | grep -i demo; echo ---; cat state/demo.meta 2>/dev/null; echo ---; cat state/demo.status 2>/dev/null; echo ---; find . -iname "*no-mistakes*" -maxdepth 2
+ls bin/ | head -50
+which no-mistakes 2>/dev/null; find . -iname "*axi*" -maxdepth 2; echo ---; cat bin/fm-crew-state.sh | head -40
+echo $PATH; which no-mistakes; no-mistakes daemon status 2>&1; echo ---; no-mistakes axi status --run fm/demo 2>&1
+ls projects/demo-wt 2>/dev/null; echo ---; (cd projects/demo-wt 2>/dev/null && git status --short && git log --oneline -3)
+bin/fm-send.sh demo --resolve-key routine-stop 'No run owns branch fm/demo and the no-mistakes daemon is healthy — the background launch never attached. Run validation in the foreground (no-mistakes axi run --wait with your skip flags) from the demo-wt worktree instead of backgrounding it, and continue from there.'
+bin/fm-branch-report.sh demo --verdict routine --main-action auto --silent false --summary "per your away instructions: unstuck workers — demo's background no-mistakes validation for fm/demo never attached to a run (daemon healthy, no run owned the branch, worktree clean); steered it to drive validation in the foreground instead and resolved the blocker."
+bin/fm-branch-report.sh --task demo --verdict routine --main-action auto --silent false --summary "per your away instructions: unstuck workers — demo's background no-mistakes validation for fm/demo never attached to a run (daemon healthy, no run owned the branch, worktree clean); steered it to drive validation in the foreground instead and resolved the blocker."
+bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 1089849.1792009707.4J1FW5
+bin/fm-lease.sh release demo

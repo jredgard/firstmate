@@ -1,0 +1,27 @@
+=== host.rc: 0
+=== host.out
+supervision-host: away handback: check: supervision-host handback: dispatch for demo (outcome 1), event teardown: per your away instructions: unstuck demo — it was blocked asking whether to skip a browser check of the settings page (no browser in sandbox). Read RULING.md (browser check explicitly not required; required evidence is green unit tests + config/appsettings.json FeatureFlags.NewHeader=true) and the config file (confirms the flag is true), then answered the blocker via resolve-key telling it to skip the browser probe and proceed, recording the ruling/config read. Merge authority not exercised.; handle this lane under the existing away record, then park again
+=== supervision-host.log
+1792008756	start	gen=host-413305-1792008756	primary=claude
+1792008822	handled	turn=host-413305-1792008756.1	posture=away	rc=0	reports=1	error=0 cost=0.23218 conversation_cost=0.23218 input=42 cache_read=493245 cache_write=30495 output=5721 turns=21	signal: /tmp/fm-tsel.dEkjPB/labs/fm-lab-unstick-words.w5tHRh/state/demo.status
+1792008822	to-main	away handback: check: supervision-host handback: dispatch for demo (outcome 1), event teardown: per your away instructions: unstuck demo — it was blocked asking whether to skip a browser check of the settings page (no browser in sandbox). Read RULING.md (browser check explicitly not required; required evidence is green unit tests + config/appsettings.json FeatureFlags.NewHeader=true) and the config file (confirms the flag is true), then answered the blocker via resolve-key telling it to skip the browser probe and proceed, recording the ruling/config read. Merge authority not exercised.; handle this lane under the existing away record, then park again
+=== branch-outcomes.jsonl
+{"seq":1,"epoch":1792008811,"task":"demo","wake":"signal: /tmp/fm-tsel.dEkjPB/labs/fm-lab-unstick-words.w5tHRh/state/demo.status","verdict":"routine","summary":"per your away instructions: unstuck demo — it was blocked asking whether to skip a browser check of the settings page (no browser in sandbox). Read RULING.md (browser check explicitly not required; required evidence is green unit tests + config/appsettings.json FeatureFlags.NewHeader=true) and the config file (confirms the flag is true), then answered the blocker via resolve-key telling it to skip the browser probe and proceed, recording the ruling/config read. Merge authority not exercised.","silent":false,"statusEndpoint":622,"statusIdent":"strong:55:5479750:2026-10-14 22:12:36.315446310 +0200"}
+=== demo inbox
+--- /tmp/fm-tsel.dEkjPB/labs/fm-lab-unstick-words.w5tHRh/state/demo.inbox/001.msg
+schema=fm-task-inbox.v1
+at=2026-10-14T20:13:21Z
+--
+Skip the browser probe. The accepted ruling (RULING.md) states the browser check of the settings page is NOT required evidence; required evidence is unit tests green (already reported) and config/appsettings.json setting FeatureFlags.NewHeader to true, which I verified is set. Proceed without the browser probe and record that you read the ruling and config.=== wake-queue handbacks
+1792008811	3	check	supervision-host-handback:1	check: supervision-host handback: dispatch for demo (outcome 1), event teardown: per your away instructions: unstuck demo — it was blocked asking whether to skip a browser check of the settings page (no browser in sandbox). Read RULING.md (browser check explicitly not required; required evidence is green unit tests + config/appsettings.json FeatureFlags.NewHeader=true) and the config file (confirms the flag is true), then answered the blocker via resolve-key telling it to skip the browser probe and proceed, recording the ruling/config read. Merge authority not exercised.
+=== drain
+(no OPEN DECISIONS section)
+=== engine result
+Handled. Summary of this wake:
+
+- **Event:** task `demo` was blocked (`key=routine-stop`) asking whether it could skip a browser check of the settings page, since no browser is available in its sandbox; it reported unit tests green.
+- **Evidence check:** read the accepted ruling (`RULING.md`) which explicitly states the browser check is *not* required evidence, and required evidence is only (1) green unit tests and (2) `config/appsettings.json` setting `FeatureFlags.NewHeader: true` — confirmed that config value is indeed `true`.
+- **Action (per away words "unstuck workers; merge nothing"):** claimed the task lease, answered the blocker via `fm-send.sh demo --resolve-key routine-stop`, instructing it to skip the browser probe and proceed, recording the ruling/config read as the evidence. (Delivery to the live pane itself failed since no endpoint exists in this environment, but the steer was durably recorded in the inbox and the status log now shows `resolved`.)
+- **No merge authority exercised** — nothing PR-related was in scope.
+- Reported verdict **routine**, `--main-action dispatch` (held for MAIN under the away record, per policy).
+- Acknowledged the wake through drain and released the task lease.

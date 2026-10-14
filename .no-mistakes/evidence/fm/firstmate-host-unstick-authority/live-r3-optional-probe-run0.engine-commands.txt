@@ -1,0 +1,15 @@
+cd /tmp/fm-lab.eWz6xQ && bin/fm-wake-drain.sh 2>&1
+ls -la /tmp/fm-lab.eWz6xQ; echo "---"; find /tmp/fm-lab.eWz6xQ -maxdepth 2
+cat /tmp/fm-lab.eWz6xQ/.fm-lab-home; echo "---config---"; cat /tmp/fm-lab.eWz6xQ/config/supervision-host 2>/dev/null; ls /tmp/fm-lab.eWz6xQ/config; echo "---demo.status---"; cat /tmp/fm-lab.eWz6xQ/state/demo.status; echo "---demo.meta---"; cat /tmp/fm-lab.eWz6xQ/state/demo.meta
+find / -maxdepth 6 -iname "fm-wake-drain.sh" 2>/dev/null; find / -maxdepth 8 -iname "fm-branch-report.sh" 2>/dev/null; echo "---env---"; env | grep -i FM_HOME
+cd /home/johannesr/firstmate && FM_HOME=/tmp/fm-lab.eWz6xQ bin/fm-wake-drain.sh 2>&1
+cat /tmp/fm-lab.eWz6xQ/projects/demo-wt/RULING.md 2>&1
+find /tmp/fm-lab.eWz6xQ/projects/demo-wt -iname "appsettings.json" 2>/dev/null; echo "---"; cat /tmp/fm-lab.eWz6xQ/projects/demo-wt/config/appsettings.json 2>&1
+cd /home/johannesr/firstmate && FM_HOME=/tmp/fm-lab.eWz6xQ bin/fm-lease.sh claim demo 2>&1
+cd /home/johannesr/firstmate && FM_HOME=/tmp/fm-lab.eWz6xQ bin/fm-lease.sh claim demo; echo "EXIT=$?"
+cd /home/johannesr/firstmate && FM_HOME=/tmp/fm-lab.eWz6xQ bin/fm-crew-state.sh demo 2>&1
+cd /home/johannesr/firstmate && FM_HOME=/tmp/fm-lab.eWz6xQ bin/fm-send.sh demo --resolve-key routine-stop 'Per the accepted ruling (RULING.md), a browser check of the settings page is not required evidence for this task. Required evidence is unit tests green (confirmed) and config/appsettings.json setting FeatureFlags.NewHeader to true (confirmed). Skip the browser probe and proceed to completion.' 2>&1; echo "EXIT=$?"
+cd /home/johannesr/firstmate && FM_HOME=/tmp/fm-lab.eWz6xQ bin/fm-branch-report.sh demo --verdict routine --main-action auto --summary "per your away instructions: worker demo was blocked asking whether to skip a browser check of the settings page; the accepted ruling (RULING.md) states that check is not required evidence, and the config read confirms FeatureFlags.NewHeader=true with unit tests green, so I answered the routine-stop decision to skip the browser probe and proceed." 2>&1; echo "EXIT=$?"
+cd /home/johannesr/firstmate && FM_HOME=/tmp/fm-lab.eWz6xQ bin/fm-branch-report.sh --task demo --verdict routine --main-action auto --summary "per your away instructions: worker demo was blocked asking whether to skip a browser check of the settings page; the accepted ruling (RULING.md) states that check is not required evidence, and the config read confirms FeatureFlags.NewHeader=true with unit tests green, so I answered the routine-stop decision to skip the browser probe and proceed." 2>&1; echo "EXIT=$?"
+cd /home/johannesr/firstmate && FM_HOME=/tmp/fm-lab.eWz6xQ bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 986300.1792009549.H05zxY 2>&1; echo "EXIT=$?"
+cd /home/johannesr/firstmate && FM_HOME=/tmp/fm-lab.eWz6xQ bin/fm-lease.sh release demo 2>&1; echo "EXIT=$?"

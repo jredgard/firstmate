@@ -1,0 +1,8 @@
+bin/fm-wake-drain.sh
+bin/fm-crew-state.sh demo; echo ---; cat /tmp/fm-lab.n17kCv/projects/demo-wt/RULING.md 2>/dev/null
+bin/fm-lease.sh claim demo
+cat /tmp/fm-lab.n17kCv/projects/demo-wt/config/appsettings.json 2>/dev/null; echo ---; bin/fm-send.sh demo --resolve-key routine-stop 'Yes, skip the browser probe: per the accepted ruling (RULING.md), a browser check of the settings page is NOT required evidence for this task. Required evidence is unit tests green and config/appsettings.json FeatureFlags.NewHeader=true; proceed to close out on that basis.'
+bin/fm-branch-report.sh --help 2>&1 | head -60
+bin/fm-branch-report.sh --task demo --verdict routine --summary "Resolved the blocked decision (key=routine-stop) myself: the accepted RULING.md explicitly states a browser check of the settings page is NOT required evidence; unit tests are green and config/appsettings.json already sets FeatureFlags.NewHeader=true, so I answered the worker to skip the browser probe and proceed to close out." --silent false
+bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 1514353.1792010329.kodrYy
+bin/fm-lease.sh release demo

@@ -1,0 +1,11 @@
+Daemon is healthy, no active run owns the branch — this matches the "Validation launch produced no run" routine unsticking shape exactly. Let's check the worktree state and steer the worker.
+Clean worktree, no active run. Steering the worker to drive validation in the foreground.
+Delivery recorded (durable inbox, doorbell pending). Now report and acknowledge.
+Handled: the wake was a `blocked` row for task `demo` — its worker had backgrounded a no-mistakes validation launch for `fm/demo` and found no run attached after 4 minutes.
+
+- Verified via the fake `no-mistakes` CLI that the daemon is healthy and no run owns `fm/demo`, and confirmed the `demo-wt` worktree is clean — matching the away words' "unstuck workers" evidence checklist for a validation-launch-produced-no-run case.
+- Resolved the open decision key `routine-stop` via `fm-send.sh --resolve-key`, steering the worker to run validation in the foreground instead of backgrounding it (delivery durably queued in the worker's inbox since the live doorbell didn't land).
+- Reported verdict routine (rendered, not silent, since a remedy was taken) with `--main-action auto` per the handback instructions, since this is a remedied-but-still-live lane, not a terminal/dispatch/decision event.
+- Acknowledged the wake and released the `demo` lease.
+
+Merge authority was not exercised (nothing to merge here), consistent with "merge nothing."

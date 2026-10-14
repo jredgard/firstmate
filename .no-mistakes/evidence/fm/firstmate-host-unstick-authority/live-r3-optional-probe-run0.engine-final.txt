@@ -1,0 +1,11 @@
+Confirmed: ruling says browser check isn't required evidence, and the config read confirms `FeatureFlags.NewHeader: true` plus unit tests green per the worker's own report. This matches the away-words' "unstuck workers" authority for the verification-probe shape. Now claim the lease, resolve the blocker, and release.
+Lease claimed successfully.
+The message was durably recorded; exit 0 and durable delivery counts as closing the blocker. Now report the outcome.
+Reported. Now acknowledge the wake and release the lease.
+Handled and closed out:
+
+- **Event**: `demo` worker blocked (`key=routine-stop`) asking whether to skip a browser check of the settings page, since the sandbox has no browser.
+- **Evidence read**: `RULING.md` explicitly states the browser check is not required evidence; required evidence is unit tests green (worker already reported this) and `config/appsettings.json` setting `FeatureFlags.NewHeader: true` (confirmed by direct read).
+- **Action**: Under the away record's "unstuck workers" authority (verification-probe shape), answered the blocker via `fm-send.sh --resolve-key routine-stop` telling the worker to skip the browser probe and proceed, citing both confirmations. Delivery was durably recorded (doorbell didn't reach live pane, but message queued for the watcher to re-ring).
+- **Report**: Filed as verdict routine, `--main-action auto`, per-away-instructions summary — held in the outcome store for MAIN/return brief, not surfaced to the captain now.
+- Wake acknowledged through seq 2; lease released.

@@ -1,0 +1,12 @@
+FM_HOME is already set to `/tmp/fm-lab.PzPU6V`. My earlier commands ran against the wrong home (the cwd's bin scripts, not that FM_HOME). Let me redo this against the correct home.
+Lease is claimed. Now let's inspect the actual deployment state to verify the "no replica" pipeline-roll evidence before steering.
+There's a fake `az` CLI for this lab. Let's use it to check the live deployment revision/replica state.
+The decision is now resolved. This is routine unsticking under away words ("unstuck workers"), remedied via evidence-backed steer — not a terminal event, so `--main-action auto`.
+Report recorded. Now acknowledge and release the lease.
+Handled. Summary:
+
+- **Task demo**: Worker was blocked (`routine-stop`) because `az containerapp exec` targeted replica `mosaiq-api--rev41-55d1-q8wz`, which no longer existed.
+- Verified via `az containerapp revision list` that a pipeline roll (`mosaiq-api-cd` run 8812) shifted 100% traffic from `rev41` (now 0 replicas) to `rev42` (active replica `mosaiq-api--rev42-7f9c-xk2p`) at 14:02Z — exactly the "no replica due to pipeline roll" shape the away words authorize for routine unsticking.
+- Steered the worker (`fm-send.sh --resolve-key routine-stop`) to retry the same authorized read-only migration-status check against the live revision — no new deployment or scope change. The blocker is now resolved in the task's status log.
+- Reported as a routine, rendered outcome (`--main-action auto`) since this is a remedied-but-still-live lane, not a terminal/teardown event. Per the away posture, this stays queued for MAIN/the captain's return brief.
+- Acknowledged the wake and released the task lease.

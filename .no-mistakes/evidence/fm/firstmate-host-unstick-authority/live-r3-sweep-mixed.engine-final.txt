@@ -1,0 +1,8 @@
+Now let's attempt teardown for demo with the merged PR URL from its meta.
+Now release the demo lease and acknowledge the wake.
+Both outcomes for this `ado-pr-sweep` check are handled:
+
+1. **`fleet`** (routine, already-closed): PR 59396 (Mosaiq.Codegraph) shows merged but owns no task record here — already torn down, nothing to clean up. PR 59390 (Mosaiq.X, "Rework X") shows merge conflicts but also owns no task record in this fleet — nothing actionable.
+2. **`demo`** (captain, held for return): PR 59397 reports merged, but `fm-teardown.sh demo --merged-pr …` refused — it could not verify the PR as completed via the Azure DevOps REST read-back. Per the refusal rule, nothing was forced; the worktree and task record are untouched. This needs a working ADO credential/connectivity check before cleanup can land, so it's held for your return rather than retried blindly.
+
+Both outcomes are recorded, the wake is acknowledged through seq 1, and the `demo` lease is released.

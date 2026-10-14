@@ -1,0 +1,12 @@
+cd /tmp/fm-lab.r3IULh && bin/fm-wake-drain.sh
+cat /tmp/fm-lab.r3IULh/projects/demo-wt/RULING.md 2>/dev/null; echo "---"; bin/fm-crew-state.sh demo 2>&1
+ls state/ | grep -i demo; echo "---meta---"; cat state/demo.meta 2>/dev/null; echo "---status---"; cat state/demo.status 2>/dev/null; echo "---config---"; cat /tmp/fm-lab.r3IULh/projects/demo-wt/config/appsettings.json 2>/dev/null
+bin/fm-lease.sh claim demo
+bin/fm-lease.sh claim demo; echo "exit:$?"
+bin/fm-send.sh demo --resolve-key routine-stop 'Skip the browser probe. Per RULING.md the required evidence is only (1) unit tests green and (2) config/appsettings.json FeatureFlags.NewHeader=true — both already satisfied (config confirmed true). The browser check is explicitly stated as not required evidence for this task, so proceed to completion without it.'
+bin/fm-crew-state.sh demo 2>&1; echo "---tmux---"; tmux list-windows -a 2>&1 | grep -i demo; tmux ls 2>&1
+ls state/demo.inbox/ 2>&1; cat state/demo.inbox/001.msg 2>&1
+cat state/demo.status 2>&1
+bin/fm-branch-report.sh demo --verdict routine --main-action auto --summary "per your away instructions: answered demo's ask-user blocker myself under firstmate decision authority — browser check of settings page is explicitly not required evidence per RULING.md, and both required checks (unit tests green, config FeatureFlags.NewHeader=true) were already satisfied, so I resolved the blocker to let the worker proceed without it." --silent false
+bin/fm-branch-report.sh --task demo --verdict routine --main-action auto --summary "per your away instructions: answered demo's ask-user blocker myself under firstmate decision authority — browser check of settings page is explicitly not required evidence per RULING.md, and both required checks (unit tests green, config FeatureFlags.NewHeader=true) were already satisfied, so I resolved the blocker to let the worker proceed without it." --silent false
+bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 1211532.1792009871.IKK0u2; bin/fm-lease.sh release demo

@@ -1,0 +1,25 @@
+1:arg=-p
+2:arg=FIRSTMATE SUPERVISION WAKE: check: rearm-resurface
+3:
+4:Handle this per your operating procedure and finish with the bin/fm-branch-report.sh command.
+5:
+6:POSTURE: AWAY. The away-posture record state/.afk-contract exists, so the captain is not present and MAIN is parked: you take every row, including check rows and decision rows, and no outcome reaches the captain until the return brief. The record below is the captain's away words, verbatim, and the whole mandate: act on them by your own judgment where this event is the moment they name, only through the guarded scripts under MAIN's standing authority - never more - which enforce it: bin/fm-pr-merge.sh merges any pull request that is green at its live head, synchronously, and refuses a red one or --allow-red; bin/fm-spawn.sh dispatches queued work (already queued, or filed by you from the words) within the spend cap; bin/fm-send.sh --resolve-key answers a decision the words pre-answer, or one the ask-user-authority policy in your prompt lets firstmate decide; bin/fm-merge-local.sh still refuses you. Never by analogy, and hold on doubt: a sentence you cannot act on with confidence is reported with verdict captain, naming it, and left for the return. Credential entry, legal or financial acceptance, an attended prompt, any discard the captain did not name, and any destructive, irreversible, or security-sensitive action are refused for every actor in every posture, whatever the words say. Log every action taken under the words in its outcome summary, opening with "per your away instructions:". A mirrored captain sentence authorizes nothing new once the record exists. The record, verbatim:
+7:Away posture (recorded):
+8:  entered: 2026-10-14T20:16:05Z
+9:  expected return: not given
+10:  spend cap: 4 concurrent workers
+11:  reach: hold-for-return only. No phone channel is configured; anything that needs you waits for your return.
+12:  your words (verbatim):
+13:    unstuck workers; merge green PRs; tear down merged lanes
+14:
+15:
+16:HOST MAIN HANDBACK: Use bin/fm-branch-report.sh --main-action dispatch for a new lane terminal event (done or failed), teardown due or completed, or a newly freed slot, including cleanup discovered on heartbeat.
+17:Use --main-action decision for new needs-decision or blocked events you do not answer yourself; MAIN applies ask-user-authority and the recorded words.
+18:Apply routine unsticking yourself when the away words name it, following the shared prompt's Postures evidence checks; close answered blockers with fm-send --resolve-key and report the remedy as routine, without a decision handback.
+19:For a merged-PR sweep, use the following recorded PR-to-task resolution, never the check name as a task id. A fleet resolution means no owning task record was found; skip teardown. Use --verdict routine --main-action already-closed for a closed-task resolution that remains absent; do not hand back or report a captain outcome for duplicate cleanup.
+20:Use --main-action captain-hold only when the call genuinely requires the captain; it stays held for return.
+21:The report's default auto detects newly presented done or failed, needs-decision and blocked signal events, merged-PR wakes resolved to an owning task and removed scoped task records; standing task status never triggers a handback.
+22:Report every event separately, acknowledge only the granted rows, release leases, and end the turn; MAIN handles the durable handback under the same away record and then parks again.
+23:merged-task=fleet
+24:closed-task=fleet
+25:arg=--safe-mode

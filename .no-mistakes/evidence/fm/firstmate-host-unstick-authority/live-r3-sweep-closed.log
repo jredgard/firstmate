@@ -1,0 +1,17 @@
+=== scenario: sweep-closed   away words: unstuck workers; merge nothing   elapsed: 44s
+=== host.rc: (host still parked - no exit to MAIN)
+=== host.out
+=== supervision-host.log
+1792009991	start	gen=host-1288493-1792009991	primary=claude
+1792010031	handled	turn=host-1288493-1792009991.1	posture=away	rc=0	reports=1	error=0 cost=0.091799 conversation_cost=0.091799 input=20 cache_read=198007 cache_write=6623 output=3560 turns=10	check: rearm-resurface
+=== branch-outcomes.jsonl
+{"seq":1,"epoch":1792010025,"task":"fleet","wake":"check: rearm-resurface","verdict":"routine","summary":"Merged-PR sweep for PR 59397 (Mosaiq.Codegraph, Add codegraph indexer) resolved to no owning task record (fleet); skipped teardown.","silent":true,"statusEndpoint":0,"statusIdent":"-"}
+=== worker inbox
+=== wake-queue handback rows
+(none)
+=== demo.meta present: no
+=== demo.status tail
+=== external CLI calls by the engine (fakes)
+(none)
+=== engine-facing drain (OPEN DECISIONS after turn)
+(no OPEN DECISIONS section)

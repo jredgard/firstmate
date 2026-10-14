@@ -1,0 +1,19 @@
+=== host.rc: 
+=== host.out
+=== supervision-host.log
+1792008965	start	gen=host-604371-1792008965	primary=claude
+1792008993	handled	turn=host-604371-1792008965.1	posture=away	rc=0	reports=1	error=0 cost=0.060462 conversation_cost=0.060462 input=14 cache_read=132708 cache_write=4641 output=2229 turns=7	check: rearm-resurface
+=== branch-outcomes.jsonl
+{"seq":1,"epoch":1792008987,"task":"fleet","wake":"check: rearm-resurface","verdict":"routine","summary":"Merged-PR sweep found PR 59397 (Mosaiq.Codegraph, 'add codegraph indexer') merged, but no owning task record exists in this fleet; skipping teardown as no-op.","silent":true,"statusEndpoint":0,"statusIdent":"-"}
+=== wake-queue handbacks
+(none)
+=== snapshot lines delivered to engine
+merged-task=fleet
+closed-task=fleet
+=== engine result
+Handled. Summary:
+
+- **Event**: `check: ado-pr-sweep` reported PR 59397 (Mosaiq.Codegraph, "add codegraph indexer") merged.
+- **Resolution**: Per the wake's recorded PR-to-task resolution (`merged-task=fleet`), no owning task record exists in this fleet — confirmed via search of `state/` for any reference to PR 59397 or the codegraph task.
+- **Action**: Skipped teardown (no task to tear down). Reported `--task fleet --verdict routine --silent true` as a no-op fleet note.
+- **Acknowledged** through seq 1; no task lease was claimed since this didn't resolve to any task.

@@ -1,0 +1,227 @@
+=== scenario: sweep-mixed   away words: unstuck workers; merge nothing   elapsed: 228s
+=== host.rc: 0
+=== host.out
+supervision-host: away handback: check: supervision-host handback: dispatch for demo (outcome 2), event merge landed: ado-pr-sweep: PR 59397 (Mosaiq.Codegraph) on task 'demo' reports MERGED. Attempted ordinary cleanup (fm-teardown.sh demo --merged-pr <url>) but it refused: could not verify the PR as completed - the Azure DevOps REST read-back failed. Worktree and task record preserved untouched; nothing forced. Needs a working ADO credential/connectivity check before cleanup can land.; handle this lane under the existing away record, then park again
+=== supervision-host.log
+1792010038	start	gen=host-1319193-1792010038	primary=claude
+1792010266	handled	turn=host-1319193-1792010038.1	posture=away	rc=0	reports=2	error=0 cost=0.448906 conversation_cost=0.448906 input=50 cache_read=857966 cache_write=36901 output=18496 turns=25	check: rearm-resurface
+1792010266	to-main	away handback: check: supervision-host handback: dispatch for demo (outcome 2), event merge landed: ado-pr-sweep: PR 59397 (Mosaiq.Codegraph) on task 'demo' reports MERGED. Attempted ordinary cleanup (fm-teardown.sh demo --merged-pr <url>) but it refused: could not verify the PR as completed - the Azure DevOps REST read-back failed. Worktree and task record preserved untouched; nothing forced. Needs a working ADO credential/connectivity check before cleanup can land.; handle this lane under the existing away record, then park again
+=== branch-outcomes.jsonl
+{"seq":1,"epoch":1792010253,"task":"fleet","wake":"check: rearm-resurface","verdict":"routine","summary":"ado-pr-sweep: PR 59396 (Mosaiq.Codegraph, 'Earlier lane already torn down') reports merged but no task record owns it - already closed, no cleanup needed. PR 59390 (Mosaiq.X, 'Rework X') reports merge conflicts but also owns no task record in this fleet - nothing actionable here.","silent":false,"statusEndpoint":0,"statusIdent":"-"}
+{"seq":2,"epoch":1792010258,"task":"demo","wake":"check: rearm-resurface","verdict":"captain","summary":"ado-pr-sweep: PR 59397 (Mosaiq.Codegraph) on task 'demo' reports MERGED. Attempted ordinary cleanup (fm-teardown.sh demo --merged-pr <url>) but it refused: could not verify the PR as completed - the Azure DevOps REST read-back failed. Worktree and task record preserved untouched; nothing forced. Needs a working ADO credential/connectivity check before cleanup can land.","silent":false,"statusEndpoint":0,"statusIdent":"-"}
+=== worker inbox
+=== wake-queue handback rows
+1792010258	2	check	supervision-host-handback:2	check: supervision-host handback: dispatch for demo (outcome 2), event merge landed: ado-pr-sweep: PR 59397 (Mosaiq.Codegraph) on task 'demo' reports MERGED. Attempted ordinary cleanup (fm-teardown.sh demo --merged-pr <url>) but it refused: could not verify the PR as completed - the Azure DevOps REST read-back failed. Worktree and task record preserved untouched; nothing forced. Needs a working ADO credential/connectivity check before cleanup can land.
+=== demo.meta present: yes
+=== demo.status tail
+=== external CLI calls by the engine (fakes)
+tmux display-message -p -t fm-demo #{pane_id}
+tmux display-message -p -t fm-demo #{pane_id}
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux display-message -p -t fm-demo #{pane_id}
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+=== engine-facing drain (OPEN DECISIONS after turn)
+(no OPEN DECISIONS section)

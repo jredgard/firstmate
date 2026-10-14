@@ -1,0 +1,10 @@
+cd /tmp/fm-lab.f7rsIS 2>/dev/null; ls; echo "---"; find . -maxdepth 2 -name "bin" 2>/dev/null; echo "---searching for fm-wake-drain---"; which bin/fm-wake-drain.sh 2>/dev/null; find / -maxdepth 3 -iname "fm-wake-drain.sh" 2>/dev/null
+cd /tmp/fm-lab.f7rsIS && bin/fm-wake-drain.sh
+bin/fm-lease.sh claim demo
+bin/fm-crew-state.sh demo
+cat state/demo.meta 2>/dev/null; echo "---status---"; cat state/demo.status 2>/dev/null; echo "---worktree---"; ls projects/demo-wt 2>/dev/null; echo "---git log in worktree---"; cd projects/demo-wt 2>/dev/null && git log --oneline -5 && git status && git rev-parse HEAD
+git log --oneline --all -10; echo "---branches---"; git branch -a; echo "---remote---"; git remote -v; git log --oneline 413e9e3 -3 2>/dev/null; echo "---does pushed head contain local head or vice versa---"; git merge-base --is-ancestor 413e9e375b2f5b46abf1aa6f73c769d8837b1b29 81e9a5faea87fddcd425591fef4361ba5ff62b5b && echo "pushed is ancestor of local (local has extra commit)"; git show --stat 81e9a5f
+cd /tmp/fm-lab.f7rsIS && bin/fm-branch-report.sh --help 2>&1 | head -60
+bin/fm-branch-report.sh --task demo --verdict captain --main-action captain-hold --summary "per your away instructions: checked 'unstuck workers' against the branch-custody-refused case for demo. Local head 81e9a5f carries an unpublished commit ('task: unpublished follow-up', extra.txt) not present at the pushed head 413e9e3 required by the gate. Since resetting to the pushed head would discard that unpublished work, this stays held per the explicit exclusion in my instructions rather than being auto-unstuck; decision (resolve-key routine-stop) left for your return."
+bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 1475591.1792010270.8BpV0n
+bin/fm-lease.sh release demo

@@ -1,0 +1,26 @@
+=== host.rc: 0
+=== host.out
+supervision-host: away handback: check: supervision-host handback: dispatch for demo (outcome 1), event teardown: per your away instructions: worker was blocked asking whether to skip a browser probe the accepted ruling (RULING.md) explicitly excludes from required evidence; unit tests green and config/appsettings.json confirmed FeatureFlags.NewHeader=true satisfies the other requirement, so I answered the blocker (key=routine-stop) telling it to skip the probe and record the config read as evidence, resolving it.; handle this lane under the existing away record, then park again
+=== supervision-host.log
+1792008862	start	gen=host-495495-1792008861	primary=claude
+1792008925	handled	turn=host-495495-1792008861.1	posture=away	rc=0	reports=1	error=0 cost=0.14844 conversation_cost=0.14844 input=32 cache_read=363966 cache_write=11497 output=4684 turns=16	signal: /tmp/fm-tsel.dEkjPB/labs/fm-lab-unstick-words2.i3PzIV/state/demo.status
+1792008925	to-main	away handback: check: supervision-host handback: dispatch for demo (outcome 1), event teardown: per your away instructions: worker was blocked asking whether to skip a browser probe the accepted ruling (RULING.md) explicitly excludes from required evidence; unit tests green and config/appsettings.json confirmed FeatureFlags.NewHeader=true satisfies the other requirement, so I answered the blocker (key=routine-stop) telling it to skip the probe and record the config read as evidence, resolving it.; handle this lane under the existing away record, then park again
+=== branch-outcomes.jsonl
+{"seq":1,"epoch":1792008908,"task":"demo","wake":"signal: /tmp/fm-tsel.dEkjPB/labs/fm-lab-unstick-words2.i3PzIV/state/demo.status","verdict":"routine","summary":"per your away instructions: worker was blocked asking whether to skip a browser probe the accepted ruling (RULING.md) explicitly excludes from required evidence; unit tests green and config/appsettings.json confirmed FeatureFlags.NewHeader=true satisfies the other requirement, so I answered the blocker (key=routine-stop) telling it to skip the probe and record the config read as evidence, resolving it.","silent":false,"statusEndpoint":624,"statusIdent":"strong:55:5481467:2026-10-14 22:14:22.153583522 +0200"}
+=== demo inbox
+--- /tmp/fm-tsel.dEkjPB/labs/fm-lab-unstick-words2.i3PzIV/state/demo.inbox/001.msg
+schema=fm-task-inbox.v1
+at=2026-10-14T20:14:58Z
+--
+Skip the browser probe: the accepted ruling at RULING.md explicitly excludes the settings-page browser check from required evidence, unit tests are green, and config/appsettings.json confirms FeatureFlags.NewHeader=true (the other required item). Proceed without the browser check and record this configuration read as your evidence.=== wake-queue handbacks
+1792008908	3	check	supervision-host-handback:1	check: supervision-host handback: dispatch for demo (outcome 1), event teardown: per your away instructions: worker was blocked asking whether to skip a browser probe the accepted ruling (RULING.md) explicitly excludes from required evidence; unit tests green and config/appsettings.json confirmed FeatureFlags.NewHeader=true satisfies the other requirement, so I answered the blocker (key=routine-stop) telling it to skip the probe and record the config read as evidence, resolving it.
+=== drain
+(no OPEN DECISIONS section)
+=== engine result
+Handled and closed out. Summary:
+
+- **Event**: `demo` worker was blocked (`key=routine-stop`) asking whether to skip a browser check of the settings page, citing no browser available in the sandbox.
+- **Verification**: Read the accepted ruling (`RULING.md`), which explicitly states the browser check is *not* required and lists the actual required evidence as (1) green unit tests — already reported green, and (2) `config/appsettings.json` setting `FeatureFlags.NewHeader: true` — confirmed true by reading the file directly.
+- **Remedy** (per the away words authorizing "unstuck workers"): answered the blocker via `fm-send.sh --resolve-key routine-stop`, directing the worker to skip the browser probe and record the config read as its evidence. Status log now shows `resolved [key=routine-stop]`.
+- **Reported**: verdict routine, `--main-action dispatch`, recorded for MAIN's next handback (away posture — held until return brief).
+- Wake acknowledged through seq 2; `demo` lease released.

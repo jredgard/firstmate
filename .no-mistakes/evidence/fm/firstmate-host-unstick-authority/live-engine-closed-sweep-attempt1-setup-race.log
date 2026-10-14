@@ -1,0 +1,14 @@
+=== host.rc: 0
+=== host.out
+watcher: started pid=495959 (beacon fresh)
+check: rearm-resurface
+supervision-host: the handling handoff to the successor watcher could not be confirmed; this wake is yours
+=== supervision-host.log
+1792008862	start	gen=host-495490-1792008861	primary=claude
+1792008863	to-main	the handling handoff to the successor watcher could not be confirmed; this wake is yours
+=== branch-outcomes.jsonl
+=== wake-queue handbacks
+(none)
+=== snapshot lines delivered to engine
+grep: /tmp/fm-tsel.dEkjPB/labs/fm-lab-sweep-closed.tkaPYq/live-engine-call.1: No such file or directory
+=== engine result

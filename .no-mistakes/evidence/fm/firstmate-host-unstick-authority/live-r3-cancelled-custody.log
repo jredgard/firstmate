@@ -1,0 +1,81 @@
+=== scenario: cancelled-custody   away words: unstuck workers; merge nothing   elapsed: 40s
+=== host.rc: (host still parked - no exit to MAIN)
+=== host.out
+=== supervision-host.log
+1792009815	start	gen=host-1171402-1792009815	primary=claude
+1792009852	handled	turn=host-1171402-1792009815.1	posture=away	rc=0	reports=1	error=0 cost=0.104176 conversation_cost=0.104176 input=28 cache_read=289898 cache_write=6712 output=2936 turns=14	signal: /tmp/fm-lab.odOrvB/state/demo.status
+=== branch-outcomes.jsonl
+{"seq":1,"epoch":1792009845,"task":"demo","wake":"signal: /tmp/fm-lab.odOrvB/state/demo.status","verdict":"routine","summary":"per your away instructions: unstuck workers — verified run 01RUNCANCEL was terminal (cancelled), no newer run owned fm/demo, the worktree was clean, and pushed head d9592ed preserved all task work (local d903ecd plus a fix-round commit); steered the worker to reset fm/demo to d9592ed and resume, and closed the routine-stop blocker via resolve-key.","silent":false,"statusEndpoint":555,"statusIdent":"strong:55:5498665:2026-10-14 22:30:16.067777482 +0200"}
+=== worker inbox
+--- /tmp/fm-lab.odOrvB/state/demo.inbox/001.msg
+schema=fm-task-inbox.v1
+at=2026-10-14T20:30:37Z
+--
+Verified: run 01RUNCANCEL is terminal (cancelled), no newer run owns fm/demo, your worktree is clean, and the pushed head d9592ed98512e2071b4df71440dabc7c905197cd is your local commit d903ecd plus a preserved fix-round commit (no task work is lost). Reset your local branch fm/demo to d9592ed98512e2071b4df71440dabc7c905197cd and resume.
+--- /tmp/fm-lab.odOrvB/state/demo.inbox/002.msg
+schema=fm-task-inbox.v1
+at=2026-10-14T20:30:40Z
+--
+Reset your branch fm/demo to the pushed head d9592ed98512e2071b4df71440dabc7c905197cd (verified terminal cancelled run, no newer run, clean worktree, all task work preserved in that head) and resume.
+=== wake-queue handback rows
+(none)
+=== demo.meta present: yes
+=== demo.status tail
+blocked [key=routine-stop] [at=1792009816]: no-mistakes run 01RUNCANCEL was cancelled; relaunch refused: 'branch custody: local head d903ecd differs from the pushed head d9592ed98512e2071b4df71440dabc7c905197cd required by the gate'. Worktree /tmp/fm-lab.odOrvB/projects/demo-wt is clean. Should I reset my branch to the pushed head?
+resolved [key=routine-stop] [at=1792009840]: answered: Reset your branch fm/demo to the pushed head d9592ed98512e2071b4df71440dabc7c905197cd (verified terminal cancelled run, no newer run, clean worktree, all [truncated]
+=== external CLI calls by the engine (fakes)
+tmux display-message -p -t fm-demo #{pane_id}
+no-mistakes axi status
+no-mistakes axi
+no-mistakes runs --limit 200
+tmux display-message -p -t fm-demo #{pane_id}
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+no-mistakes axi status
+no-mistakes axi
+no-mistakes runs --limit 200
+tmux display-message -p -t fm-demo #{pane_id}
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+no-mistakes axi status --run 01RUNCANCEL
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux display-message -p -t fm-demo #{cursor_y}
+tmux display-message -p -t fm-demo #{cursor_y}
+tmux capture-pane -p -t fm-demo -S -40
+tmux send-keys -t fm-demo -l : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your 'demo.inbox' steering inbox, read and act on each in numeric order, then mv each into its handled/.
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux display-message -p -t fm-demo #{cursor_y}
+tmux display-message -p -t fm-demo #{cursor_y}
+tmux capture-pane -p -t fm-demo -S -40
+tmux send-keys -t fm-demo -l : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your 'demo.inbox' steering inbox, read and act on each in numeric order, then mv each into its handled/.
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+tmux capture-pane -p -t fm-demo -S -40
+=== engine-facing drain (OPEN DECISIONS after turn)
+(no OPEN DECISIONS section)
