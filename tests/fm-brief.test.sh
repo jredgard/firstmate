@@ -1104,7 +1104,8 @@ test_workers_wait_without_spending_turns() {
   pass "fm-brief: workers end the turn on a decision, wait in one bounded shell command, and never poll"
 }
 
-# Without config/wait-no-turns the scaffold matches the pre-flag brief and drive text.
+# Without config/wait-no-turns the optional waiting section stays absent, while
+# the launch safety contract applies to every home.
 test_wait_no_turns_absent_keeps_the_previous_brief() {
   local home brief
   home="$TMP_ROOT/wait-off"
@@ -1116,10 +1117,11 @@ test_wait_no_turns_absent_keeps_the_previous_brief() {
   assert_no_grep "end your turn at once" "$brief" "an absent flag still added the waiting section"
   assert_grep "natural checkpoint" "$brief" "an absent flag dropped the unprompted inbox check"
   assert_no_grep "Do not poll or list the inbox while waiting" "$brief" "an absent flag still added the no-poll inbox line"
-  assert_grep "background the drive call" "$brief" "an absent flag replaced the backgrounded drive text"
-  assert_no_grep "issue the same foreground call again" "$brief" \
-    "an absent flag still asked for the foreground reattach"
-  pass "fm-brief: without config/wait-no-turns the brief and drive text stay as they were"
+  assert_grep "Run each bounded no-mistakes drive in the foreground" "$brief" \
+    "an absent waiting flag must still enforce foreground launch safety"
+  assert_grep "issue the same foreground call again" "$brief" \
+    "an absent waiting flag must still use safe foreground reattachment"
+  pass "fm-brief: without config/wait-no-turns optional waiting stays absent and launch safety remains"
 }
 
 test_worker_role_scope() {
@@ -1580,6 +1582,61 @@ test_run_versus_reattach_guidance() {
       FM_HOME="$home" bash "$ROOT/bin/fm-brief.sh" "$id" some-proj "$@" >/dev/null 2>&1 \
         || fail "$id: scaffold exited non-zero"
       brief="$home/data/$id/brief.md"
+      # The generated brief is the worker-facing launch and status protocol,
+      # not a proxy assertion over the renderer's implementation source.
+      assert_grep 'blocked [at=<epoch>]: no-mistakes drive produced no run; log=<log>' "$brief" \
+        "$id: an absent branch run must emit the exact launch-failure event"
+      assert_grep 'only after a successful status response confirms no run for your current branch' "$brief" \
+        "$id: status errors and other branches must not prove launch failure"
+      assert_grep "After each drive, inspect \`no-mistakes axi status\` for your current branch." "$brief" \
+        "$id: branch status must be inspected after every drive"
+      assert_grep 'Record each observed run id only once per run' "$brief" \
+        "$id: run-id recording must not wake firstmate on each drive"
+      assert_grep 'no-mistakes run=<run-id> log=<log>' "$brief" \
+        "$id: the one-time record must carry the run id and drive log"
+      assert_grep "in that run's declared-wait event using the status-reporting rule's configured wait verb" "$brief" \
+        "$id: run-id recording must follow the configured status protocol"
+      assert_grep 'or in a note only when no pause is active and before any subsequent pause' "$brief" \
+        "$id: a run-id note must precede any pause"
+      assert_grep 'append one updated declared-wait event with that id before reattaching' "$brief" \
+        "$id: a newly observed run id must preserve an active pause"
+      assert_grep 'never append a run-id note after an active pause and never record the same run id again on reattachment' "$brief" \
+        "$id: reattachment must neither retract the pause nor repeat run-id events"
+      assert_grep "Rule 7's one-time run-id update is the only exception" "$brief" \
+        "$id: the initial unknown-run pause must permit one run-id update"
+      case "$kind" in
+        no-mistakes|gerrit|skip)
+          assert_grep "Run each bounded no-mistakes drive in the foreground of your own shell" "$brief" \
+            "$id: default pipeline launch must be foreground in the worker shell"
+          # shellcheck disable=SC2016 # Backticks name the emitted worker contract literally.
+          assert_grep 'explicit bounded `--wait` (for example `--wait 5m`) and `> <log> 2>&1`' "$brief" \
+            "$id: every drive must bound its wait and capture its return"
+          assert_grep "Set your shell tool's timeout above \`--wait\` and choose \`--wait\` a little under that bound" "$brief" \
+            "$id: every home must size the shell-tool timeout above the pipeline wait"
+          assert_grep "in Codex keep waiting on the still-running foreground command with empty \`write_stdin\` polls until it returns" "$brief" \
+            "$id: Codex must stay attached until each foreground drive returns"
+          assert_grep "Declare each new wait using the brief's status-reporting rule before its first drive call" "$brief" \
+            "$id: new waits must be declared without repeating declarations on reattachment"
+          assert_grep 'A harness-backgrounded launch is forbidden' "$brief" \
+            "$id: launch must not rely on a harness keeping children alive"
+          assert_grep 'the harness can reap the child before a run exists, leaving an empty log' "$brief" \
+            "$id: launch contract must explain the observed failure"
+          assert_grep 'After each drive, read its log and follow rule 7 to inspect branch run state' "$brief" \
+            "$id: workers must inspect the return before recovery"
+          assert_no_grep 'So background the drive call' "$brief" \
+            "$id: obsolete background launch recommendation survived"
+          assert_no_grep 'backgrounded the same way' "$brief" \
+            "$id: reattachment must not revive the unsafe launch"
+          if [ "$wait_setting" = background ]; then
+            # shellcheck disable=SC2016 # Backticks name the emitted worker contract literally.
+            assert_grep 'The only permitted detached form is `setsid -f nohup no-mistakes axi <run|respond> ... --wait <duration> > <log> 2>&1 < /dev/null`' "$brief" \
+              "$id: detached launch must sever both session and input ownership"
+          else
+            assert_no_grep 'The only permitted detached form' "$brief" \
+              "$id: wait-no-turns must keep its foreground-only posture"
+          fi
+          ;;
+      esac
       assert_grep "Start a new run with \`no-mistakes axi run --intent\` only when no active run owns your current branch." "$brief" \
         "$id: starting validation must respect branch ownership"
       assert_grep 'Never start a second run while one owns the branch.' "$brief" \
