@@ -923,7 +923,7 @@ test_github_recorded_pr_landed_gate() {
       [ "$(backlog_row_state "$case_dir")" = 'done' ] || fail 'merged GitHub task stayed open'
     else
       expect_code 1 "$rc" "$fixture GitHub PR teardown"
-      assert_grep "REFUSED: GitHub pull request https://github.com/example/repo/pull/7 is not verifiably merged at the recorded head (state=$fixture)" "$case_dir/stderr" \
+      assert_grep "REFUSED: GitHub pull request https://github.com/example/repo/pull/7 for task task-x1 is not verifiably merged at the recorded head (state=$fixture)" "$case_dir/stderr" \
         'GitHub refusal did not name the PR and state'
       assert_refusal_retained_task_state "$case_dir" "$fixture" "$head"
       [ "$(backlog_row_state "$case_dir")" = in_flight ] || fail 'unmerged GitHub task was closed'

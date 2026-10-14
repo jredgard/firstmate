@@ -784,12 +784,12 @@ print_status_sections() {
 # both actors; never turn a task-named custom check's bare "merged" into a PR
 # association. Teardown repeats the identity check under the metadata lock.
 print_merge_cleanup_guidance() {  # <deduped-raw-rows>
-  local rows=$1 stamp seq kind key payload rest task url ignored
+  local rows=$1 stamp seq kind key payload rest task url
   while IFS=$'\t' read -r stamp seq kind key payload rest; do
     [ "$kind" = check ] || continue
     case "$payload" in
       'check: merge landed: '*)
-        read -r task url ignored <<< "${payload#check: merge landed: }"
+        read -r task url _ <<< "${payload#check: merge landed: }"
         fm_pr_task_id_valid "$task" || continue
         [ -e "$STATE/$task.meta" ] || [ -L "$STATE/$task.meta" ] || continue
         if fm_pr_require_task_url "$STATE/$task.meta" "$task" "$url"; then

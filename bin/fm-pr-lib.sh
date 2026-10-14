@@ -496,6 +496,8 @@ fm_pr_metadata_identity_parse() {
 # A merge-triggered retirement must carry the canonical identity from the event,
 # never a title match or a PR discovered from another task. Call under the task
 # metadata lock before cleanup; the drain uses the same check for its guidance.
+# FM_PR_TASK_MATCH_ERROR is consumed by bin/fm-teardown.sh and bin/fm-wake-drain.sh.
+# shellcheck disable=SC2034
 fm_pr_require_task_url() {  # <meta> <task-id> <event-pr-url>
   local meta=$1 id=$2 event_url
   FM_PR_TASK_MATCH_ERROR=
