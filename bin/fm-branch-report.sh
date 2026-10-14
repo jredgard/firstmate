@@ -159,8 +159,8 @@ fi
 
 # Host-only routing: never infer an action from the free-text outcome summary
 # or parse the captain's mandate. Shared status readers own open decisions.
-MERGED_TASKS=$(fm_pr_merged_check_tasks "$STATE" "$TURN_FILE")
 if [ "$MAIN_ACTION" = already-closed ]; then
+  MERGED_TASKS=$(fm_pr_merged_check_tasks "$STATE" "$TURN_FILE")
   if ! { [ "$(turn_field posture)" = away ] && fm_afk_contract_away_present "$STATE" \
     && [ "$VERDICT" = routine ] && [ "$SILENT" = false ] && [ ! -e "$STATE/$TASK.meta" ] \
     && [ ! -L "$STATE/$TASK.meta" ] \
@@ -181,8 +181,7 @@ if [ "$(turn_field posture)" = away ] && fm_afk_contract_away_present "$STATE"; 
     decision) TRIGGER=decision ;;
   esac
   TERMINAL_EVENT=''
-  if [ "$TASK" != fleet ] && { grep -Fxq "merged-task=$TASK" "$TURN_FILE" \
-    || printf '%s\n' "$MERGED_TASKS" | grep -Fxq "$TASK"; }; then
+  if [ "$TASK" != fleet ] && grep -Fxq "merged-task=$TASK" "$TURN_FILE"; then
     TERMINAL_EVENT='merge landed'
   fi
   EVENTS=$(awk -F '\t' -v task="$TASK" '$1 == "event=" task { sub(/^[^\t]*\t/, ""); print }' "$TURN_FILE")

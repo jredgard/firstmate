@@ -295,7 +295,7 @@ fm_pr_url_parse() {
 }
 
 fm_pr_merged_check_tasks() {
-  local state=$1 turn_file=$2 line pattern task number repo meta field found recorded_repo
+  local state=$1 turn_file=$2 line pattern task number repo meta field found recorded_repo match
   while IFS= read -r line || [ -n "$line" ]; do
     pattern='^check=check: merge landed: ([A-Za-z0-9._-]+) '
     if [[ "$line" =~ $pattern ]]; then
@@ -303,28 +303,34 @@ fm_pr_merged_check_tasks() {
       fm_pr_task_id_valid "$task" && printf '%s\n' "$task"
       continue
     fi
-    pattern='^check=check: [^:]+\.check\.sh: [A-Za-z0-9._-]+: PR ([1-9][0-9]*) MERGED \(([^()]+)\) - '
+    pattern='^check=check: [^:]+\.check\.sh: '
     [[ "$line" =~ $pattern ]] || continue
-    number=${BASH_REMATCH[1]}
-    repo=${BASH_REMATCH[2]}
-    found=0
-    for meta in "$state"/*.meta; do
-      [ -f "$meta" ] || continue
-      task=${meta##*/}
-      task=${task%.meta}
-      fm_pr_task_id_valid "$task" || continue
-      while IFS= read -r field || [ -n "$field" ]; do
-        case "$field" in pr=*) ;; *) continue ;; esac
-        fm_pr_url_parse "${field#pr=}" || continue
-        [ "$FM_PR_PROVIDER" = ado ] && [ "$FM_PR_NUMBER" = "$number" ] || continue
-        recorded_repo=${FM_PR_PATH##*/}
-        [ "${recorded_repo//%20/ }" = "$repo" ] || continue
-        printf '%s\n' "$task"
-        found=1
-        break
-      done < "$meta"
+    line=${line#"${BASH_REMATCH[0]}"}
+    pattern='(^| )[A-Za-z0-9._-]+: PR ([1-9][0-9]*) MERGED \(([^()]+)\) - '
+    while [[ "$line" =~ $pattern ]]; do
+      match=${BASH_REMATCH[0]}
+      number=${BASH_REMATCH[2]}
+      repo=${BASH_REMATCH[3]}
+      line=${line#*"$match"}
+      found=0
+      for meta in "$state"/*.meta; do
+        [ -f "$meta" ] || continue
+        task=${meta##*/}
+        task=${task%.meta}
+        fm_pr_task_id_valid "$task" || continue
+        while IFS= read -r field || [ -n "$field" ]; do
+          case "$field" in pr=*) ;; *) continue ;; esac
+          fm_pr_url_parse "${field#pr=}" || continue
+          [ "$FM_PR_PROVIDER" = ado ] && [ "$FM_PR_NUMBER" = "$number" ] || continue
+          recorded_repo=${FM_PR_PATH##*/}
+          [ "${recorded_repo//%20/ }" = "$repo" ] || continue
+          printf '%s\n' "$task"
+          found=1
+          break
+        done < "$meta"
+      done
+      [ "$found" -ne 0 ] || printf 'fleet\n'
     done
-    [ "$found" -ne 0 ] || printf 'fleet\n'
   done < "$turn_file"
 }
 
