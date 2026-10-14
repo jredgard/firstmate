@@ -103,8 +103,8 @@
 # "blocked:": pause for a known wait expected to clear on its own, including
 # the worker's own background work, pipeline or long command; blocked when
 # firstmate must act. The first-sight alert remains; repeats use the long cadence.
-# Rule 7 owns the pipeline status events: "note: no-mistakes run=<run-id>
-# log=<log>" records an observed branch run after each drive, and "blocked:
+# Rule 7 owns the pipeline status events: "no-mistakes run=<run-id> log=<log>"
+# records each observed branch run once in or before its declared wait; "blocked:
 # no-mistakes drive produced no run; log=<log>" reports a healthy daemon with
 # successful branch-scoped status proving no run exists. A status error or an
 # empty drive log alone never proves no run; bin/fm-dod-lib.sh owns safe launch.
@@ -163,6 +163,7 @@ IFS= read -r -d '' CREWMATE_PAUSE_INSTRUCTIONS <<EOF || true
    Use \`$PAUSED_VERB: {why}\` - distinct from \`blocked:\` - when deliberately waiting for work or an external condition expected to clear on its own, including your own validation round.
    Before ending your turn with your own background shell or monitor still running, or before waiting on your own pipeline run or a long foreground command, append \`$PAUSED_VERB [at=<epoch>]: {job and completion condition}\` to the status file.
    Name what you are waiting for and what will let you resume; do not repeat the declaration on every poll.
+   Rule 7's one-time run-id update is the only exception while the same pipeline wait remains active.
    Do not declare active implementation or reasoning as a wait.
    Firstmate may still raise one first-sight alert; the declared wait then uses the existing long recheck cadence instead of repeated possible-wedge alarms.
    When you know when the wait clears, include \`until <YYYY-MM-DDTHH:MMZ>\` (UTC) for a recheck at that time.
@@ -421,7 +422,7 @@ Give any `--wait` a duration a little under that bound.
 When the bound passes with nothing changed, repeat a non-pipeline blocking command; for a pipeline drive call, follow rule 7's run-versus-reattach guidance.
 The one exception is `respond`: it sent its answer before it began waiting, so follow rule 7 to reattach with `no-mistakes axi run --wait <duration>` instead.
 Never send the same `respond` again, because it would answer whichever gate parks next without you reading it.
-A wait your shell can watch this way needs no `paused:` line, except your own pipeline run, a long foreground command, or your own validation round, which you declare once just before its blocking hold: append `paused:` once just before its first blocking command, then stay in the command, and never append it again as you reissue that command.
+A wait your shell can watch this way needs no `paused:` line, except your own pipeline run, a long foreground command, or your own validation round, which you declare once just before its blocking hold: append `paused:` once just before its first blocking command, then stay in the command, and never append it again as you reissue that command except for rule 7's one-time run-id update.
 EOF
 WAIT_SECTION=${WAIT_SECTION%$'\n'}
 WAIT_BLOCK=
@@ -588,7 +589,9 @@ IFS= read -r -d '' SHARED_INFRA_RULE <<'EOF' || true
      A drive call whose wait elapsed, or whose waiting process was killed or timed out, has not by itself failed the run: reattach with `no-mistakes axi run --wait <duration>` using this brief's wait style and any required per-run skip flags.
      Reattachment waits on the existing run; it does not start another one.
      A `respond` already sent its answer before waiting: never resend that same response to reattach, because it could answer the next gate without you reading it.
-     After each drive, inspect `no-mistakes axi status` for your current branch; when it shows a run, append `note [at=<epoch>]: no-mistakes run=<run-id> log=<log>` with that run's id and the drive log path.
+     After each drive, inspect `no-mistakes axi status` for your current branch.
+     Record each observed run id only once per run as `no-mistakes run=<run-id> log=<log>` in that run's declared-wait event using the status-reporting rule's configured wait verb, or in a note only when no pause is active and before any subsequent pause.
+     If the run id first becomes known while its pause is active, append one updated declared-wait event with that id before reattaching; never append a run-id note after an active pause and never record the same run id again on reattachment.
      Before you append `blocked:` about the pipeline, run `no-mistakes daemon status` and
      `no-mistakes axi status`. If the daemon socket refuses connections or is missing, append
      `blocked [at=<epoch>]: {the daemon error}` and stop even when the local run record still says running or

@@ -366,9 +366,10 @@ fm_nm_driving_block() {  # <forge> [<nm-skip>]
   # The launch contract applies to every home and harness; wait-no-turns only
   # adds its stricter foreground-only waiting posture.
   drive_block="Run each bounded no-mistakes drive in the foreground of your own shell: use an explicit bounded \`--wait\` (for example \`--wait 5m\`) and \`> <log> 2>&1\` on both \`axi run\` and \`axi respond\`.
+Set your shell tool's timeout above \`--wait\` and choose \`--wait\` a little under that bound; in Codex keep waiting on the still-running foreground command with empty \`write_stdin\` polls until it returns.
 A harness-backgrounded launch is forbidden: the harness can reap the child before a run exists, leaving an empty log.
-Declare that wait using the brief's status-reporting rule before the drive call.
-After each drive, read its log and follow rule 7 to inspect branch run state and record the run id; an empty log or a killed waiting process alone proves neither launch failure nor daemon failure.
+Declare each new wait using the brief's status-reporting rule before its first drive call.
+After each drive, read its log and follow rule 7 to inspect branch run state; that rule also owns one-time run-id recording without retracting an active pause, and an empty log or a killed waiting process alone proves neither launch failure nor daemon failure.
 ${pr_return_line}Whenever a drive call returns without a gate or an outcome, follow rule 7's run-versus-reattach guidance and daemon-error checks to decide whether to reattach; when reattaching, use \`no-mistakes axi run\` $reattach_flags and issue the same foreground call again with a log redirect, one at a time, until a gate or outcome comes back${pr_reattach_clause} if it refuses because no run is active, read the finished outcome from \`no-mistakes axi status\`."
   wait_cfg=${CONFIG:-${FM_CONFIG_OVERRIDE:-${FM_HOME:-}/config}}
   if [ -e "$wait_cfg/wait-no-turns" ]; then

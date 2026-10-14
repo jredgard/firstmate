@@ -1588,6 +1588,22 @@ test_run_versus_reattach_guidance() {
         "$id: an absent branch run must emit the exact launch-failure event"
       assert_grep 'only after a successful status response confirms no run for your current branch' "$brief" \
         "$id: status errors and other branches must not prove launch failure"
+      assert_grep "After each drive, inspect \`no-mistakes axi status\` for your current branch." "$brief" \
+        "$id: branch status must be inspected after every drive"
+      assert_grep 'Record each observed run id only once per run' "$brief" \
+        "$id: run-id recording must not wake firstmate on each drive"
+      assert_grep 'no-mistakes run=<run-id> log=<log>' "$brief" \
+        "$id: the one-time record must carry the run id and drive log"
+      assert_grep "in that run's declared-wait event using the status-reporting rule's configured wait verb" "$brief" \
+        "$id: run-id recording must follow the configured status protocol"
+      assert_grep 'or in a note only when no pause is active and before any subsequent pause' "$brief" \
+        "$id: a run-id note must precede any pause"
+      assert_grep 'append one updated declared-wait event with that id before reattaching' "$brief" \
+        "$id: a newly observed run id must preserve an active pause"
+      assert_grep 'never append a run-id note after an active pause and never record the same run id again on reattachment' "$brief" \
+        "$id: reattachment must neither retract the pause nor repeat run-id events"
+      assert_grep "Rule 7's one-time run-id update is the only exception" "$brief" \
+        "$id: the initial unknown-run pause must permit one run-id update"
       case "$kind" in
         no-mistakes|gerrit|skip)
           assert_grep "Run each bounded no-mistakes drive in the foreground of your own shell" "$brief" \
@@ -1595,14 +1611,18 @@ test_run_versus_reattach_guidance() {
           # shellcheck disable=SC2016 # Backticks name the emitted worker contract literally.
           assert_grep 'explicit bounded `--wait` (for example `--wait 5m`) and `> <log> 2>&1`' "$brief" \
             "$id: every drive must bound its wait and capture its return"
+          assert_grep "Set your shell tool's timeout above \`--wait\` and choose \`--wait\` a little under that bound" "$brief" \
+            "$id: every home must size the shell-tool timeout above the pipeline wait"
+          assert_grep "in Codex keep waiting on the still-running foreground command with empty \`write_stdin\` polls until it returns" "$brief" \
+            "$id: Codex must stay attached until each foreground drive returns"
+          assert_grep "Declare each new wait using the brief's status-reporting rule before its first drive call" "$brief" \
+            "$id: new waits must be declared without repeating declarations on reattachment"
           assert_grep 'A harness-backgrounded launch is forbidden' "$brief" \
             "$id: launch must not rely on a harness keeping children alive"
           assert_grep 'the harness can reap the child before a run exists, leaving an empty log' "$brief" \
             "$id: launch contract must explain the observed failure"
-          assert_grep 'After each drive, read its log and follow rule 7 to inspect branch run state and record the run id' "$brief" \
+          assert_grep 'After each drive, read its log and follow rule 7 to inspect branch run state' "$brief" \
             "$id: workers must inspect the return before recovery"
-          assert_grep 'note [at=<epoch>]: no-mistakes run=<run-id> log=<log>' "$brief" \
-            "$id: status must carry the durable run id and drive log"
           assert_no_grep 'So background the drive call' "$brief" \
             "$id: obsolete background launch recommendation survived"
           assert_no_grep 'backgrounded the same way' "$brief" \
