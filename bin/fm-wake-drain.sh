@@ -790,6 +790,7 @@ print_merge_cleanup_guidance() {  # <deduped-raw-rows>
       'check: merge landed: '*)
         read -r task url ignored <<< "${payload#check: merge landed: }"
         fm_pr_task_id_valid "$task" || continue
+        [ -e "$STATE/$task.meta" ] || [ -L "$STATE/$task.meta" ] || continue
         if fm_pr_require_task_url "$STATE/$task.meta" "$task" "$url"; then
           printf 'MERGE CLEANUP: bin/fm-teardown.sh %s --merged-pr %s\n' "$task" "$FM_PR_META_URL"
         else

@@ -117,7 +117,7 @@ test_branch_teardown_requires_its_completed_pr() {
       gitlab) url=https://gitlab.example/o/r/-/merge_requests/8 ;;
       gerrit) url=https://gerrit.example/c/o/r/+/8 ;;
     esac
-    for variant in missing invalid duplicate open closed unreadable completed explicit foreign main local-only; do
+    for variant in missing invalid duplicate open closed unreadable completed explicit explicit-open explicit-unreadable relaunched foreign main local-only; do
       dir=$(make_case "branch-pr-$provider-$variant")
       actor=branch mode=no-mistakes merged_arg=()
       [ "$variant" != main ] || actor=main
@@ -132,16 +132,19 @@ test_branch_teardown_requires_its_completed_pr() {
         *) printf 'pr_head=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\npr=%s\n' "$url" >> "$dir/home/state/$id.meta" ;;
       esac
       case "$variant" in
-        explicit) merged_arg=(--merged-pr "$url") ;;
+        explicit|explicit-open|explicit-unreadable|relaunched) merged_arg=(--merged-pr "$url") ;;
         foreign) merged_arg=(--merged-pr https://github.com/o/r/pull/7) ;;
       esac
+      if [ "$variant" = relaunched ]; then
+        printf 'control_relaunch_tx=abc\ntraceparent=00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01\n' >> "$dir/home/state/$id.meta"
+      fi
       cat > "$dir/fakebin/forge" <<'SH'
 #!/usr/bin/env bash
 printf '%s %s\n' "${0##*/}" "$*" >> "$FM_FORGE_LOG"
-[ "$FM_FORGE_VARIANT" != unreadable ] || exit 1
+case "$FM_FORGE_VARIANT" in unreadable|explicit-unreadable) exit 1 ;; esac
 state=MERGED merged=true
 case "$FM_FORGE_VARIANT" in
-  open) state=OPEN merged=false ;;
+  open|explicit-open) state=OPEN merged=false ;;
   closed) state=CLOSED merged=false ;;
 esac
 case "${0##*/}" in
@@ -176,12 +179,13 @@ SH
         PATH="$dir/fakebin:$PATH" "$TEARDOWN" "$id" "${merged_arg[@]}" \
         > "$dir/out" 2> "$dir/err" || rc=$?
       case "$variant:$provider" in
-        completed:*|main:*|local-only:*|explicit:*)
+        completed:*|main:*|local-only:*|explicit:*|relaunched:*)
           [ "$rc" -eq 0 ] || fail "$provider/$variant: ordinary teardown refused: $(cat "$dir/err")"
           assert_absent "$dir/home/state/$id.meta" "$provider/$variant: successful teardown retained metadata"
-          if [ "$variant" = main ] || [ "$variant" = local-only ] \
-            || { [ "$variant" = explicit ] && [ "$provider" != github ]; }; then
-            [ ! -s "$dir/forge.log" ] || fail "$provider/$variant: identity-only cleanup queried the forge"
+          if [ "$variant" = main ] || [ "$variant" = local-only ]; then
+            [ ! -s "$dir/forge.log" ] || fail "$provider/$variant: exempt cleanup queried the forge"
+          else
+            [ -s "$dir/forge.log" ] || fail "$provider/$variant: cleanup skipped forge completion"
           fi
           ;;
         *)

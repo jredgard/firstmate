@@ -197,8 +197,8 @@
 #   It requires that exact canonical URL in the task's recorded pr=, under the
 #   metadata lock before cleanup. Missing, ambiguous, or foreign PRs refuse,
 #   including under --force; ordinary landed-work checks still run. Unattended
-#   delivery lanes outside local-only mode require a recorded PR and, without
-#   --merged-pr, a forge-confirmed merge before cleanup.
+#   delivery lanes outside local-only mode require a recorded PR and a
+#   forge-confirmed merge before cleanup, including with --merged-pr.
 #   --force skips ordinary-task dirty and landed-work checks, skips scout report
 #   checks, and discards secondmate child work for kind=secondmate. Only use it
 #   when the captain has explicitly said to discard the work.
@@ -562,7 +562,7 @@ if [ "$(fm_lease_actor)" = branch ] && [ "$(fm_meta_get "$META" mode)" != local-
     echo "REFUSED: merge cleanup for $ID requires one valid recorded pr= (PR ${MERGED_PR:-<missing or invalid>}); preserving task and worktree." >&2
     exit 1
   fi
-  if [ -z "$MERGED_PR" ] && ! (
+  if ! (
     case "$FM_PR_META_PROVIDER" in
       ado) fm_pr_ado_read_record "$FM_PR_META_URL" "$(fm_meta_get "$META" pr_head)" ;;
       github) fm_pr_github_read_record "${FM_PR_META_PATH%%/*}" "${FM_PR_META_PATH#*/}" "$FM_PR_META_NUMBER" ;;

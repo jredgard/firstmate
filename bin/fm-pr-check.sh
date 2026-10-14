@@ -9,9 +9,6 @@
 # GitHub, GitLab, Gerrit, and canonical dev.azure.com PR URLs are accepted.
 # A readable ownership mismatch refuses registration; an unreadable lookup
 # records pr_owner_verified=no and warns while retaining merge monitoring.
-# Gerrit ownership uses optional gerrit_change=<number> or
-# gerrit_change_id=<Change-Id> metadata; the latter matches the published
-# revision's Change-Id footer in the worker copy.
 # Azure DevOps requires an authenticated REST read and records its live head.
 # bin/fm-pr-poll.sh owns its merge, conflict, and abandonment notifications.
 # A GitHub or Azure DevOps pull request the forge reports as a draft is refused,
@@ -111,29 +108,6 @@ if [ "$PROVIDER" = gerrit ]; then
   if ! command -v jq >/dev/null 2>&1; then
     echo "error: watching a Gerrit change requires jq on PATH" >&2
     exit 1
-  fi
-  GERRIT_CHANGE=$(grep '^gerrit_change=' "$META" | tail -1 | cut -d= -f2- || true)
-  GERRIT_CHANGE_ID=$(grep '^gerrit_change_id=' "$META" | tail -1 | cut -d= -f2- || true)
-  if [[ "$GERRIT_CHANGE" =~ ^[1-9][0-9]*$ ]]; then
-    if [ "$GERRIT_CHANGE" != "$NUMBER" ]; then
-      echo "error: Gerrit change $URL does not belong to task $ID's recorded change $GERRIT_CHANGE; nothing recorded or armed" >&2
-      exit 1
-    fi
-    PR_OWNER_VERIFIED=yes
-  fi
-  if [[ "$GERRIT_CHANGE_ID" =~ ^I[0-9a-fA-F]{40}$ ]]; then
-    PR_OWNER_VERIFIED=no
-    REMOTE_CHANGE_ID=
-    if fm_pr_gerrit_read_revision "$HOST" "$NUMBER"; then
-      REMOTE_CHANGE_ID=$(git -C "$WT" show -s --format='%(trailers:key=Change-Id,valueonly)' "$FM_PR_RECORD_REVISION" 2>/dev/null) || REMOTE_CHANGE_ID=
-    fi
-    if [[ "$REMOTE_CHANGE_ID" =~ ^I[0-9a-fA-F]{40}$ ]]; then
-      if [ "$(printf '%s' "$REMOTE_CHANGE_ID" | tr 'A-F' 'a-f')" != "$(printf '%s' "$GERRIT_CHANGE_ID" | tr 'A-F' 'a-f')" ]; then
-        echo "error: Gerrit change $URL does not belong to task $ID's recorded Change-Id $GERRIT_CHANGE_ID; nothing recorded or armed" >&2
-        exit 1
-      fi
-      PR_OWNER_VERIFIED=yes
-    fi
   fi
 fi
 if [ "$PROVIDER" = ado ]; then
@@ -243,13 +217,6 @@ META_LOCK_HELD=1
   || { echo "error: task metadata is unavailable" >&2; exit 1; }
 if [ "$PROVIDER" != gerrit ] && [ "$(grep '^branch=' "$META" | tail -1 | cut -d= -f2- || true)" != "$TASK_BRANCH" ]; then
   echo "error: task $ID's recorded branch changed during PR registration; nothing recorded or armed" >&2
-  exit 1
-fi
-if [ "$PROVIDER" = gerrit ] && {
-  [ "$(grep '^gerrit_change=' "$META" | tail -1 | cut -d= -f2- || true)" != "$GERRIT_CHANGE" ] \
-    || [ "$(grep '^gerrit_change_id=' "$META" | tail -1 | cut -d= -f2- || true)" != "$GERRIT_CHANGE_ID" ];
-}; then
-  echo "error: task $ID's recorded Gerrit identity changed during PR registration; nothing recorded or armed" >&2
   exit 1
 fi
 META_DEVICE=$(fm_pr_file_device "$META") || exit 1

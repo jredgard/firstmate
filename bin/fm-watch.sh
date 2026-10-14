@@ -2845,6 +2845,10 @@ while :; do
       if [ "$is_pr_poll" -eq 0 ] && [ -f "$STATE/$(basename "$c" .check.sh).meta" ] \
         && printf '%s\n' "$out" | LC_ALL=C grep -iE 'merged|merge landed' >/dev/null; then
         out="REFUSED: unbound merge result from custom check $c; register the task's own PR with bin/fm-pr-check.sh instead of matching PR titles"$'\n'"$out"
+        reason="check: $c: $out"
+        fm_wake_append check "$c" "$reason" || exit 1
+        pr_poll_check_output="${pr_poll_check_output}${reason}"$'\n'
+        continue
       fi
       if [ -n "$out" ]; then
         if [ "$(basename "$c")" = contributions.check.sh ]; then
