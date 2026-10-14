@@ -2231,15 +2231,10 @@ EOF
   pass "the Gerrit watch wakes only on an explicit merged status and never on submittability"
 }
 
-# A push to refs/for/ leaves no ref a fetch can see, so a remote-tracking ref
-# that holds the worker's HEAD - the no-mistakes gate branch after a pipeline
-# run - says nothing about what was published. Arming accepts the named head
-# only when a live read shows the change's current patch set carrying that
-# HEAD's tree - the squash is a new commit on the server's base, so the tree and
-# not the commit names what was published - and refuses otherwise, before
-# anything is recorded or armed. Once arming has recorded the change as pr=, a
-# later done naming it is accepted from that record without a read, so a
-# reviewer's rebase or new patch set on the server does not revoke it.
+# Arming a Gerrit watch records the canonical change identity and no pr_head.
+# A Gerrit revision names one patch set, and bin/fm-review-diff.sh has no Gerrit
+# path to resolve a current head with, so a recorded revision would quietly
+# become the reviewed content after the next amend.
 test_gerrit_arming_records_no_patch_set_revision() {
   local dir state rc out
   dir=$(make_case gerrit-arming)
@@ -2273,7 +2268,15 @@ test_gerrit_arming_records_no_patch_set_revision() {
   pass "Gerrit arming records no patch set revision and the merge path refuses to submit"
 }
 
-
+# A push to refs/for/ leaves no ref a fetch can see, so a remote-tracking ref
+# that holds the worker's HEAD - the no-mistakes gate branch after a pipeline
+# run - says nothing about what was published. Arming accepts the named head
+# only when a live read shows the change's current patch set carrying that
+# HEAD's tree - the squash is a new commit on the server's base, so the tree and
+# not the commit names what was published - and refuses otherwise, before
+# anything is recorded or armed. Once arming has recorded the change as pr=, a
+# later done naming it is accepted from that record without a read, so a
+# reviewer's rebase or new patch set on the server does not revoke it.
 test_gerrit_ready_gate_reads_the_published_tree() {
   local dir state base published other out rc
   dir=$(make_case gerrit-ready-gate)

@@ -57,7 +57,7 @@ test_merge_wake_guidance_preserves_pr_identity() {
     case "$variant" in
       missing) assert_grep 'requires one valid recorded pr=' "$out" 'missing: cleanup guidance did not refuse' ;;
       foreign) assert_grep "names $event_url but recorded pr=https://github.com/o/r/pull/7" "$out" 'foreign: cleanup guidance did not refuse' ;;
-      bare) assert_no_grep 'REFUSED: bare merged check' "$out" 'drain duplicated the watcher refusal' ;;
+      bare) assert_no_grep 'REFUSED: merge cleanup' "$out" 'custom-check row produced task cleanup refusal' ;;
       matching|relaunched) assert_grep "MERGE CLEANUP: bin/fm-teardown.sh $task --merged-pr $event_url" "$out" 'matching: guarded cleanup command missing' ;;
     esac
     if [ "$variant" != matching ] && [ "$variant" != relaunched ]; then

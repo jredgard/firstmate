@@ -205,6 +205,79 @@ SH
   pass "branch teardown requires a recorded completed PR on every forge; explicit identity, attended main, and local-only paths retain their contracts"
 }
 
+test_branch_teardown_bounds_completion_reads_and_releases_locks() {
+  local dir id=merge-task provider variant url before rc tool
+  local -a merged_arg
+  . "$ROOT/bin/fm-timeout-lib.sh"
+  for provider in github github-axi gitlab gerrit ado; do
+    case "$provider" in
+      github|github-axi) url=https://github.com/o/r/pull/8 ;;
+      gitlab) url=https://gitlab.example/o/r/-/merge_requests/8 ;;
+      gerrit) url=https://gerrit.example/c/o/r/+/8 ;;
+      ado) url=https://dev.azure.com/acme/project/_git/repo/pullrequest/8 ;;
+    esac
+    for variant in implicit explicit; do
+      dir=$(make_case "branch-pr-timeout-$provider-$variant")
+      fm_write_meta "$dir/home/state/$id.meta" \
+        "window=isolated:fm-$id" "endpoint_task_id=$id" "spawn_gen=merge-safety" \
+        "kind=ship" "mode=no-mistakes" "worktree=$dir/worktree" "project=$dir/project" \
+        "pr=$url" "pr_head=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      printf 'working: keep task\n' > "$dir/home/state/$id.status"
+      printf '#!/usr/bin/env bash\nprintf "keep check\\n"\n' > "$dir/home/state/$id.check.sh"
+      cat > "$dir/fakebin/forge" <<'SH'
+#!/usr/bin/env bash
+printf '%s %s\n' "${0##*/}" "$*" >> "$FM_FORGE_LOG"
+case "$FM_FORGE_PROVIDER:${0##*/}" in
+  github-axi:gh) exit 1 ;;
+  ado:curl) exec sleep 30 ;;
+  ado:az) printf 'fixture-token\n'; exit 0 ;;
+  *) exec sleep 30 ;;
+esac
+SH
+      chmod 0700 "$dir/fakebin/forge"
+      for tool in gh gh-axi glab gerrit-axi az curl; do
+        ln -s forge "$dir/fakebin/$tool"
+      done
+      before=$(cat "$dir/home/state/$id.meta")
+      merged_arg=()
+      [ "$variant" != explicit ] || merged_arg=(--merged-pr "$url")
+      rc=0
+      fm_run_timed 20 env FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" \
+        FM_SUPERVISION_ACTOR=branch FM_RUNTIME_LOG="$dir/runtime.log" \
+        FM_FORGE_LOG="$dir/forge.log" FM_FORGE_PROVIDER="$provider" \
+        PATH="$dir/fakebin:$PATH" "$TEARDOWN" "$id" "${merged_arg[@]}" \
+        > "$dir/out" 2> "$dir/err" || rc=$?
+      [ "$rc" -eq 1 ] || fail "$provider/$variant: completion read did not refuse within its bound (rc=$rc)"
+      case "$provider" in
+        github) tool=gh ;;
+        github-axi) tool=gh-axi ;;
+        gitlab) tool=glab ;;
+        gerrit) tool=gerrit-axi ;;
+        ado) tool=curl ;;
+      esac
+      assert_grep "$tool " "$dir/forge.log" "$provider/$variant: fixture never reached its stalled forge read"
+      assert_grep "cannot verify PR $url as completed" "$dir/err" "$provider/$variant: timeout did not refuse cleanup"
+      [ "$(cat "$dir/home/state/$id.meta")" = "$before" ] || fail "$provider/$variant: timeout changed metadata"
+      assert_grep 'working: keep task' "$dir/home/state/$id.status" "$provider/$variant: timeout removed task status"
+      assert_present "$dir/home/state/$id.check.sh" "$provider/$variant: timeout removed task check"
+      assert_present "$dir/worktree/sentinel" "$provider/$variant: timeout changed worktree"
+      [ ! -s "$dir/runtime.log" ] || fail "$provider/$variant: timeout invoked runtime cleanup"
+      assert_absent "$dir/home/state/.control-$id.lock" "$provider/$variant: timeout left its control lock"
+      assert_absent "$dir/home/state/.meta-$id.lock" "$provider/$variant: timeout left its metadata lock"
+      bash -c '
+        . "$1"
+        control="$2/.control-$3.lock"
+        meta=$(fm_meta_lock_path "$2/$3.meta") || exit 1
+        fm_lock_try_acquire "$control" || exit 1
+        fm_lock_try_acquire "$meta" || { fm_lock_release "$control"; exit 1; }
+        fm_lock_release "$meta" && fm_lock_release "$control"
+      ' _ "$ROOT/bin/fm-wake-lib.sh" "$dir/home/state" "$id" \
+        || fail "$provider/$variant: timeout retained a task lock"
+    done
+  done
+  pass "branch completion timeouts preserve task state and release both locks on every forge and GitHub read path"
+}
+
 test_branch_teardown_preserves_pushed_work_without_a_pr() {
   local dir id=live-task rc before
   dir=$(make_case branch-pushed-without-pr)
@@ -1617,6 +1690,7 @@ test_already_gone_endpoint_still_completes_without_a_refusal() {
 test_merge_cleanup_requires_the_tasks_own_pr
 test_branch_teardown_preserves_pushed_work_without_a_pr
 test_branch_teardown_requires_its_completed_pr
+test_branch_teardown_bounds_completion_reads_and_releases_locks
 test_branch_local_only_keeps_the_landed_work_proof
 test_invalid_endpoint_records_refuse_before_mutation
 test_control_lock_contention_refuses_before_mutation

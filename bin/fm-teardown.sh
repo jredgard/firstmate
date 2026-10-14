@@ -562,19 +562,23 @@ if [ "$(fm_lease_actor)" = branch ] && [ "$(fm_meta_get "$META" mode)" != local-
     echo "REFUSED: merge cleanup for $ID requires one valid recorded pr= (PR ${MERGED_PR:-<missing or invalid>}); preserving task and worktree." >&2
     exit 1
   fi
-  if ! (
-    case "$FM_PR_META_PROVIDER" in
-      ado) fm_pr_ado_read_record "$FM_PR_META_URL" "$(fm_meta_get "$META" pr_head)" ;;
-      github) fm_pr_github_read_record "${FM_PR_META_PATH%%/*}" "${FM_PR_META_PATH#*/}" "$FM_PR_META_NUMBER" ;;
-      gitlab) fm_pr_gitlab_read_record "$FM_PR_META_HOST" "$FM_PR_META_PATH" "$FM_PR_META_NUMBER" ;;
-      gerrit) fm_pr_gerrit_read_record "$FM_PR_META_HOST" "$FM_PR_META_NUMBER" ;;
+  # shellcheck disable=SC2016
+  if ! fm_run_timed 10 bash -c '
+    . "$1"
+    case "$2" in
+      ado) fm_pr_ado_read_record "$3" "$7" ;;
+      github) fm_pr_github_read_record "${5%%/*}" "${5#*/}" "$6" ;;
+      gitlab) fm_pr_gitlab_read_record "$4" "$5" "$6" ;;
+      gerrit) fm_pr_gerrit_read_record "$4" "$6" ;;
       *) exit 1 ;;
     esac || exit 1
     case "$FM_PR_RECORD_STATE:$FM_PR_RECORD_MERGED" in
       MERGED:true|merged:true|completed:true) exit 0 ;;
       *) exit 1 ;;
     esac
-  ); then
+  ' _ "$SCRIPT_DIR/fm-pr-lib.sh" "$FM_PR_META_PROVIDER" "$FM_PR_META_URL" \
+    "$FM_PR_META_HOST" "$FM_PR_META_PATH" "$FM_PR_META_NUMBER" \
+    "$(fm_meta_get "$META" pr_head)" 2>/dev/null; then
     echo "REFUSED: merge cleanup for $ID cannot verify PR $FM_PR_META_URL as completed; preserving task and worktree." >&2
     exit 1
   fi
