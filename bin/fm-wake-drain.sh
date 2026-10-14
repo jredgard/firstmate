@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Present durable watcher wake records, retire rows no actor could ever consume,
-# optionally acknowledge handled records,
+# optionally acknowledge handled records, print guarded MERGE CLEANUP commands
+# for merge-landed events,
 # annotate every unread line for validated signal status keys, surface unread
 # informational status lines, latest captain-facing statuses not covered by a
 # newer branch outcome, OPEN DECISIONS, captain-call record divergence, and on
