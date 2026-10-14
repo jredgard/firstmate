@@ -221,13 +221,6 @@ case "${1:-} ${2:-}" in
 esac
 exit "${FM_TEST_GH_AXI_RC:-0}"
 SH
-  cat > "$fakebin/curl" <<'SH'
-#!/usr/bin/env bash
-[ -n "${FM_TEST_GLAB_REST_JSON:-}" ] || exit 1
-[ -z "${FM_TEST_GLAB_REST_LOG:-}" ] || printf '%s\n' "$*" >> "$FM_TEST_GLAB_REST_LOG"
-printf '%s\n' "$FM_TEST_GLAB_REST_JSON"
-SH
-  chmod +x "$fakebin/curl"
   # Plain glab, reproducing the real CLI's contract: its field output on stdout
   # and exit 0 on success, and a non-zero exit with no stdout on any failure.
   cat > "$fakebin/glab" <<'SH'
@@ -236,7 +229,7 @@ printf '%s\n' "$*" >> "$FM_TEST_GLAB_LOG"
 [ "${FM_TEST_GLAB_FAIL:-0}" = 0 ] || exit 1
 [ "${FM_TEST_GLAB_SLEEP:-0}" = 0 ] || sleep "$FM_TEST_GLAB_SLEEP"
 case " $* " in
-  *" --output json "*)
+  *" -F json "*)
     [ "${FM_TEST_GLAB_SOURCE_FAIL:-0}" = 0 ] || { printf '{"source_branch":"fm/foreign"}\n'; exit 1; }
     [ -z "${FM_TEST_GLAB_SOURCE_HOOK:-}" ] || "$FM_TEST_GLAB_SOURCE_HOOK"
     printf '{"source_branch":"%s"}\n' "${FM_TEST_GLAB_SOURCE-fm/example}"
@@ -1097,38 +1090,6 @@ test_provider_ownership_registration() {
     done
   done
   pass "GitLab and Gerrit register matching or unreadable ownership, record the verdict, and refuse foreign task identities"
-}
-
-test_gitlab_rest_ownership_without_glab() {
-  local dir state variant url before rc noglab
-  noglab=$(fm_test_base_path_sans "$BASE_PATH" glab)
-  url=https://gitlab.example/group/subgroup/project/-/merge_requests/7
-  for variant in matching foreign unreadable; do
-    dir=$(make_case "ownership-gitlab-rest-$variant")
-    state="$dir/home/state"
-    write_task_meta "$dir"
-    rm -f "$dir/fakebin/glab"
-    ln -s "$REAL_JQ" "$dir/fakebin/jq"
-    before=$(state_snapshot "$state")
-    case "$variant" in
-      matching) FM_TEST_GLAB_REST_JSON='{"source_branch":"fm/example"}' ;;
-      foreign) FM_TEST_GLAB_REST_JSON='{"source_branch":"fm/foreign"}' ;;
-      unreadable) FM_TEST_GLAB_REST_JSON='{}' ;;
-    esac
-    export FM_TEST_GLAB_REST_JSON
-    rc=0
-    FM_TEST_GLAB_REST_LOG="$dir/rest.log" BASE_PATH="$noglab" run_check_entry "$dir" task-a "$url" > "$dir/out" 2> "$dir/err" || rc=$?
-    unset FM_TEST_GLAB_REST_JSON
-    [ "$rc" -ne 0 ] || fail 'GitLab armed a poll without its required monitoring CLI'
-    assert_grep 'https://gitlab.example/api/v4/projects/group%2Fsubgroup%2Fproject/merge_requests/7' "$dir/rest.log" 'GitLab ownership REST read addressed the wrong project'
-    if [ "$variant" = foreign ]; then
-      assert_grep 'does not belong to task task-a' "$dir/err" 'GitLab REST ownership mismatch did not refuse'
-    else
-      assert_grep 'requires glab on PATH' "$dir/err" 'GitLab lost its existing monitoring dependency check'
-    fi
-    [ "$(state_snapshot "$state")" = "$before" ] || fail 'GitLab REST refusal changed task state'
-  done
-  pass "GitLab reads REST ownership without glab and preserves its monitoring dependency boundary"
 }
 
 test_github_registration_requires_the_recorded_branch() {
@@ -2624,16 +2585,13 @@ EOF
   [ ! -e "$state/task-b.check.sh" ] || fail "refused GitLab arming left a poll armed"
 
   # The merge path addresses the forge the URL names, and never the other one.
-  # This fixture's glab answers with the field output the poll reads, so the
-  # merge's JSON read cannot be parsed, which must refuse rather than merge on a
-  # state it could not read.
   write_task_meta "$dir" task-c
   : > "$dir/glab.log"
   # The merge path needs jq before it reads anything, so this case supplies it
   # and the refusal below is the unreadable state rather than a missing tool.
   ln -sf "$REAL_JQ" "$dir/fakebin/jq"
   set +e
-  run_merge_entry "$dir" task-c "$url" >/dev/null 2> "$dir/merge-c.err"
+  FM_TEST_GLAB_FAIL=1 run_merge_entry "$dir" task-c "$url" >/dev/null 2> "$dir/merge-c.err"
   rc=$?
   set -e
   [ "$rc" -ne 0 ] || fail "merge wrapper merged a GitLab merge request it could not read"
@@ -4070,7 +4028,6 @@ test_validated_six_argument_compatibility
 test_gitlab_merge_watch
 test_gerrit_merge_watch
 test_provider_ownership_registration
-test_gitlab_rest_ownership_without_glab
 test_gerrit_arming_records_no_patch_set_revision
 test_gerrit_ready_gate_reads_the_published_tree
 test_gerrit_nm_ready_gate_requires_recovered_custody

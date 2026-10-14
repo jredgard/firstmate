@@ -92,13 +92,11 @@ if [ "$PROVIDER" = github ]; then
   SOURCE_BRANCH=$(fm_run_timed 20 gh pr view "$URL" --json headRefName -q '.headRefName // empty' 2>/dev/null) || SOURCE_BRANCH=
 fi
 if [ "$PROVIDER" = gitlab ]; then
-  OWNER_JSON=
-  if command -v glab >/dev/null 2>&1; then
-    OWNER_JSON=$(GITLAB_HOST="$HOST" fm_run_timed 20 glab mr view "$NUMBER" -R "https://$HOST/$PROJECT_PATH" --output json 2>/dev/null) || OWNER_JSON=
-  elif command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
-    ENCODED_PROJECT=$(jq -rn --arg path "$PROJECT_PATH" '$path | @uri')
-    OWNER_JSON=$(curl -fsS --max-time 20 "https://$HOST/api/v4/projects/$ENCODED_PROJECT/merge_requests/$NUMBER" 2>/dev/null) || OWNER_JSON=
+  if ! command -v glab >/dev/null 2>&1; then
+    echo "error: watching a GitLab merge request requires glab on PATH" >&2
+    exit 1
   fi
+  OWNER_JSON=$(GITLAB_HOST="$HOST" fm_run_timed 20 glab mr view "$NUMBER" -R "https://$HOST/$PROJECT_PATH" -F json 2>/dev/null) || OWNER_JSON=
   SOURCE_BRANCH=$(printf '%s' "$OWNER_JSON" | jq -r 'if (.source_branch | type) == "string" then .source_branch else empty end' 2>/dev/null) || SOURCE_BRANCH=
 fi
 if [ "$PROVIDER" = gerrit ]; then
@@ -179,10 +177,6 @@ if [ -n "$TASK_BRANCH" ] && [ -n "$SOURCE_BRANCH" ]; then
     exit 1
   fi
   PR_OWNER_VERIFIED=yes
-fi
-if [ "$PROVIDER" = gitlab ] && ! command -v glab >/dev/null 2>&1; then
-  echo "error: watching a GitLab merge request requires glab on PATH" >&2
-  exit 1
 fi
 
 "$FM_ROOT/bin/fm-guard.sh" || true
