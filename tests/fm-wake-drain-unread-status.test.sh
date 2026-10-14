@@ -33,6 +33,37 @@ prime_cursor() {  # <state> <status-file>
     || fail "bootstrap drain failed while priming the unread cursor"
 }
 
+test_merge_wake_guidance_preserves_pr_identity() {
+  local dir state out variant task=merge-task event_url='https://github.com/o/r/pull/8'
+  for variant in missing foreign matching bare; do
+    dir=$(make_case "merge-wake-$variant")
+    state="$dir/state"
+    out="$dir/drain.out"
+    fm_write_meta "$state/$task.meta" "kind=ship" "mode=no-mistakes"
+    case "$variant" in
+      foreign) printf 'pr=https://github.com/o/r/pull/7\n' >> "$state/$task.meta" ;;
+      matching|bare) printf 'pr=%s\n' "$event_url" >> "$state/$task.meta" ;;
+    esac
+    if [ "$variant" = bare ]; then
+      append_wake "$state" check "$state/$task.check.sh" "check: $state/$task.check.sh: merged"
+    else
+      append_wake "$state" check "merge-landed-$task" "check: merge landed: $task $event_url away"
+    fi
+    FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out" 2> "$dir/drain.err" || fail "$variant: merge wake drain failed"
+    case "$variant" in
+      missing) assert_grep 'requires one valid recorded pr=' "$out" 'missing: cleanup guidance did not refuse' ;;
+      foreign) assert_grep "names $event_url but recorded pr=https://github.com/o/r/pull/7" "$out" 'foreign: cleanup guidance did not refuse' ;;
+      bare) assert_grep 'carries no event PR identity' "$out" 'bare custom merged result became cleanup evidence' ;;
+      matching) assert_grep "MERGE CLEANUP: bin/fm-teardown.sh $task --merged-pr $event_url" "$out" 'matching: guarded cleanup command missing' ;;
+    esac
+    if [ "$variant" != matching ]; then
+      assert_no_grep 'MERGE CLEANUP:' "$out" "$variant: unsafe event presented a cleanup command"
+    fi
+    assert_present "$state/$task.meta" "$variant: merge wake removed the task"
+  done
+  pass "merge wake guidance requires the exact task PR and rejects bare custom merge output"
+}
+
 test_incident_note_answer_buried_under_routine_note_surfaces_both() {
   local dir state out status
   dir=$(make_case incident-buried-note)
@@ -449,6 +480,7 @@ test_routine_working_and_covered_done_stay_silent_on_the_empty_queue() {
   pass "routine working and branch-covered done lines print nothing on an empty-queue drain"
 }
 
+test_merge_wake_guidance_preserves_pr_identity
 test_incident_note_answer_buried_under_routine_note_surfaces_both
 test_already_presented_notes_are_not_replayed
 test_brand_new_note_after_presentation_is_surfaced

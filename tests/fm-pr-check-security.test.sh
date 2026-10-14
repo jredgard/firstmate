@@ -1009,6 +1009,28 @@ SH
   ln -s "$REAL_JQ" "$dir/fakebin/jq"
 }
 
+test_ado_registration_rejects_another_tasks_branch() {
+  local dir state url rc before
+  dir=$(make_case ado-foreign-branch)
+  state="$dir/home/state"
+  url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
+  add_ado_mocks "$dir"
+  write_task_meta "$dir"
+  printf 'branch=fm/task-a\n' >> "$state/task-a.meta"
+  before=$(state_snapshot "$state")
+  rc=0
+  FM_TEST_ADO_DIR="$dir" run_check_entry "$dir" task-a "$url" > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+  [ "$rc" -ne 0 ] || fail "foreign PR source branch was registered for task-a"
+  assert_grep "does not belong to task task-a's recorded branch fm/task-a" "$dir/stderr" 'foreign source branch not diagnosed'
+  [ "$(state_snapshot "$state")" = "$before" ] || fail "foreign PR association altered task state"
+  sed 's@branch=fm/task-a@branch=fm/example@' "$state/task-a.meta" > "$dir/matching.meta"
+  cat "$dir/matching.meta" > "$state/task-a.meta"
+  FM_TEST_ADO_DIR="$dir" run_check_entry "$dir" task-a "$url" > "$dir/matching.out" 2> "$dir/matching.err" \
+    || fail "exact source branch refused registration: $(cat "$dir/matching.err")"
+  fm_pr_poll_artifacts_valid "$state" task-a "$POLL" || fail "own source branch did not arm a bound poll"
+  pass "ADO PR registration rejects a foreign source branch and accepts the recorded task branch"
+}
+
 test_ado_registration_and_poll() {
   local dir state url out rc variant
   dir=$(make_case ado-registration)
@@ -2474,6 +2496,25 @@ poll_artifact_snapshot() {
   done
 }
 
+test_custom_merged_result_is_not_a_task_merge() {
+  local dir state rc url='https://github.com/o/r/pull/9'
+  dir=$(make_case task-custom-foreign-merge)
+  state="$dir/home/state"
+  write_poll_meta "$state" task-a "$url"
+  printf '#!/usr/bin/env bash\nprintf "merged\\n"\n' > "$state/task-a.check.sh"
+  chmod 0700 "$state/task-a.check.sh"
+  FM_HOME="$dir/home" "$REGISTER" task-a >/dev/null || fail "custom check registration failed"
+  rc=0
+  run_watcher_bounded "$dir/home" "$dir/fakebin" > "$dir/watch.out" 2> "$dir/watch.err" || rc=$?
+  [ "$rc" -eq 0 ] || fail "custom merge check failed: $(cat "$dir/watch.err")"
+  assert_grep 'REFUSED: unbound merge result from custom check' "$dir/watch.out" 'custom merged output was relayed as task completion'
+  assert_no_grep 'check: merge landed:' "$state/.wake-queue" 'custom merged output created a landed event'
+  assert_present "$state/task-a.meta" 'custom merged output retired task metadata'
+  assert_present "$state/task-a.check.sh" 'custom merge check was retired'
+  grep -qxF "pr=$url" "$state/task-a.meta" || fail "custom merge check rebound recorded PR"
+  pass "a byte-authenticated task custom check cannot report an unrelated merged PR as task completion"
+}
+
 test_merged_poll_retires_once() {
   local dir state rc first second meta_before
   dir=$(make_case merged-retirement-once)
@@ -3785,6 +3826,7 @@ SH
 }
 
 if [ "${1:-}" = --ado-only ]; then
+  test_ado_registration_rejects_another_tasks_branch
   test_ado_registration_and_poll
   test_ado_poll_states_and_watch_wakes
   test_ado_wake_failure_retries
@@ -3796,6 +3838,7 @@ if [ "${1:-}" = --ado-only ]; then
 fi
 
 test_parser_matrix
+test_ado_registration_rejects_another_tasks_branch
 test_ado_registration_and_poll
 test_ado_poll_states_and_watch_wakes
 test_ado_wake_failure_retries
@@ -3806,6 +3849,7 @@ test_gerrit_merge_watch
 test_gerrit_arming_records_no_patch_set_revision
 test_gerrit_ready_gate_reads_the_published_tree
 test_gerrit_nm_ready_gate_requires_recovered_custody
+test_custom_merged_result_is_not_a_task_merge
 test_merged_poll_retires_once
 test_merged_poll_reregistration_after_notification_is_absorbed
 test_merged_poll_retries_a_failed_upward_report

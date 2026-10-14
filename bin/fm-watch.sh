@@ -2838,6 +2838,17 @@ while :; do
           continue
         fi
       fi
+      # Custom-check authentication binds bytes, not PR ownership. Only the
+      # canonical metadata-bound poll may report a merge for task cleanup.
+      # Keep the custom source armed and wake for repair instead of relaying an
+      # unrelated merge as a task completion.
+      if [ "$is_pr_poll" -eq 0 ]; then
+        case "$out" in
+          merged|merged\ *|merge\ landed:*)
+            out="REFUSED: unbound merge result from custom check $c; register the task's own PR with bin/fm-pr-check.sh instead of matching PR titles"
+            ;;
+        esac
+      fi
       if [ -n "$out" ]; then
         if [ "$(basename "$c")" = contributions.check.sh ]; then
           contribution_check_output=

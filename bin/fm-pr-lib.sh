@@ -501,6 +501,27 @@ fm_pr_metadata_identity_parse() {
   [ -n "$FM_PR_META_URL" ]
 }
 
+# A merge-triggered retirement must carry the canonical identity from the event,
+# never a title match or a PR discovered from another task. Call under the task
+# metadata lock before cleanup; the drain uses the same check for its guidance.
+fm_pr_require_task_url() {  # <meta> <task-id> <event-pr-url>
+  local meta=$1 id=$2 event_url
+  FM_PR_TASK_MATCH_ERROR=
+  if ! fm_pr_url_parse "$3"; then
+    FM_PR_TASK_MATCH_ERROR="REFUSED: merge cleanup for $id has no valid event PR identity; preserving task and worktree."
+    return 1
+  fi
+  event_url=$FM_PR_URL
+  if ! fm_pr_metadata_identity_parse "$meta"; then
+    FM_PR_TASK_MATCH_ERROR="REFUSED: merge cleanup for $id requires one valid recorded pr=; preserving task and worktree."
+    return 1
+  fi
+  if [ "$FM_PR_META_URL" != "$event_url" ]; then
+    FM_PR_TASK_MATCH_ERROR="REFUSED: merge cleanup for $id names $event_url but recorded pr=$FM_PR_META_URL; preserving task and worktree."
+    return 1
+  fi
+}
+
 # Sidecar layout: provider, url, host, path, number, one per line. A sidecar
 # written before the provider tag existed has a URL on its first line and one
 # line fewer, so it fails both the field count and the provider comparison and

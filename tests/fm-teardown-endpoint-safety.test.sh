@@ -72,6 +72,41 @@ assert_refused_without_mutation() {  # <case> <id> <description>
   [ ! -s "$dir/runtime.log" ] || fail "$description: runtime command ran before refusal: $(cat "$dir/runtime.log")"
 }
 
+test_merge_cleanup_requires_the_tasks_own_pr() {
+  local dir id=merge-task event_url='https://github.com/o/r/pull/8' variant rc recorded
+  for variant in missing foreign duplicate matching; do
+    dir=$(make_case "merge-pr-$variant")
+    fm_write_meta "$dir/home/state/$id.meta" \
+      "window=ambient-current-window" "kind=ship" "mode=no-mistakes" \
+      "worktree=$dir/worktree" "project=$dir/project"
+    case "$variant" in
+      foreign) printf 'pr=https://github.com/o/r/pull/7\n' >> "$dir/home/state/$id.meta" ;;
+      duplicate) printf 'pr=%s\npr=%s\n' "$event_url" "$event_url" >> "$dir/home/state/$id.meta" ;;
+      matching) printf 'pr=%s\n' "$event_url" >> "$dir/home/state/$id.meta" ;;
+    esac
+    recorded=$(cat "$dir/home/state/$id.meta")
+    rc=0
+    FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" \
+      FM_RUNTIME_LOG="$dir/runtime.log" PATH="$dir/fakebin:$PATH" \
+      "$TEARDOWN" "$id" --merged-pr "$event_url" --force \
+      > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+    [ "$rc" -ne 0 ] || fail "$variant: invalid endpoint unexpectedly cleaned up"
+    [ "$(cat "$dir/home/state/$id.meta")" = "$recorded" ] || fail "$variant: refusal modified metadata"
+    assert_present "$dir/worktree/sentinel" "$variant: refusal modified worktree"
+    [ ! -s "$dir/runtime.log" ] || fail "$variant: refusal called the runtime"
+    case "$variant" in
+      missing|duplicate)
+        assert_grep 'requires one valid recorded pr=' "$dir/stderr" "$variant: missing PR binding was not diagnosed" ;;
+      foreign)
+        assert_grep "names $event_url but recorded pr=https://github.com/o/r/pull/7" "$dir/stderr" \
+          "foreign: PR mismatch was not diagnosed" ;;
+      matching)
+        assert_no_grep 'merge cleanup' "$dir/stderr" "matching: own PR was refused by the identity gate" ;;
+    esac
+  done
+  pass "merge cleanup refuses missing, ambiguous, and foreign PRs before mutation even under force; an exact match reaches ordinary safety checks"
+}
+
 test_invalid_endpoint_records_refuse_before_mutation() {
   local dir id=endpoint-a
 
@@ -1420,6 +1455,7 @@ test_already_gone_endpoint_still_completes_without_a_refusal() {
   pass "fm-teardown: an already-exited endpoint, and a server that is already gone, still complete cleanup silently"
 }
 
+test_merge_cleanup_requires_the_tasks_own_pr
 test_invalid_endpoint_records_refuse_before_mutation
 test_control_lock_contention_refuses_before_mutation
 test_non_pool_teardown_ignores_task_set_lock

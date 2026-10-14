@@ -21,6 +21,8 @@ set -u
 SCRIPT_DIR="$(d=${BASH_SOURCE[0]%/*}; [ "$d" != "${BASH_SOURCE[0]}" ] || d=.; cd "${d:-/}" && pwd)"
 # shellcheck source=bin/fm-wake-lib.sh
 . "$SCRIPT_DIR/fm-wake-lib.sh"
+# shellcheck source=bin/fm-pr-lib.sh
+. "$SCRIPT_DIR/fm-pr-lib.sh"
 # shellcheck source=bin/fm-classify-lib.sh
 . "$SCRIPT_DIR/fm-classify-lib.sh"
 # shellcheck source=bin/fm-line-cap-lib.sh
@@ -777,6 +779,33 @@ print_status_sections() {
   rm -f -- "$prepared"
 }
 
+# Merge events carry an explicit PR URL. Present guarded cleanup guidance to
+# both actors; never turn a task-named custom check's bare "merged" into a PR
+# association. Teardown repeats the identity check under the metadata lock.
+print_merge_cleanup_guidance() {  # <deduped-raw-rows>
+  local rows=$1 stamp seq kind key payload rest task url ignored
+  while IFS=$'\t' read -r stamp seq kind key payload rest; do
+    [ "$kind" = check ] || continue
+    case "$payload" in
+      'check: merge landed: '*)
+        read -r task url ignored <<< "${payload#check: merge landed: }"
+        fm_pr_task_id_valid "$task" || continue
+        if fm_pr_require_task_url "$STATE/$task.meta" "$task" "$url"; then
+          printf 'MERGE CLEANUP: bin/fm-teardown.sh %s --merged-pr %s\n' "$task" "$FM_PR_META_URL"
+        else
+          printf '%s\n' "$FM_PR_TASK_MATCH_ERROR"
+        fi
+        ;;
+      check:\ *.check.sh:\ merged|check:\ *.check.sh:\ merged\ *)
+        task=${key##*/}
+        task=${task%.check.sh}
+        fm_pr_task_id_valid "$task" || continue
+        printf 'REFUSED: bare merged check for %s carries no event PR identity; use an identity-bound merge-landed event before cleanup.\n' "$task"
+        ;;
+    esac
+  done <<< "$rows"
+}
+
 print_status_presentation() {  # [<deduped-raw-rows>]
   local rows=${1:-} lock="$STATE/.status-presentation-lock" snapshot annotation_manifest fully_presented='' rc=0
   local lock_rc holder_pid
@@ -1072,6 +1101,7 @@ DRAIN_LOCK_HELD=false
 printf 'WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through %s --recovery-generation %s\n' \
   "$ACK_THROUGH" "${RECOVERY_MARKER_TOKEN##*:}" >&2
 
+print_merge_cleanup_guidance "$RAW_ROWS"
 (print_status_presentation "$RAW_ROWS") || true
 print_branch_outcomes_section || BRANCH_OUTCOMES_RC=1
 assert_watcher_liveness

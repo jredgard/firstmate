@@ -192,7 +192,11 @@
 # leased home releases its durable treehouse lease so the pool slot is freed,
 # never left leased forever. If the treehouse return fails, teardown leaves the
 # leased home and state in place instead of hiding a still-held lease.
-# Usage: fm-teardown.sh <task-id> [--force] [--legacy-record]
+# Usage: fm-teardown.sh <task-id> [--force] [--legacy-record] [--merged-pr <url>]
+#   --merged-pr carries the PR identity from a merge-landed wake or sweep.
+#   It requires that exact canonical URL in the task's recorded pr=, under the
+#   metadata lock before cleanup. Missing, ambiguous, or foreign PRs refuse,
+#   including under --force; ordinary landed-work checks still run.
 #   --force skips ordinary-task dirty and landed-work checks, skips scout report
 #   checks, and discards secondmate child work for kind=secondmate. Only use it
 #   when the captain has explicitly said to discard the work.
@@ -403,11 +407,20 @@ fi
 ID=$1
 FORCE=
 LEGACY_RECORD_GIVEN=0
+MERGED_PR=
 shift
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --force) FORCE=--force ;;
     --legacy-record) LEGACY_RECORD_GIVEN=1 ;;
+    --merged-pr)
+      if [ "$#" -lt 2 ] || [ -n "$MERGED_PR" ] || ! fm_pr_url_parse "$2"; then
+        echo "error: invalid merge cleanup PR identity" >&2
+        exit 2
+      fi
+      MERGED_PR=$FM_PR_URL
+      shift
+      ;;
     *)
       echo "error: invalid teardown request" >&2
       exit 2
@@ -535,6 +548,10 @@ fm_backlog_record_present "$META" "task record" "$STATE" || {
   echo "error: teardown refused after locking: $FM_BACKLOG_TRANSITION_ERROR" >&2
   exit 1
 }
+if [ -n "$MERGED_PR" ] && ! fm_pr_require_task_url "$META" "$ID" "$MERGED_PR"; then
+  printf '%s\n' "$FM_PR_TASK_MATCH_ERROR" >&2
+  exit 1
+fi
 TEARDOWN_META_KIND=$(fm_meta_get "$META" kind)
 [ -n "$TEARDOWN_META_KIND" ] || TEARDOWN_META_KIND=ship
 # Retiring a persistent secondmate is main's alone in both postures; the kind

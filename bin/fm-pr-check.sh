@@ -160,6 +160,14 @@ if [ "$PROVIDER" = ado ]; then
     echo "error: $URL is a draft pull request; mark it ready before arming merge monitoring" >&2
     exit 1
   fi
+  # A title is never task identity. When spawn recorded a ship branch, the
+  # forge must name it as the source before this URL can replace pr=.
+  TASK_BRANCH=$(grep '^branch=' "$META" | tail -1 | cut -d= -f2- || true)
+  if [ -n "$TASK_BRANCH" ] && ! printf '%s' "$FM_PR_ADO_JSON" | jq -e \
+      --arg source "refs/heads/$TASK_BRANCH" '.sourceRefName == $source' >/dev/null; then
+    echo "error: Azure DevOps pull request $URL does not belong to task $ID's recorded branch $TASK_BRANCH; nothing recorded or armed" >&2
+    exit 1
+  fi
   PR_HEAD=$(printf '%s' "$FM_PR_ADO_JSON" | jq -er '.lastMergeSourceCommit.commitId // empty') || {
     echo "error: could not read the Azure DevOps pull request head for $URL" >&2
     exit 1
@@ -212,6 +220,10 @@ fm_lock_acquire_wait "$META_LOCK"
 META_LOCK_HELD=1
 [ -f "$META" ] && [ ! -L "$META" ] && [ "$(fm_pr_file_link_count "$META")" = 1 ] \
   || { echo "error: task metadata is unavailable" >&2; exit 1; }
+if [ "$PROVIDER" = ado ] && [ "$(grep '^branch=' "$META" | tail -1 | cut -d= -f2- || true)" != "$TASK_BRANCH" ]; then
+  echo "error: task $ID's recorded branch changed during PR registration; nothing recorded or armed" >&2
+  exit 1
+fi
 META_DEVICE=$(fm_pr_file_device "$META") || exit 1
 STATE_DEVICE=$(fm_pr_file_device "$STATE") || exit 1
 [ "$META_DEVICE" = "$STATE_DEVICE" ] || { echo "error: task metadata is unavailable" >&2; exit 1; }
