@@ -196,7 +196,9 @@
 #   --merged-pr carries the PR identity from a merge-landed wake or sweep.
 #   It requires that exact canonical URL in the task's recorded pr=, under the
 #   metadata lock before cleanup. Missing, ambiguous, or foreign PRs refuse,
-#   including under --force; ordinary landed-work checks still run.
+#   including under --force; ordinary landed-work checks still run. Unattended
+#   delivery lanes outside local-only mode require a recorded PR and, without
+#   --merged-pr, a forge-confirmed merge before cleanup.
 #   --force skips ordinary-task dirty and landed-work checks, skips scout report
 #   checks, and discards secondmate child work for kind=secondmate. Only use it
 #   when the captain has explicitly said to discard the work.
@@ -554,6 +556,29 @@ if [ -n "$MERGED_PR" ] && ! fm_pr_require_task_url "$META" "$ID" "$MERGED_PR"; t
 fi
 TEARDOWN_META_KIND=$(fm_meta_get "$META" kind)
 [ -n "$TEARDOWN_META_KIND" ] || TEARDOWN_META_KIND=ship
+if [ "$(fm_lease_actor)" = branch ] && [ "$(fm_meta_get "$META" mode)" != local-only ] \
+  && [ "$TEARDOWN_META_KIND" != scout ] && [ "$TEARDOWN_META_KIND" != secondmate ]; then
+  if ! fm_pr_metadata_identity_parse "$META"; then
+    echo "REFUSED: merge cleanup for $ID requires one valid recorded pr= (PR ${MERGED_PR:-<missing or invalid>}); preserving task and worktree." >&2
+    exit 1
+  fi
+  if [ -z "$MERGED_PR" ] && ! (
+    case "$FM_PR_META_PROVIDER" in
+      ado) fm_pr_ado_read_record "$FM_PR_META_URL" "$(fm_meta_get "$META" pr_head)" ;;
+      github) fm_pr_github_read_record "${FM_PR_META_PATH%%/*}" "${FM_PR_META_PATH#*/}" "$FM_PR_META_NUMBER" ;;
+      gitlab) fm_pr_gitlab_read_record "$FM_PR_META_HOST" "$FM_PR_META_PATH" "$FM_PR_META_NUMBER" ;;
+      gerrit) fm_pr_gerrit_read_record "$FM_PR_META_HOST" "$FM_PR_META_NUMBER" ;;
+      *) exit 1 ;;
+    esac || exit 1
+    case "$FM_PR_RECORD_STATE:$FM_PR_RECORD_MERGED" in
+      MERGED:true|merged:true|completed:true) exit 0 ;;
+      *) exit 1 ;;
+    esac
+  ); then
+    echo "REFUSED: merge cleanup for $ID cannot verify PR $FM_PR_META_URL as completed; preserving task and worktree." >&2
+    exit 1
+  fi
+fi
 # Retiring a persistent secondmate is main's alone in both postures; the kind
 # is read under the metadata lock (role partition: bin/fm-lease-lib.sh).
 [ "$TEARDOWN_META_KIND" != secondmate ] || fm_lease_forbid_branch "secondmate retirement (fm-teardown)"
@@ -1980,7 +2005,7 @@ validate_worktree_teardown_safety() {
   # worktree cleanup, including recovery when the worktree is already absent.
   if [[ "$PR_URL" == https://dev.azure.com/* ]]; then
     if ! fm_pr_ado_read_record "$PR_URL" "$(fm_meta_get "$META" pr_head)" || [ "$FM_PR_RECORD_MERGED" != true ]; then
-      echo "REFUSED: Azure DevOps pull request $PR_URL is not verifiably completed at the recorded head; preserving task and worktree." >&2
+      echo "REFUSED: Azure DevOps pull request $PR_URL for task $ID is not verifiably completed at the recorded head; preserving task and worktree." >&2
       return 1
     fi
   fi
@@ -3515,7 +3540,7 @@ fi
 if [ "$FORCE" != "--force" ] && [ "$KIND" != scout ] && [ "$KIND" != secondmate ] \
     && [[ "$PR_URL" == https://github.com/* ]]; then
   if ! recorded_github_pr_is_landed; then
-    echo "REFUSED: GitHub pull request $PR_URL is not verifiably merged at the recorded head (state=$TEARDOWN_GITHUB_PR_STATE); preserving task and worktree." >&2
+    echo "REFUSED: GitHub pull request $PR_URL for task $ID is not verifiably merged at the recorded head (state=$TEARDOWN_GITHUB_PR_STATE); preserving task and worktree." >&2
     exit 1
   fi
 fi

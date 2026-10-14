@@ -2842,12 +2842,9 @@ while :; do
       # canonical metadata-bound poll may report a merge for task cleanup.
       # Keep the custom source armed and wake for repair instead of relaying an
       # unrelated merge as a task completion.
-      if [ "$is_pr_poll" -eq 0 ]; then
-        case "$out" in
-          merged|merged\ *|merge\ landed:*)
-            out="REFUSED: unbound merge result from custom check $c; register the task's own PR with bin/fm-pr-check.sh instead of matching PR titles"
-            ;;
-        esac
+      if [ "$is_pr_poll" -eq 0 ] && [ -f "$STATE/$(basename "$c" .check.sh).meta" ] \
+        && printf '%s\n' "$out" | LC_ALL=C grep -iE 'merged|merge landed' >/dev/null; then
+        out="REFUSED: unbound merge result from custom check $c; register the task's own PR with bin/fm-pr-check.sh instead of matching PR titles"$'\n'"$out"
       fi
       if [ -n "$out" ]; then
         if [ "$(basename "$c")" = contributions.check.sh ]; then

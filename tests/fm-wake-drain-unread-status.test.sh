@@ -53,7 +53,7 @@ test_merge_wake_guidance_preserves_pr_identity() {
     case "$variant" in
       missing) assert_grep 'requires one valid recorded pr=' "$out" 'missing: cleanup guidance did not refuse' ;;
       foreign) assert_grep "names $event_url but recorded pr=https://github.com/o/r/pull/7" "$out" 'foreign: cleanup guidance did not refuse' ;;
-      bare) assert_grep 'carries no event PR identity' "$out" 'bare custom merged result became cleanup evidence' ;;
+      bare) assert_no_grep 'REFUSED: bare merged check' "$out" 'drain duplicated the watcher refusal' ;;
       matching) assert_grep "MERGE CLEANUP: bin/fm-teardown.sh $task --merged-pr $event_url" "$out" 'matching: guarded cleanup command missing' ;;
     esac
     if [ "$variant" != matching ]; then
@@ -61,7 +61,7 @@ test_merge_wake_guidance_preserves_pr_identity() {
     fi
     assert_present "$state/$task.meta" "$variant: merge wake removed the task"
   done
-  pass "merge wake guidance requires the exact task PR and rejects bare custom merge output"
+  pass "merge wake guidance requires the exact task PR and leaves custom checks to the watcher"
 }
 
 test_incident_note_answer_buried_under_routine_note_surfaces_both() {
@@ -479,6 +479,11 @@ test_routine_working_and_covered_done_stay_silent_on_the_empty_queue() {
   [ ! -s "$out" ] || fail "the empty-queue covered routine case was not silent: $(cat "$out")"
   pass "routine working and branch-covered done lines print nothing on an empty-queue drain"
 }
+
+if [ "${1:-}" = --merge-identity-only ]; then
+  test_merge_wake_guidance_preserves_pr_identity
+  exit 0
+fi
 
 test_merge_wake_guidance_preserves_pr_identity
 test_incident_note_answer_buried_under_routine_note_surfaces_both

@@ -796,12 +796,6 @@ print_merge_cleanup_guidance() {  # <deduped-raw-rows>
           printf '%s\n' "$FM_PR_TASK_MATCH_ERROR"
         fi
         ;;
-      check:\ *.check.sh:\ merged|check:\ *.check.sh:\ merged\ *)
-        task=${key##*/}
-        task=${task%.check.sh}
-        fm_pr_task_id_valid "$task" || continue
-        printf 'REFUSED: bare merged check for %s carries no event PR identity; use an identity-bound merge-landed event before cleanup.\n' "$task"
-        ;;
     esac
   done <<< "$rows"
 }

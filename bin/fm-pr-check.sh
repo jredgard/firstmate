@@ -6,7 +6,8 @@
 # head is that named head and is already stored on the forge.
 # The watcher check source is byte-for-byte bin/fm-pr-poll.sh; task and PR data
 # live only in a private sidecar and are never interpolated into shell source.
-# GitHub, GitLab, Gerrit, and canonical dev.azure.com PR URLs are accepted.
+# GitHub and canonical dev.azure.com PR URLs require a source branch matching
+# the task's recorded branch. Other forges refuse without a supported lookup.
 # Azure DevOps requires an authenticated REST read and records its live head.
 # bin/fm-pr-poll.sh owns its merge, conflict, and abandonment notifications.
 # A GitHub or Azure DevOps pull request the forge reports as a draft is refused,
@@ -70,6 +71,19 @@ if [ "$KIND" = secondmate ]; then
   exit 1
 fi
 
+case "$PROVIDER" in
+  github|ado) ;;
+  *)
+    echo "error: cannot verify source-branch ownership for $PROVIDER PR $URL and task $ID; no supported lookup, nothing recorded or armed" >&2
+    exit 1
+    ;;
+esac
+TASK_BRANCH=$(grep '^branch=' "$META" | tail -1 | cut -d= -f2- || true)
+if [ -z "$TASK_BRANCH" ]; then
+  echo "error: cannot verify PR $URL for task $ID without a recorded branch; nothing recorded or armed" >&2
+  exit 1
+fi
+
 # A prior exact merged result may have queued its durable wake immediately
 # before interruption.
 # Finish only its identity-bound receipt before publishing a replacement poll.
@@ -82,20 +96,17 @@ fm_pr_poll_retirement_recover_one "$STATE" "$ID" "$SCRIPT_DIR/fm-pr-poll.sh" || 
 # every error by design, so a missing CLI would be indistinguishable from a
 # change that is never merged. Arming is the one point where that can be
 # reported, so the absent tool stops the watch here instead of watching nothing.
-# The Gerrit poll also needs jq, because Gerrit's status has to be read out of a
-# structured record rather than off a rendered line: the tool's own table prints
-# a change's subject before its status, and a subject is free text.
-if [ "$PROVIDER" = gitlab ] && ! command -v glab >/dev/null 2>&1; then
-  echo "error: watching a GitLab merge request requires glab on PATH" >&2
-  exit 1
-fi
-if [ "$PROVIDER" = gerrit ]; then
-  if ! command -v gerrit-axi >/dev/null 2>&1; then
-    echo "error: watching a Gerrit change requires gerrit-axi on PATH" >&2
+if [ "$PROVIDER" = github ]; then
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "error: verifying GitHub PR $URL for task $ID requires gh on PATH; nothing recorded or armed" >&2
     exit 1
   fi
-  if ! command -v jq >/dev/null 2>&1; then
-    echo "error: watching a Gerrit change requires jq on PATH" >&2
+  if ! SOURCE_BRANCH=$(gh pr view "$URL" --json headRefName -q .headRefName 2>/dev/null) || [ -z "$SOURCE_BRANCH" ]; then
+    echo "error: could not verify the source branch of GitHub PR $URL for task $ID; nothing recorded or armed" >&2
+    exit 1
+  fi
+  if [ "$SOURCE_BRANCH" != "$TASK_BRANCH" ]; then
+    echo "error: GitHub pull request $URL does not belong to task $ID's recorded branch $TASK_BRANCH; nothing recorded or armed" >&2
     exit 1
   fi
 fi
@@ -122,26 +133,6 @@ if [ "$PROVIDER" = github ] && [ "${FM_PR_CHECK_MERGE:-}" != 1 ] && command -v g
   fi
 fi
 
-"$FM_ROOT/bin/fm-guard.sh" || true
-
-# pr_head is recorded only when the forge's CLI can supply it. gh exposes the
-# head commit as a selectable field; plain glab exposes it only inside its JSON
-# output, which would need a JSON processor firstmate does not require, so a
-# GitLab task records no pr_head, and neither does a Gerrit task: a Gerrit
-# revision names one patch set, every amend or rebase is a new patch set, and
-# bin/fm-review-diff.sh has no Gerrit path to resolve a current head with, so a
-# recorded revision would silently become the reviewed content. Where it is
-# absent, both consumers already treat it as optional:
-# bin/fm-teardown.sh reads the head from the forge at teardown rather than from
-# metadata and falls back to its provider-agnostic content check, and
-# bin/fm-review-diff.sh fetches a pull request head from the remote when none is
-# recorded and otherwise diffs the local branch, which is the current content.
-# bin/fm-pr-merge.sh reads a GitLab head live at merge time for the same reason,
-# and treats a recorded value that disagrees as stale rather than authoritative.
-# An Azure DevOps task instead records pr_head unconditionally from the REST
-# read below, because bin/fm-pr-merge.sh refuses a live head that moved off the
-# recorded value and bin/fm-teardown.sh requires completed status at it; their
-# headers own those gates.
 WT=$(grep '^worktree=' "$META" | tail -1 | cut -d= -f2- || true)
 PR_HEAD=
 if [ "$PROVIDER" = github ] && [ -n "$WT" ] && [ -d "$WT" ] && command -v gh >/dev/null 2>&1; then
@@ -160,10 +151,7 @@ if [ "$PROVIDER" = ado ]; then
     echo "error: $URL is a draft pull request; mark it ready before arming merge monitoring" >&2
     exit 1
   fi
-  # A title is never task identity. When spawn recorded a ship branch, the
-  # forge must name it as the source before this URL can replace pr=.
-  TASK_BRANCH=$(grep '^branch=' "$META" | tail -1 | cut -d= -f2- || true)
-  if [ -n "$TASK_BRANCH" ] && ! printf '%s' "$FM_PR_ADO_JSON" | jq -e \
+  if ! printf '%s' "$FM_PR_ADO_JSON" | jq -e \
       --arg source "refs/heads/$TASK_BRANCH" '.sourceRefName == $source' >/dev/null; then
     echo "error: Azure DevOps pull request $URL does not belong to task $ID's recorded branch $TASK_BRANCH; nothing recorded or armed" >&2
     exit 1
@@ -178,13 +166,12 @@ if [ "$PROVIDER" = ado ]; then
   }
 fi
 
+"$FM_ROOT/bin/fm-guard.sh" || true
+
 MODE=$(grep '^mode=' "$META" | tail -1 | cut -d= -f2- || true)
 PROJECT=$(grep '^project=' "$META" | tail -1 | cut -d= -f2- || true)
-# The gate is asked about the ready report this task's worker was told to give;
-# on a Gerrit change both publishing modes report the same published line.
-case "$PROVIDER:$MODE" in
-  gerrit:*) DONE_LINE="done: PR $URL published for review" ;;
-  *:no-mistakes|*:) DONE_LINE="done: PR $URL checks green" ;;
+case "$MODE" in
+  no-mistakes|'') DONE_LINE="done: PR $URL checks green" ;;
   *) DONE_LINE="done: PR $URL" ;;
 esac
 if { [ -z "$PR_HEAD" ] || ! fm_dod_forge_head_is_named_head "$MODE"; } \
@@ -220,7 +207,7 @@ fm_lock_acquire_wait "$META_LOCK"
 META_LOCK_HELD=1
 [ -f "$META" ] && [ ! -L "$META" ] && [ "$(fm_pr_file_link_count "$META")" = 1 ] \
   || { echo "error: task metadata is unavailable" >&2; exit 1; }
-if [ "$PROVIDER" = ado ] && [ "$(grep '^branch=' "$META" | tail -1 | cut -d= -f2- || true)" != "$TASK_BRANCH" ]; then
+if [ "$(grep '^branch=' "$META" | tail -1 | cut -d= -f2- || true)" != "$TASK_BRANCH" ]; then
   echo "error: task $ID's recorded branch changed during PR registration; nothing recorded or armed" >&2
   exit 1
 fi
