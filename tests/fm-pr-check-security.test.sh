@@ -249,7 +249,7 @@ printf '%s\n' "$*" >> "$FM_TEST_GERRIT_AXI_LOG"
 [ "${FM_TEST_GERRIT_FAIL:-0}" = 0 ] || exit 1
 if [ -n "${FM_TEST_GERRIT_SOURCE_FAIL_ONCE:-}" ] && [ ! -e "$FM_TEST_GERRIT_SOURCE_FAIL_ONCE" ]; then
   : > "$FM_TEST_GERRIT_SOURCE_FAIL_ONCE"
-  printf '{"ok":true,"changes":[{"change":4201,"topic":"fm/foreign"}]}\n'
+  printf '%s\n' "$FM_TEST_GERRIT_RAW"
   exit 1
 fi
 if [ -n "${FM_TEST_GERRIT_RAW:-}" ]; then
@@ -1031,65 +1031,119 @@ SH
 }
 
 
-test_provider_ownership_registration() {
-  local dir state provider variant url source expected before rc
-  for provider in gitlab gerrit; do
-    for variant in matching foreign unreadable ref branch failed; do
-      dir=$(make_case "ownership-$provider-$variant")
-      state="$dir/home/state"
-      write_task_meta "$dir"
-      ln -s "$REAL_JQ" "$dir/fakebin/jq"
-      source=fm/example expected=yes
-      case "$variant" in
-        foreign) source=fm/foreign ;;
-        unreadable|failed) source='' expected=no ;;
-      esac
-      case "$provider" in
-        gitlab) url=https://gitlab.example/group/project/-/merge_requests/7 ;;
-        gerrit)
-          url=https://gerrit.example/c/group/project/+/4201
-          FM_TEST_GERRIT_RAW=$(jq -cn --arg source "$source" --arg variant "$variant" \
-            --arg revision "$(git -C "$dir/wt" rev-parse HEAD)" '
-            {ok:true,changes:[{change:4201,status:"NEW",revision:$revision,branch:"main"}
-              + (if $variant == "ref" then {ref:("refs/heads/"+$source)}
-                elif $variant == "branch" then {branch:$source}
-                else {topic:$source} end)]}')
-          export FM_TEST_GERRIT_RAW ;;
-      esac
-      before=$(state_snapshot "$state")
+test_gitlab_ownership_registration() {
+  local dir state variant url source expected before rc
+  for variant in matching foreign unreadable failed; do
+    dir=$(make_case "ownership-gitlab-$variant")
+    state="$dir/home/state"
+    write_task_meta "$dir"
+    ln -s "$REAL_JQ" "$dir/fakebin/jq"
+    source=fm/example expected=yes
+    case "$variant" in
+      foreign) source=fm/foreign ;;
+      unreadable|failed) source='' expected=no ;;
+    esac
+    url=https://gitlab.example/group/project/-/merge_requests/7
+    before=$(state_snapshot "$state")
+    rc=0
+    if [ "$variant" = failed ]; then
+      FM_TEST_GLAB_SOURCE_FAIL=1 run_check_entry "$dir" task-a "$url" > "$dir/out" 2> "$dir/err" || rc=$?
+    else
+      FM_TEST_GLAB_SOURCE="$source" run_check_entry "$dir" task-a "$url" > "$dir/out" 2> "$dir/err" || rc=$?
+    fi
+    if [ "$variant" = foreign ]; then
+      [ "$rc" -ne 0 ] || fail "GitLab: foreign ownership was registered"
+      assert_grep "does not belong to task task-a's recorded branch fm/example" "$dir/err" "GitLab: ownership mismatch not diagnosed"
+      [ "$(state_snapshot "$state")" = "$before" ] || fail "GitLab: mismatch changed task state"
       rc=0
-      if [ "$variant:$provider" = failed:gitlab ]; then
-        FM_TEST_GLAB_SOURCE_FAIL=1 run_check_entry "$dir" task-a "$url" > "$dir/out" 2> "$dir/err" || rc=$?
-      elif [ "$variant:$provider" = failed:gerrit ]; then
-        FM_TEST_GERRIT_SOURCE_FAIL_ONCE="$dir/failed-read" run_check_entry "$dir" task-a "$url" > "$dir/out" 2> "$dir/err" || rc=$?
-      else
-        FM_TEST_GLAB_SOURCE="$source" run_check_entry "$dir" task-a "$url" > "$dir/out" 2> "$dir/err" || rc=$?
+      FM_TEST_GLAB_SOURCE="$source" run_merge_entry "$dir" task-a "$url" > "$dir/merge.out" 2> "$dir/merge.err" || rc=$?
+      [ "$rc" -ne 0 ] || fail 'GitLab merge registered a foreign task PR'
+      assert_grep 'does not belong to task task-a' "$dir/merge.err" 'GitLab merge did not reach the ownership refusal'
+      [ "$(state_snapshot "$state")" = "$before" ] || fail 'GitLab merge mismatch changed task state'
+      assert_no_grep 'mr merge' "$dir/glab.log" 'GitLab merged despite an ownership mismatch'
+    else
+      [ "$rc" -eq 0 ] || fail "GitLab/$variant: registration failed: $(cat "$dir/err")"
+      fm_pr_poll_artifacts_valid "$state" task-a "$POLL" || fail "GitLab/$variant: no authenticated poll was armed"
+      grep -qxF "pr_owner_verified=$expected" "$state/task-a.meta" || fail "GitLab/$variant: ownership verdict not recorded"
+      if [ "$expected" = no ]; then
+        assert_grep 'warning: cannot verify ownership' "$dir/err" "GitLab: unreadable ownership did not warn"
+        assert_grep "$url" "$dir/err" "GitLab: warning did not name the PR"
       fi
-      unset FM_TEST_GERRIT_RAW
-      if [ "$variant" = foreign ]; then
-        [ "$rc" -ne 0 ] || fail "$provider: foreign ownership was registered"
-        assert_grep "does not belong to task task-a's recorded branch fm/example" "$dir/err" "$provider: ownership mismatch not diagnosed"
-        [ "$(state_snapshot "$state")" = "$before" ] || fail "$provider: mismatch changed task state"
-        if [ "$provider" = gitlab ]; then
-          rc=0
-          FM_TEST_GLAB_SOURCE="$source" run_merge_entry "$dir" task-a "$url" > "$dir/merge.out" 2> "$dir/merge.err" || rc=$?
-          [ "$rc" -ne 0 ] || fail 'GitLab merge registered a foreign task PR'
-          assert_grep 'does not belong to task task-a' "$dir/merge.err" 'GitLab merge did not reach the ownership refusal'
-          [ "$(state_snapshot "$state")" = "$before" ] || fail 'GitLab merge mismatch changed task state'
-          assert_no_grep 'mr merge' "$dir/glab.log" 'GitLab merged despite an ownership mismatch'
-        fi
-      else
-        [ "$rc" -eq 0 ] || fail "$provider/$variant: registration failed: $(cat "$dir/err")"
-        fm_pr_poll_artifacts_valid "$state" task-a "$POLL" || fail "$provider/$variant: no authenticated poll was armed"
-        grep -qxF "pr_owner_verified=$expected" "$state/task-a.meta" || fail "$provider/$variant: ownership verdict not recorded"
-        if [ "$expected" = no ]; then
-          assert_grep 'warning: cannot verify ownership' "$dir/err" "$provider: unreadable ownership did not warn"
-          assert_grep "$url" "$dir/err" "$provider: warning did not name the PR"
-        fi
-      fi
-    done
+    fi
   done
-  pass "GitLab and Gerrit register matching or unreadable ownership, record the verdict, and refuse foreign task identities"
+  pass "GitLab registers matching or unreadable ownership, records the verdict, and refuses foreign task identities"
+}
+
+test_gerrit_ownership_uses_recorded_identity() {
+  local dir state variant url revision before rc expected change_id other_id topic
+  change_id=Iaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  other_id=Ibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  url=https://gerrit.example/c/group/project/+/4201
+  for variant in matching mismatching none destination number-match number-mismatch both-match both-mismatch uppercase unreadable failed changed number-changed; do
+    dir=$(make_case "ownership-gerrit-$variant")
+    state="$dir/home/state"
+    revision=$(git -C "$dir/wt" rev-parse HEAD)
+    git -C "$dir/wt" commit --amend --allow-empty -q -m published -m "Change-Id: $change_id"
+    [ "$variant" = unreadable ] || revision=$(git -C "$dir/wt" rev-parse HEAD)
+    write_task_meta "$dir"
+    ln -s "$REAL_JQ" "$dir/fakebin/jq"
+    expected=yes
+    case "$variant" in
+      none|destination) expected=no; printf 'pr_owner_verified=yes\n' >> "$state/task-a.meta" ;;
+      number-match|number-changed) printf 'gerrit_change=4201\n' >> "$state/task-a.meta" ;;
+      number-mismatch) printf 'gerrit_change=4202\n' >> "$state/task-a.meta" ;;
+      mismatching|both-mismatch) printf 'gerrit_change_id=%s\n' "$other_id" >> "$state/task-a.meta" ;;
+      uppercase) printf 'gerrit_change_id=%s\n' "$(printf '%s' "$change_id" | tr 'a-f' 'A-F')" >> "$state/task-a.meta" ;;
+      *) printf 'gerrit_change_id=%s\n' "$change_id" >> "$state/task-a.meta" ;;
+    esac
+    case "$variant" in
+      both-match|both-mismatch) printf 'gerrit_change=4201\n' >> "$state/task-a.meta" ;;
+      unreadable|failed) expected=no ;;
+      changed)
+        printf '#!/usr/bin/env bash\nprintf "gerrit_change_id=%s\\n" >> %q\n' "$other_id" "$state/task-a.meta" > "$dir/root/bin/fm-guard.sh" ;;
+      number-changed)
+        printf '#!/usr/bin/env bash\nprintf "gerrit_change=4202\\n" >> %q\n' "$state/task-a.meta" > "$dir/root/bin/fm-guard.sh" ;;
+    esac
+    topic=release-2.3
+    [ "$variant" != destination ] || topic=''
+    FM_TEST_GERRIT_RAW=$(jq -cn --arg revision "$revision" --arg topic "$topic" '
+      {ok:true,changes:[{change:4201,status:"NEW",revision:$revision,branch:"fm/example",topic:$topic}]}')
+    export FM_TEST_GERRIT_RAW
+    before=$(state_snapshot "$state")
+    rc=0
+    if [ "$variant" = failed ]; then
+      FM_TEST_GERRIT_SOURCE_FAIL_ONCE="$dir/failed-read" run_check_entry "$dir" task-a "$url" > "$dir/out" 2> "$dir/err" || rc=$?
+    else
+      run_check_entry "$dir" task-a "$url" > "$dir/out" 2> "$dir/err" || rc=$?
+    fi
+    case "$variant" in
+      mismatching|number-mismatch|both-mismatch)
+        [ "$rc" -ne 0 ] || fail "$variant: Gerrit registered a different recorded identity"
+        assert_grep 'does not belong to task task-a' "$dir/err" "$variant: Gerrit identity mismatch not diagnosed"
+        assert_grep "$url" "$dir/err" "$variant: Gerrit mismatch did not name the URL"
+        [ "$(state_snapshot "$state")" = "$before" ] || fail "$variant: Gerrit mismatch changed task state" ;;
+      changed|number-changed)
+        [ "$rc" -ne 0 ] || fail 'Gerrit registered an identity changed during its read'
+        assert_grep 'recorded Gerrit identity changed' "$dir/err" 'Gerrit did not diagnose the identity race'
+        assert_no_grep '^pr=' "$state/task-a.meta" 'Gerrit identity race recorded a PR'
+        [ ! -e "$state/task-a.check.sh" ] || fail 'Gerrit identity race armed a poll' ;;
+      *)
+        [ "$rc" -eq 0 ] || fail "$variant: Gerrit registration failed: $(cat "$dir/err")"
+        fm_pr_poll_artifacts_valid "$state" task-a "$POLL" || fail "$variant: Gerrit poll is not bound"
+        grep -qxF "pr_owner_verified=$expected" "$state/task-a.meta" || fail "$variant: Gerrit ownership verdict is wrong"
+        [ "$(grep -c '^pr_owner_verified=' "$state/task-a.meta")" -eq 1 ] || fail 'Gerrit duplicated its ownership verdict'
+        if [ "$expected" = no ]; then
+          assert_grep 'warning: cannot verify ownership' "$dir/err" "$variant: unknown Gerrit ownership did not warn"
+        fi
+        if [ "$variant" = matching ]; then
+          run_check_entry "$dir" task-a "$url" > "$dir/recheck.out" 2> "$dir/recheck.err" || fail 'Gerrit identity re-registration failed'
+          grep -qxF 'pr_owner_verified=yes' "$state/task-a.meta" || fail 'Gerrit re-registration lost its verified identity'
+          [ "$(grep -c '^pr_owner_verified=' "$state/task-a.meta")" -eq 1 ] || fail 'Gerrit re-registration duplicated its verdict'
+        fi ;;
+    esac
+    unset FM_TEST_GERRIT_RAW
+  done
+  pass "Gerrit ownership matches recorded change identities, ignores topics and destinations, and rechecks identity under lock"
 }
 
 test_github_registration_requires_the_recorded_branch() {
@@ -4027,7 +4081,8 @@ test_ado_wakes_allow_sibling_merge
 test_validated_six_argument_compatibility
 test_gitlab_merge_watch
 test_gerrit_merge_watch
-test_provider_ownership_registration
+test_gitlab_ownership_registration
+test_gerrit_ownership_uses_recorded_identity
 test_gerrit_arming_records_no_patch_set_revision
 test_gerrit_ready_gate_reads_the_published_tree
 test_gerrit_nm_ready_gate_requires_recovered_custody
