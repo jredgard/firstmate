@@ -117,6 +117,7 @@ case "${1:-} ${2:-}" in
       *statusCheckRollup*)
         printf '%s\n' '{"state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN","headRefOid":"1111111111111111111111111111111111111111","baseRefName":"main","statusCheckRollup":[{"__typename":"CheckRun","name":"ci","status":"COMPLETED","conclusion":"SUCCESS"}],"reviewDecision":null}'
         ;;
+      *headRefName*) printf '%s\n' "$FM_TEST_GH_BRANCH" ;;
       *headRefOid*) printf '%s\n' 1111111111111111111111111111111111111111 ;;
     esac
     ;;
@@ -166,7 +167,7 @@ run_pr_merge() {  # <home> <id> <url>
   PATH="$home/fakebin:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$home" \
     FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
     FM_CONFIG_OVERRIDE="$home/config" FM_TEST_GH_LOG="$home/gh.log" \
-    FM_TEST_GH_AXI_LOG="$home/gh-axi.log" "$ROOT/bin/fm-pr-merge.sh" "$@"
+    FM_TEST_GH_BRANCH="fm/$1" FM_TEST_GH_AXI_LOG="$home/gh-axi.log" "$ROOT/bin/fm-pr-merge.sh" "$@"
 }
 
 wait_for_test_file() {  # <path> <pid>
@@ -227,6 +228,7 @@ write_origin_meta() {  # <home> <id> [kind]
     "project=$home/projects/sample" \
     "harness=codex" \
     "kind=$kind" \
+    "branch=fm/$id" \
     "mode=$kind" \
     "spawn_gen=fixture-$id"
 }
@@ -3396,7 +3398,7 @@ test_pr_merge_entrypoint_refuses_a_captain_held_task() {
     --repo sample --start >/dev/null || fail "could not create the held PR fixture"
   fm_write_meta "$home/state/$pr_id.meta" \
     "window=firstmate:fm-$pr_id" "endpoint_task_id=$pr_id" "worktree=$wt" \
-    "project=$repo" "harness=codex" "kind=ship" "mode=no-mistakes" \
+    "project=$repo" "harness=codex" "kind=ship" "mode=no-mistakes" "branch=fm/$pr_id" \
     "pr=$pr" "spawn_gen=fixture-$pr_id"
   run_captain "$home" hold "$pr_id" --reason "captain merge approval pending" >/dev/null \
     || fail "could not hold the PR entrypoint fixture"
@@ -3613,7 +3615,7 @@ test_merge_entrypoints_refuse_a_reused_task_incarnation() {
     --repo sample --start >/dev/null || fail "could not create the original PR task"
   fm_write_meta "$home/state/$id.meta" \
     "window=firstmate:fm-$id" "endpoint_task_id=$id" "worktree=$old_wt" \
-    "project=$old_repo" "harness=codex" "kind=ship" "mode=no-mistakes" \
+    "project=$old_repo" "harness=codex" "kind=ship" "mode=no-mistakes" "branch=fm/$id" \
     "spawn_gen=original-$id"
   printf 'done: merge ready\n' > "$home/state/$id.status"
 
@@ -3668,7 +3670,7 @@ test_merge_entrypoints_refuse_a_reused_task_incarnation() {
   tasks_in "$home" reopen "$id" >/dev/null || fail "could not reopen the reused PR task"
   fm_write_meta "$home/state/$id.meta" \
     "window=firstmate:fm-$id" "endpoint_task_id=$id" "worktree=$new_wt" \
-    "project=$new_repo" "harness=codex" "kind=ship" "mode=no-mistakes" \
+    "project=$new_repo" "harness=codex" "kind=ship" "mode=no-mistakes" "branch=fm/$id" \
     "spawn_gen=replacement-$id"
   tasks_in "$home" start "$id" >/dev/null || fail "could not start the reused PR task"
   : > "$merge_release"
@@ -3809,7 +3811,7 @@ test_merge_entrypoints_serialize_forced_teardown_before_task_reads() {
     --repo sample --start >/dev/null || fail "could not create the PR teardown-race fixture"
   fm_write_meta "$home/state/$id.meta" \
     "window=firstmate:fm-$id" "endpoint_task_id=$id" "worktree=$wt" \
-    "project=$repo" "harness=codex" "kind=ship" "mode=no-mistakes" \
+    "project=$repo" "harness=codex" "kind=ship" "mode=no-mistakes" "branch=fm/$id" \
     "spawn_gen=fixture-$id"
   printf 'done: merge ready\n' > "$home/state/$id.status"
   run_captain "$home" hold "$id" --reason "captain merge approval pending" >/dev/null \
@@ -3976,7 +3978,7 @@ test_released_merge_passes_the_entrypoint_and_lands() {
     --repo sample --start >/dev/null || fail "could not create the released merge fixture"
   fm_write_meta "$home/state/$id.meta" \
     "window=firstmate:fm-$id" "endpoint_task_id=$id" "worktree=$wt" \
-    "project=$repo" "harness=codex" "kind=ship" "mode=no-mistakes" \
+    "project=$repo" "harness=codex" "kind=ship" "mode=no-mistakes" "branch=fm/$id" \
     "pr=$pr" "spawn_gen=fixture-$id"
   printf 'done: merge ready\n' > "$home/state/$id.status"
   run_captain "$home" hold "$id" --reason "captain merge approval pending" >/dev/null \

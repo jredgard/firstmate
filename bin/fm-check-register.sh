@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Bind an intentional custom watcher check to its current bytes.
+# This is not PR ownership: merge watches use fm-pr-check.sh's metadata-bound
+# poll, and the watcher refuses custom merged results as cleanup evidence.
 # Usage: fm-check-register.sh <id>
 # Retire with fm-check-unregister.sh <id>; do not hand-compose an rm.
 set -u

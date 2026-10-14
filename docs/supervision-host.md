@@ -15,6 +15,11 @@ These parts are shared with Pi and decide what the branch may do:
 - The same records.
 - The same guarded scripts.
 
+Merge-triggered cleanup uses the task PR identity guard owned by [fm-teardown.sh](../bin/fm-teardown.sh), including later sweeps.
+The drain presents the guarded command to main and the host's engine; custom checks authenticate script bytes and cannot establish PR ownership.
+The canonical PR monitor binds the task metadata to its PR; [fm-pr-check.sh](../bin/fm-pr-check.sh) verifies recorded branches using Azure DevOps, GitHub, and GitLab source-branch reads, while unreadable ownership and Gerrit registration record `pr_owner_verified=no` with a warning and retain monitoring.
+Regression coverage lives in [fm-teardown-endpoint-safety.test.sh](../tests/fm-teardown-endpoint-safety.test.sh), [fm-pr-check-security.test.sh](../tests/fm-pr-check-security.test.sh), and [fm-wake-drain-unread-status.test.sh](../tests/fm-wake-drain-unread-status.test.sh).
+
 A close is the output a watcher cycle prints when it ends.
 An arm owner is the component in each primary harness that starts watcher cycles and reads their close.
 

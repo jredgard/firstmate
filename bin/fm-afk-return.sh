@@ -660,7 +660,7 @@ EOF
   while IFS="$(printf '\t')" read -r task url; do
     [ -n "$task" ] || continue
     count=$((count + 1))
-    printf '  - %s: %s is merged and the worker is still up; close it with bin/fm-teardown.sh %s once catch-up clears\n' "$task" "$url" "$task"
+    printf '  - %s: %s is merged and the worker is still up; close it with bin/fm-teardown.sh %s --merged-pr %s once catch-up clears\n' "$task" "$url" "$task" "$url"
   done <<EOF
 $(scan_landed_awaiting_cleanup)
 EOF

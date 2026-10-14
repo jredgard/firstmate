@@ -192,7 +192,13 @@
 # leased home releases its durable treehouse lease so the pool slot is freed,
 # never left leased forever. If the treehouse return fails, teardown leaves the
 # leased home and state in place instead of hiding a still-held lease.
-# Usage: fm-teardown.sh <task-id> [--force] [--legacy-record]
+# Usage: fm-teardown.sh <task-id> [--force] [--legacy-record] [--merged-pr <url>]
+#   --merged-pr carries the PR identity from a merge-landed wake or sweep.
+#   It requires that exact canonical URL in the task's recorded pr=, under the
+#   metadata lock before cleanup. Missing, ambiguous, or foreign PRs refuse,
+#   including under --force; ordinary landed-work checks still run. Unattended
+#   delivery lanes outside local-only mode require a recorded PR and a
+#   forge-confirmed merge before cleanup, including with --merged-pr.
 #   --force skips ordinary-task dirty and landed-work checks, skips scout report
 #   checks, and discards secondmate child work for kind=secondmate. Only use it
 #   when the captain has explicitly said to discard the work.
@@ -403,11 +409,20 @@ fi
 ID=$1
 FORCE=
 LEGACY_RECORD_GIVEN=0
+MERGED_PR=
 shift
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --force) FORCE=--force ;;
     --legacy-record) LEGACY_RECORD_GIVEN=1 ;;
+    --merged-pr)
+      if [ "$#" -lt 2 ] || [ -n "$MERGED_PR" ] || ! fm_pr_url_parse "$2"; then
+        echo "error: invalid merge cleanup PR identity" >&2
+        exit 2
+      fi
+      MERGED_PR=$FM_PR_URL
+      shift
+      ;;
     *)
       echo "error: invalid teardown request" >&2
       exit 2
@@ -535,8 +550,39 @@ fm_backlog_record_present "$META" "task record" "$STATE" || {
   echo "error: teardown refused after locking: $FM_BACKLOG_TRANSITION_ERROR" >&2
   exit 1
 }
+if [ -n "$MERGED_PR" ] && ! fm_pr_require_task_url "$META" "$ID" "$MERGED_PR"; then
+  printf '%s\n' "$FM_PR_TASK_MATCH_ERROR" >&2
+  exit 1
+fi
 TEARDOWN_META_KIND=$(fm_meta_get "$META" kind)
 [ -n "$TEARDOWN_META_KIND" ] || TEARDOWN_META_KIND=ship
+if [ "$(fm_lease_actor)" = branch ] && [ "$(fm_meta_get "$META" mode)" != local-only ] \
+  && [ "$TEARDOWN_META_KIND" != scout ] && [ "$TEARDOWN_META_KIND" != secondmate ]; then
+  if ! fm_pr_metadata_identity_parse "$META"; then
+    echo "REFUSED: merge cleanup for $ID requires one valid recorded pr= (PR ${MERGED_PR:-<missing or invalid>}); preserving task and worktree." >&2
+    exit 1
+  fi
+  # shellcheck disable=SC2016
+  if ! fm_run_timed 10 bash -c '
+    . "$1"
+    case "$2" in
+      ado) fm_pr_ado_read_record "$3" "$7" ;;
+      github) fm_pr_github_read_record "${5%%/*}" "${5#*/}" "$6" ;;
+      gitlab) fm_pr_gitlab_read_record "$4" "$5" "$6" ;;
+      gerrit) fm_pr_gerrit_read_record "$4" "$6" ;;
+      *) exit 1 ;;
+    esac || exit 1
+    case "$FM_PR_RECORD_STATE:$FM_PR_RECORD_MERGED" in
+      MERGED:true|merged:true|completed:true) exit 0 ;;
+      *) exit 1 ;;
+    esac
+  ' _ "$SCRIPT_DIR/fm-pr-lib.sh" "$FM_PR_META_PROVIDER" "$FM_PR_META_URL" \
+    "$FM_PR_META_HOST" "$FM_PR_META_PATH" "$FM_PR_META_NUMBER" \
+    "$(fm_meta_get "$META" pr_head)" 2>/dev/null; then
+    echo "REFUSED: merge cleanup for $ID cannot verify PR $FM_PR_META_URL as completed; preserving task and worktree." >&2
+    exit 1
+  fi
+fi
 # Retiring a persistent secondmate is main's alone in both postures; the kind
 # is read under the metadata lock (role partition: bin/fm-lease-lib.sh).
 [ "$TEARDOWN_META_KIND" != secondmate ] || fm_lease_forbid_branch "secondmate retirement (fm-teardown)"
@@ -1963,7 +2009,7 @@ validate_worktree_teardown_safety() {
   # worktree cleanup, including recovery when the worktree is already absent.
   if [[ "$PR_URL" == https://dev.azure.com/* ]]; then
     if ! fm_pr_ado_read_record "$PR_URL" "$(fm_meta_get "$META" pr_head)" || [ "$FM_PR_RECORD_MERGED" != true ]; then
-      echo "REFUSED: Azure DevOps pull request $PR_URL is not verifiably completed at the recorded head; preserving task and worktree." >&2
+      echo "REFUSED: Azure DevOps pull request $PR_URL for task $ID is not verifiably completed at the recorded head; preserving task and worktree." >&2
       return 1
     fi
   fi
@@ -3498,7 +3544,7 @@ fi
 if [ "$FORCE" != "--force" ] && [ "$KIND" != scout ] && [ "$KIND" != secondmate ] \
     && [[ "$PR_URL" == https://github.com/* ]]; then
   if ! recorded_github_pr_is_landed; then
-    echo "REFUSED: GitHub pull request $PR_URL is not verifiably merged at the recorded head (state=$TEARDOWN_GITHUB_PR_STATE); preserving task and worktree." >&2
+    echo "REFUSED: GitHub pull request $PR_URL for task $ID is not verifiably merged at the recorded head (state=$TEARDOWN_GITHUB_PR_STATE); preserving task and worktree." >&2
     exit 1
   fi
 fi

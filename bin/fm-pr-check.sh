@@ -7,6 +7,8 @@
 # The watcher check source is byte-for-byte bin/fm-pr-poll.sh; task and PR data
 # live only in a private sidecar and are never interpolated into shell source.
 # GitHub, GitLab, Gerrit, and canonical dev.azure.com PR URLs are accepted.
+# A readable ownership mismatch refuses registration; an unreadable lookup
+# records pr_owner_verified=no and warns while retaining merge monitoring.
 # Azure DevOps requires an authenticated REST read and records its live head.
 # bin/fm-pr-poll.sh owns its merge, conflict, and abandonment notifications.
 # A GitHub or Azure DevOps pull request the forge reports as a draft is refused,
@@ -70,6 +72,11 @@ if [ "$KIND" = secondmate ]; then
   exit 1
 fi
 
+TASK_BRANCH=$(grep '^branch=' "$META" | tail -1 | cut -d= -f2- || true)
+WT=$(grep '^worktree=' "$META" | tail -1 | cut -d= -f2- || true)
+SOURCE_BRANCH=
+PR_OWNER_VERIFIED=no
+
 # A prior exact merged result may have queued its durable wake immediately
 # before interruption.
 # Finish only its identity-bound receipt before publishing a replacement poll.
@@ -82,13 +89,20 @@ fm_pr_poll_retirement_recover_one "$STATE" "$ID" "$SCRIPT_DIR/fm-pr-poll.sh" || 
 # every error by design, so a missing CLI would be indistinguishable from a
 # change that is never merged. Arming is the one point where that can be
 # reported, so the absent tool stops the watch here instead of watching nothing.
+if [ "$PROVIDER" = github ]; then
+  SOURCE_BRANCH=$(fm_run_timed 20 gh pr view "$URL" --json headRefName -q '.headRefName // empty' 2>/dev/null) || SOURCE_BRANCH=
+fi
+if [ "$PROVIDER" = gitlab ]; then
+  if ! command -v glab >/dev/null 2>&1; then
+    echo "error: watching a GitLab merge request requires glab on PATH" >&2
+    exit 1
+  fi
+  OWNER_JSON=$(GITLAB_HOST="$HOST" fm_run_timed 20 glab mr view "$NUMBER" -R "https://$HOST/$PROJECT_PATH" -F json 2>/dev/null) || OWNER_JSON=
+  SOURCE_BRANCH=$(printf '%s' "$OWNER_JSON" | jq -r 'if (.source_branch | type) == "string" then .source_branch else empty end' 2>/dev/null) || SOURCE_BRANCH=
+fi
 # The Gerrit poll also needs jq, because Gerrit's status has to be read out of a
 # structured record rather than off a rendered line: the tool's own table prints
 # a change's subject before its status, and a subject is free text.
-if [ "$PROVIDER" = gitlab ] && ! command -v glab >/dev/null 2>&1; then
-  echo "error: watching a GitLab merge request requires glab on PATH" >&2
-  exit 1
-fi
 if [ "$PROVIDER" = gerrit ]; then
   if ! command -v gerrit-axi >/dev/null 2>&1; then
     echo "error: watching a Gerrit change requires gerrit-axi on PATH" >&2
@@ -122,8 +136,6 @@ if [ "$PROVIDER" = github ] && [ "${FM_PR_CHECK_MERGE:-}" != 1 ] && command -v g
   fi
 fi
 
-"$FM_ROOT/bin/fm-guard.sh" || true
-
 # pr_head is recorded only when the forge's CLI can supply it. gh exposes the
 # head commit as a selectable field; plain glab exposes it only inside its JSON
 # output, which would need a JSON processor firstmate does not require, so a
@@ -142,7 +154,6 @@ fi
 # read below, because bin/fm-pr-merge.sh refuses a live head that moved off the
 # recorded value and bin/fm-teardown.sh requires completed status at it; their
 # headers own those gates.
-WT=$(grep '^worktree=' "$META" | tail -1 | cut -d= -f2- || true)
 PR_HEAD=
 if [ "$PROVIDER" = github ] && [ -n "$WT" ] && [ -d "$WT" ] && command -v gh >/dev/null 2>&1; then
   if REMOTE_HEAD=$(cd "$WT" && gh pr view "$URL" --json headRefOid -q .headRefOid 2>/dev/null) \
@@ -160,6 +171,7 @@ if [ "$PROVIDER" = ado ]; then
     echo "error: $URL is a draft pull request; mark it ready before arming merge monitoring" >&2
     exit 1
   fi
+  SOURCE_BRANCH=$(printf '%s' "$FM_PR_ADO_JSON" | jq -r 'if (.sourceRefName | type) == "string" then .sourceRefName else empty end' 2>/dev/null) || SOURCE_BRANCH=
   PR_HEAD=$(printf '%s' "$FM_PR_ADO_JSON" | jq -er '.lastMergeSourceCommit.commitId // empty') || {
     echo "error: could not read the Azure DevOps pull request head for $URL" >&2
     exit 1
@@ -169,6 +181,20 @@ if [ "$PROVIDER" = ado ]; then
     exit 1
   }
 fi
+
+SOURCE_BRANCH=${SOURCE_BRANCH#refs/heads/}
+case "$SOURCE_BRANCH" in
+  *$'\n'*|*$'\r'*) SOURCE_BRANCH= ;;
+esac
+if [ -n "$TASK_BRANCH" ] && [ -n "$SOURCE_BRANCH" ]; then
+  if [ "$SOURCE_BRANCH" != "$TASK_BRANCH" ]; then
+    echo "error: $PROVIDER pull request $URL does not belong to task $ID's recorded branch $TASK_BRANCH; nothing recorded or armed" >&2
+    exit 1
+  fi
+  PR_OWNER_VERIFIED=yes
+fi
+
+"$FM_ROOT/bin/fm-guard.sh" || true
 
 MODE=$(grep '^mode=' "$META" | tail -1 | cut -d= -f2- || true)
 PROJECT=$(grep '^project=' "$META" | tail -1 | cut -d= -f2- || true)
@@ -212,16 +238,21 @@ fm_lock_acquire_wait "$META_LOCK"
 META_LOCK_HELD=1
 [ -f "$META" ] && [ ! -L "$META" ] && [ "$(fm_pr_file_link_count "$META")" = 1 ] \
   || { echo "error: task metadata is unavailable" >&2; exit 1; }
+if [ "$PROVIDER" != gerrit ] && [ "$(grep '^branch=' "$META" | tail -1 | cut -d= -f2- || true)" != "$TASK_BRANCH" ]; then
+  echo "error: task $ID's recorded branch changed during PR registration; nothing recorded or armed" >&2
+  exit 1
+fi
 META_DEVICE=$(fm_pr_file_device "$META") || exit 1
 STATE_DEVICE=$(fm_pr_file_device "$STATE") || exit 1
 [ "$META_DEVICE" = "$STATE_DEVICE" ] || { echo "error: task metadata is unavailable" >&2; exit 1; }
 META_TMP=$(mktemp "$STATE/.fm-pr-meta.XXXXXX") || exit 1
 while IFS= read -r line || [ -n "$line" ]; do
   case "$line" in
-    pr=*|pr_head=*) ;;
+    pr=*|pr_head=*|pr_owner_verified=*) ;;
     *) printf '%s\n' "$line" >> "$META_TMP" || exit 1 ;;
   esac
 done < "$META"
+printf 'pr_owner_verified=%s\n' "$PR_OWNER_VERIFIED" >> "$META_TMP" || exit 1
 printf 'pr=%s\n' "$URL" >> "$META_TMP" || exit 1
 [ -z "$PR_HEAD" ] || printf 'pr_head=%s\n' "$PR_HEAD" >> "$META_TMP" || exit 1
 chmod 0600 "$META_TMP" || exit 1
@@ -252,6 +283,9 @@ else
   PR_POLL_PUBLISH_LOCK_HELD=0
   echo "error: could not publish PR poll" >&2
   exit 1
+fi
+if [ "$PR_OWNER_VERIFIED" = no ]; then
+  echo "warning: cannot verify ownership of $PROVIDER PR $URL for task $ID; pr_owner_verified=no, merge monitoring remains armed" >&2
 fi
 # Opt-in fleet activity ledger (docs/fleet-ledger.md); off costs one file test.
 # The merge-time re-record is not a new review-ready PR, so it writes nothing.

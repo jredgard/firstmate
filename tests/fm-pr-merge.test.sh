@@ -46,6 +46,7 @@ make_case() {
     "worktree=$case_dir/wt" \
     "project=$case_dir/project" \
     "kind=ship" \
+    "branch=fm/example" \
     "mode=no-mistakes"
   printf '%s\n' \
     'state=MERGED' \
@@ -230,6 +231,7 @@ case "${1:-} ${2:-}" in
         fi
         exit 0
         ;;
+      *headRefName*) printf 'fm/example\n'; exit 0 ;;
       *headRefOid*)
         cat "$FM_TEST_GH_HEAD"
         exit 0

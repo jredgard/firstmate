@@ -460,7 +460,7 @@ fm_pr_regular_destination_on_device_or_absent() {
 }
 
 fm_pr_metadata_identity_parse() {
-  local file=$1 line value pr_count=0 seen_pr=0 post_pr_invalid=0
+  local file=$1 line value pr_count=0 head_invalid=0
   FM_PR_META_PROVIDER=
   FM_PR_META_URL=
   FM_PR_META_HOST=
@@ -481,24 +481,39 @@ fm_pr_metadata_identity_parse() {
           FM_PR_META_PATH=$FM_PR_PATH
           FM_PR_META_NUMBER=$FM_PR_NUMBER
         fi
-        seen_pr=1
         ;;
       pr_head=*)
-        if [ "$seen_pr" -eq 1 ]; then
-          value=${line#pr_head=}
-          fm_pr_head_valid "$value" || post_pr_invalid=1
-        fi
-        ;;
-      x_request=*|x_request_ts=*|x_followups=*|x_platform=*|x_reply_max_chars=*)
-        ;;
-      *)
-        [ "$seen_pr" -eq 0 ] || post_pr_invalid=1
+        value=${line#pr_head=}
+        fm_pr_head_valid "$value" || head_invalid=1
         ;;
     esac
   done < "$file"
   [ "$pr_count" -eq 1 ] || return 1
-  [ "$post_pr_invalid" -eq 0 ] || return 1
+  [ "$head_invalid" -eq 0 ] || return 1
   [ -n "$FM_PR_META_URL" ]
+}
+
+# A merge-triggered retirement must carry the canonical identity from the event,
+# never a title match or a PR discovered from another task. Call under the task
+# metadata lock before cleanup; the drain uses the same check for its guidance.
+# FM_PR_TASK_MATCH_ERROR is consumed by bin/fm-teardown.sh and bin/fm-wake-drain.sh.
+# shellcheck disable=SC2034
+fm_pr_require_task_url() {  # <meta> <task-id> <event-pr-url>
+  local meta=$1 id=$2 event_url
+  FM_PR_TASK_MATCH_ERROR=
+  if ! fm_pr_url_parse "$3"; then
+    FM_PR_TASK_MATCH_ERROR="REFUSED: merge cleanup for $id has no valid event PR identity; preserving task and worktree."
+    return 1
+  fi
+  event_url=$FM_PR_URL
+  if ! fm_pr_metadata_identity_parse "$meta"; then
+    FM_PR_TASK_MATCH_ERROR="REFUSED: merge cleanup for $id requires one valid recorded pr=; preserving task and worktree."
+    return 1
+  fi
+  if [ "$FM_PR_META_URL" != "$event_url" ]; then
+    FM_PR_TASK_MATCH_ERROR="REFUSED: merge cleanup for $id names $event_url but recorded pr=$FM_PR_META_URL; preserving task and worktree."
+    return 1
+  fi
 }
 
 # Sidecar layout: provider, url, host, path, number, one per line. A sidecar

@@ -72,6 +72,273 @@ assert_refused_without_mutation() {  # <case> <id> <description>
   [ ! -s "$dir/runtime.log" ] || fail "$description: runtime command ran before refusal: $(cat "$dir/runtime.log")"
 }
 
+test_merge_cleanup_requires_the_tasks_own_pr() {
+  local dir id=merge-task event_url='https://github.com/o/r/pull/8' variant rc recorded
+  for variant in missing foreign duplicate matching; do
+    dir=$(make_case "merge-pr-$variant")
+    fm_write_meta "$dir/home/state/$id.meta" \
+      "window=ambient-current-window" "kind=ship" "mode=no-mistakes" \
+      "worktree=$dir/worktree" "project=$dir/project"
+    case "$variant" in
+      foreign) printf 'pr=https://github.com/o/r/pull/7\n' >> "$dir/home/state/$id.meta" ;;
+      duplicate) printf 'pr=%s\npr=%s\n' "$event_url" "$event_url" >> "$dir/home/state/$id.meta" ;;
+      matching) printf 'pr=%s\n' "$event_url" >> "$dir/home/state/$id.meta" ;;
+    esac
+    recorded=$(cat "$dir/home/state/$id.meta")
+    rc=0
+    FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" \
+      FM_RUNTIME_LOG="$dir/runtime.log" PATH="$dir/fakebin:$PATH" \
+      "$TEARDOWN" "$id" --merged-pr "$event_url" --force \
+      > "$dir/stdout" 2> "$dir/stderr" || rc=$?
+    [ "$rc" -ne 0 ] || fail "$variant: invalid endpoint unexpectedly cleaned up"
+    [ "$(cat "$dir/home/state/$id.meta")" = "$recorded" ] || fail "$variant: refusal modified metadata"
+    assert_present "$dir/worktree/sentinel" "$variant: refusal modified worktree"
+    [ ! -s "$dir/runtime.log" ] || fail "$variant: refusal called the runtime"
+    case "$variant" in
+      missing|duplicate)
+        assert_grep 'requires one valid recorded pr=' "$dir/stderr" "$variant: missing PR binding was not diagnosed" ;;
+      foreign)
+        assert_grep "names $event_url but recorded pr=https://github.com/o/r/pull/7" "$dir/stderr" \
+          "foreign: PR mismatch was not diagnosed" ;;
+      matching)
+        assert_no_grep 'merge cleanup' "$dir/stderr" "matching: own PR was refused by the identity gate" ;;
+    esac
+  done
+  pass "merge cleanup refuses missing, ambiguous, and foreign PRs before mutation even under force; an exact match reaches ordinary safety checks"
+}
+
+test_branch_teardown_requires_its_completed_pr() {
+  local dir id=merge-task provider variant url before rc actor mode tool
+  local -a merged_arg
+  for provider in github ado gitlab gerrit; do
+    case "$provider" in
+      github) url=https://github.com/o/r/pull/8 ;;
+      ado) url=https://dev.azure.com/acme/project/_git/repo/pullrequest/8 ;;
+      gitlab) url=https://gitlab.example/o/r/-/merge_requests/8 ;;
+      gerrit) url=https://gerrit.example/c/o/r/+/8 ;;
+    esac
+    for variant in missing invalid duplicate open closed unreadable completed explicit explicit-open explicit-unreadable relaunched foreign main local-only; do
+      dir=$(make_case "branch-pr-$provider-$variant")
+      actor=branch mode=no-mistakes merged_arg=()
+      [ "$variant" != main ] || actor=main
+      [ "$variant" != local-only ] || mode=local-only
+      fm_write_meta "$dir/home/state/$id.meta" \
+        "window=isolated:fm-$id" "endpoint_task_id=$id" "spawn_gen=merge-safety" \
+        "kind=ship" "mode=$mode" "worktree=$dir/nonexistent-worktree" "project=$dir/project"
+      case "$variant" in
+        missing|main|local-only) ;;
+        invalid) printf 'pr=not-a-pr\n' >> "$dir/home/state/$id.meta" ;;
+        duplicate) printf 'pr=%s\npr=%s\n' "$url" "$url" >> "$dir/home/state/$id.meta" ;;
+        *) printf 'pr_head=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\npr=%s\n' "$url" >> "$dir/home/state/$id.meta" ;;
+      esac
+      case "$variant" in
+        explicit|explicit-open|explicit-unreadable|relaunched) merged_arg=(--merged-pr "$url") ;;
+        foreign) merged_arg=(--merged-pr https://github.com/o/r/pull/7) ;;
+      esac
+      if [ "$variant" = relaunched ]; then
+        printf 'control_relaunch_tx=abc\ntraceparent=00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01\n' >> "$dir/home/state/$id.meta"
+      fi
+      cat > "$dir/fakebin/forge" <<'SH'
+#!/usr/bin/env bash
+printf '%s %s\n' "${0##*/}" "$*" >> "$FM_FORGE_LOG"
+case "$FM_FORGE_VARIANT" in unreadable|explicit-unreadable) exit 1 ;; esac
+state=MERGED merged=true
+case "$FM_FORGE_VARIANT" in
+  open|explicit-open) state=OPEN merged=false ;;
+  closed) state=CLOSED merged=false ;;
+esac
+case "${0##*/}" in
+  gh)
+    printf 'state=%s\nmerged=%s\n' "$state" "$merged" ;;
+  gh-axi)
+    [ "${1:-}" = api ] || exit 1
+    api_state=closed
+    [ "$state" != OPEN ] || api_state=open
+    encoded=$(printf '{"number":8,"state":"%s","merged":%s,"head":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}' "$api_state" "$merged" | base64 | tr -d '\n')
+    printf 'api:\n  truncated: false\n  body: %s\n' "$encoded" ;;
+  glab)
+    case "$state" in MERGED) state=merged ;; OPEN) state=opened ;; CLOSED) state=closed ;; esac
+    printf '{"state":"%s"}\n' "$state" ;;
+  gerrit-axi)
+    case "$state" in OPEN) state=NEW ;; CLOSED) state=ABANDONED ;; esac
+    printf '{"ok":true,"changes":[{"change":8,"status":"%s","url":null}]}\n' "$state" ;;
+  az) printf 'fixture-token\n' ;;
+  curl)
+    case "$state" in MERGED) state=completed ;; OPEN) state=active ;; CLOSED) state=abandoned ;; esac
+    printf '{"pullRequestId":8,"status":"%s","lastMergeSourceCommit":{"commitId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}\n' "$state" ;;
+esac
+SH
+      chmod 0700 "$dir/fakebin/forge"
+      for tool in gh gh-axi glab gerrit-axi az curl; do
+        ln -s forge "$dir/fakebin/$tool"
+      done
+      before=$(cat "$dir/home/state/$id.meta")
+      rc=0
+      FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_SUPERVISION_ACTOR="$actor" \
+        FM_RUNTIME_LOG="$dir/runtime.log" FM_FORGE_LOG="$dir/forge.log" FM_FORGE_VARIANT="$variant" \
+        PATH="$dir/fakebin:$PATH" "$TEARDOWN" "$id" "${merged_arg[@]}" \
+        > "$dir/out" 2> "$dir/err" || rc=$?
+      case "$variant:$provider" in
+        completed:*|main:*|local-only:*|explicit:*|relaunched:*)
+          [ "$rc" -eq 0 ] || fail "$provider/$variant: ordinary teardown refused: $(cat "$dir/err")"
+          assert_absent "$dir/home/state/$id.meta" "$provider/$variant: successful teardown retained metadata"
+          if [ "$variant" = main ] || [ "$variant" = local-only ]; then
+            [ ! -s "$dir/forge.log" ] || fail "$provider/$variant: exempt cleanup queried the forge"
+          else
+            [ -s "$dir/forge.log" ] || fail "$provider/$variant: cleanup skipped forge completion"
+          fi
+          ;;
+        *)
+          [ "$rc" -ne 0 ] || fail "$provider/$variant: unverified cleanup succeeded"
+          [ "$(cat "$dir/home/state/$id.meta")" = "$before" ] || fail "$provider/$variant: refusal changed metadata"
+          assert_present "$dir/worktree/sentinel" "$provider/$variant: refusal changed worktree"
+          [ ! -s "$dir/runtime.log" ] || fail "$provider/$variant: refusal invoked runtime cleanup"
+          assert_grep "$id" "$dir/err" "$provider/$variant: refusal did not name the task"
+          case "$variant" in
+            missing|invalid|duplicate) assert_grep 'requires one valid recorded pr=' "$dir/err" "$provider/$variant: missing binding was not diagnosed" ;;
+            *) assert_grep "$url" "$dir/err" "$provider/$variant: refusal did not name the PR" ;;
+          esac
+          ;;
+      esac
+    done
+  done
+  pass "branch teardown requires a recorded completed PR on every forge; explicit identity, attended main, and local-only paths retain their contracts"
+}
+
+test_branch_teardown_bounds_completion_reads_and_releases_locks() {
+  local dir id=merge-task provider variant url before rc tool
+  local -a merged_arg
+  . "$ROOT/bin/fm-timeout-lib.sh"
+  for provider in github github-axi gitlab gerrit ado; do
+    case "$provider" in
+      github|github-axi) url=https://github.com/o/r/pull/8 ;;
+      gitlab) url=https://gitlab.example/o/r/-/merge_requests/8 ;;
+      gerrit) url=https://gerrit.example/c/o/r/+/8 ;;
+      ado) url=https://dev.azure.com/acme/project/_git/repo/pullrequest/8 ;;
+    esac
+    for variant in implicit explicit; do
+      dir=$(make_case "branch-pr-timeout-$provider-$variant")
+      fm_write_meta "$dir/home/state/$id.meta" \
+        "window=isolated:fm-$id" "endpoint_task_id=$id" "spawn_gen=merge-safety" \
+        "kind=ship" "mode=no-mistakes" "worktree=$dir/worktree" "project=$dir/project" \
+        "pr=$url" "pr_head=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      printf 'working: keep task\n' > "$dir/home/state/$id.status"
+      printf '#!/usr/bin/env bash\nprintf "keep check\\n"\n' > "$dir/home/state/$id.check.sh"
+      cat > "$dir/fakebin/forge" <<'SH'
+#!/usr/bin/env bash
+printf '%s %s\n' "${0##*/}" "$*" >> "$FM_FORGE_LOG"
+case "$FM_FORGE_PROVIDER:${0##*/}" in
+  github-axi:gh) exit 1 ;;
+  ado:curl) exec sleep 30 ;;
+  ado:az) printf 'fixture-token\n'; exit 0 ;;
+  *) exec sleep 30 ;;
+esac
+SH
+      chmod 0700 "$dir/fakebin/forge"
+      for tool in gh gh-axi glab gerrit-axi az curl; do
+        ln -s forge "$dir/fakebin/$tool"
+      done
+      before=$(cat "$dir/home/state/$id.meta")
+      merged_arg=()
+      [ "$variant" != explicit ] || merged_arg=(--merged-pr "$url")
+      rc=0
+      fm_run_timed 20 env FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" \
+        FM_SUPERVISION_ACTOR=branch FM_RUNTIME_LOG="$dir/runtime.log" \
+        FM_FORGE_LOG="$dir/forge.log" FM_FORGE_PROVIDER="$provider" \
+        PATH="$dir/fakebin:$PATH" "$TEARDOWN" "$id" "${merged_arg[@]}" \
+        > "$dir/out" 2> "$dir/err" || rc=$?
+      [ "$rc" -eq 1 ] || fail "$provider/$variant: completion read did not refuse within its bound (rc=$rc)"
+      case "$provider" in
+        github) tool=gh ;;
+        github-axi) tool=gh-axi ;;
+        gitlab) tool=glab ;;
+        gerrit) tool=gerrit-axi ;;
+        ado) tool=curl ;;
+      esac
+      assert_grep "$tool " "$dir/forge.log" "$provider/$variant: fixture never reached its stalled forge read"
+      assert_grep "cannot verify PR $url as completed" "$dir/err" "$provider/$variant: timeout did not refuse cleanup"
+      [ "$(cat "$dir/home/state/$id.meta")" = "$before" ] || fail "$provider/$variant: timeout changed metadata"
+      assert_grep 'working: keep task' "$dir/home/state/$id.status" "$provider/$variant: timeout removed task status"
+      assert_present "$dir/home/state/$id.check.sh" "$provider/$variant: timeout removed task check"
+      assert_present "$dir/worktree/sentinel" "$provider/$variant: timeout changed worktree"
+      [ ! -s "$dir/runtime.log" ] || fail "$provider/$variant: timeout invoked runtime cleanup"
+      assert_absent "$dir/home/state/.control-$id.lock" "$provider/$variant: timeout left its control lock"
+      assert_absent "$dir/home/state/.meta-$id.lock" "$provider/$variant: timeout left its metadata lock"
+      bash -c '
+        . "$1"
+        control="$2/.control-$3.lock"
+        meta=$(fm_meta_lock_path "$2/$3.meta") || exit 1
+        fm_lock_try_acquire "$control" || exit 1
+        fm_lock_try_acquire "$meta" || { fm_lock_release "$control"; exit 1; }
+        fm_lock_release "$meta" && fm_lock_release "$control"
+      ' _ "$ROOT/bin/fm-wake-lib.sh" "$dir/home/state" "$id" \
+        || fail "$provider/$variant: timeout retained a task lock"
+    done
+  done
+  pass "branch completion timeouts preserve task state and release both locks on every forge and GitHub read path"
+}
+
+test_branch_teardown_preserves_pushed_work_without_a_pr() {
+  local dir id=live-task rc before
+  dir=$(make_case branch-pushed-without-pr)
+  fm_git_init_commit "$dir/worktree"
+  git -C "$dir/worktree" add sentinel
+  git -C "$dir/worktree" -c user.name=test -c user.email=test@example.invalid commit -qm task-work
+  git -C "$dir/worktree" update-ref refs/remotes/no-mistakes/fm/live-task "$(git -C "$dir/worktree" rev-parse HEAD)"
+  [ -z "$(git -C "$dir/worktree" log --oneline HEAD --not --remotes --)" ] || fail 'incident fixture is not pushed'
+  fm_write_meta "$dir/home/state/$id.meta" \
+    "window=isolated:fm-$id" "endpoint_task_id=$id" "spawn_gen=live-safety" \
+    "kind=ship" "mode=no-mistakes" "worktree=$dir/worktree" "project=$dir/project"
+  before=$(cat "$dir/home/state/$id.meta")
+  rc=0
+  FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_SUPERVISION_ACTOR=branch \
+    FM_RUNTIME_LOG="$dir/runtime.log" PATH="$dir/fakebin:$PATH" \
+    "$TEARDOWN" "$id" > "$dir/out" 2> "$dir/err" || rc=$?
+  [ "$rc" -ne 0 ] || fail 'host tore down a pushed task without its own PR'
+  assert_grep 'requires one valid recorded pr=' "$dir/err" 'host did not enforce the structural PR guard'
+  [ "$(cat "$dir/home/state/$id.meta")" = "$before" ] || fail 'host changed live task metadata'
+  assert_present "$dir/worktree/sentinel" 'host discarded the live worktree'
+  [ ! -s "$dir/runtime.log" ] || fail 'host invoked runtime cleanup before refusing'
+  pass "host preserves a pushed live lane that has no recorded PR"
+}
+
+test_branch_local_only_keeps_the_landed_work_proof() {
+  local dir id=local-task variant rc
+  for variant in unlanded landed; do
+    dir=$(make_case "branch-local-$variant")
+    git -C "$dir/project" checkout -qb main
+    git -C "$dir/project" -c user.name=test -c user.email=test@example.invalid commit --allow-empty -qm base
+    rm -rf "$dir/worktree"
+    git -C "$dir/project" worktree add -qb fm/local "$dir/worktree"
+    printf 'local work\n' > "$dir/worktree/sentinel"
+    git -C "$dir/worktree" add sentinel
+    git -C "$dir/worktree" -c user.name=test -c user.email=test@example.invalid commit -qm local-work
+    if [ "$variant" = landed ]; then
+      git -C "$dir/project" merge -q --ff-only fm/local
+    fi
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$dir/fakebin/no-mistakes"
+    chmod 0700 "$dir/fakebin/no-mistakes"
+    fm_write_meta "$dir/home/state/$id.meta" \
+      "window=isolated:fm-$id" "endpoint_task_id=$id" "spawn_gen=local-safety" \
+      "kind=ship" "mode=local-only" "worktree=$dir/worktree" "project=$dir/project"
+    rc=0
+    FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_SUPERVISION_ACTOR=branch \
+      FM_RUNTIME_LOG="$dir/runtime.log" PATH="$dir/fakebin:$PATH" \
+      "$TEARDOWN" "$id" > "$dir/out" 2> "$dir/err" || rc=$?
+    if [ "$variant" = unlanded ]; then
+      [ "$rc" -ne 0 ] || fail 'host discarded unlanded local-only work'
+      assert_grep 'not yet merged into main' "$dir/err" 'local-only teardown lost its landed-work proof'
+      assert_present "$dir/home/state/$id.meta" 'local-only refusal discarded metadata'
+      assert_present "$dir/worktree/sentinel" 'local-only refusal discarded work'
+    else
+      [ "$rc" -eq 0 ] || fail "host refused landed local-only work: $(cat "$dir/err")"
+      assert_absent "$dir/home/state/$id.meta" 'landed local-only cleanup retained metadata'
+    fi
+    assert_no_grep 'merge cleanup' "$dir/err" 'local-only cleanup required a PR'
+  done
+  pass "host local-only cleanup retains the local-main landed-work proof without requiring a PR"
+}
+
 test_invalid_endpoint_records_refuse_before_mutation() {
   local dir id=endpoint-a
 
@@ -1420,6 +1687,11 @@ test_already_gone_endpoint_still_completes_without_a_refusal() {
   pass "fm-teardown: an already-exited endpoint, and a server that is already gone, still complete cleanup silently"
 }
 
+test_merge_cleanup_requires_the_tasks_own_pr
+test_branch_teardown_preserves_pushed_work_without_a_pr
+test_branch_teardown_requires_its_completed_pr
+test_branch_teardown_bounds_completion_reads_and_releases_locks
+test_branch_local_only_keeps_the_landed_work_proof
 test_invalid_endpoint_records_refuse_before_mutation
 test_control_lock_contention_refuses_before_mutation
 test_non_pool_teardown_ignores_task_set_lock
