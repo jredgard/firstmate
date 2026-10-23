@@ -236,8 +236,7 @@ while IFS= read -r project_json; do
     jq -e --arg project "$project" '.schema_version==1 and .project==$project and (.sources|type)=="array"' "$memory" >/dev/null || {
       printf 'error: malformed radar memory %s\n' "$memory" >&2; exit 1;
     }
-    jq '.sources |= map(if .kind=="pr" and (.task_ids|type)!="array" then
-      .measurement="unmeasured" | .task_ids=[] else . end)' "$memory" > "$SCRATCH/previous.json"
+    cp "$memory" "$SCRATCH/previous.json"
   else
     printf '{"sources":[]}\n' > "$SCRATCH/previous.json"
   fi

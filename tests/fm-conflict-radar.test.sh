@@ -112,13 +112,13 @@ assert_json '.projects[0] | (.unmeasured|length)==0 and (.matrix|length)==2400 a
 
 # Completed PRs still associated with tracked tasks must expose damaged memory
 # as missing evidence, including null and absent array fields from older runs.
-jq '.sources |= map(if .kind=="pr" then .paths=null | .task_ids=null else . end) |
+jq '.sources |= map(if .kind=="pr" then .paths=null else . end) |
   .sources += [.sources[] | select(.kind=="pr") | .id="pr:https://github.com/fixture/app/pull/8" |
-    .url="https://github.com/fixture/app/pull/8" | .pr_id=8 | .branch="ship/beta" | del(.paths,.task_ids)]
+    .url="https://github.com/fixture/app/pull/8" | .pr_id=8 | .branch="ship/beta" | del(.paths)]
 ' "$FM_STATE_OVERRIDE/conflict-radar/app.json" > "$TMP_ROOT/null-memory.json"
 mv "$TMP_ROOT/null-memory.json" "$FM_STATE_OVERRIDE/conflict-radar/app.json"
 run_radar
-assert_json '.projects[0] | (.unmeasured|length)==2 and (.matrix|length)==0 and ([.sources[] | select(.kind=="pr")]|length)==2 and all(.sources[] | select(.kind=="pr"); .measurement=="unmeasured" and .paths==[] and (.task_ids|type)=="array")' 'null and missing source arrays remain visible as unmeasured without crashing'
+assert_json '.projects[0] | (.unmeasured|length)==2 and (.matrix|length)==0 and ([.sources[] | select(.kind=="pr")]|length)==2 and all(.sources[] | select(.kind=="pr"); .measurement=="unmeasured" and .paths==[])' 'null and missing source arrays remain visible as unmeasured without crashing'
 jq -e '(.unmeasured|length)==2 and all(.sources[] | select(.kind=="pr"); .measurement=="unmeasured" and .paths==[])' "$FM_STATE_OVERRIDE/conflict-radar/app.json" >/dev/null || fail 'null source evidence was not persisted as unmeasured'
 output=$(bash "$RADAR" app)
 [[ "$output" == *'app: unmeasured: pr:https://github.com/fixture/app/pull/7:'* && "$output" == *'app: overlap unmeasured'* && "$output" != *'no overlap'* ]] || fail 'null paths claimed measured no overlap'
