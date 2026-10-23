@@ -132,6 +132,66 @@ EOF
     "mode=ship"
 }
 
+test_contribution_input_bounded_argv() {
+  local home fakebin real_jq scenario count i task_count
+  real_jq=$(command -v jq)
+  for scenario in small backlog tasks; do
+    home=$(make_home "contribution-argv-$scenario")
+    mkdir -p "$home/tmp"
+    fakebin=$(fm_fakebin "$home")
+    cat > "$fakebin/jq" <<'SH'
+#!/usr/bin/env bash
+set -u
+export LC_ALL=C
+bytes=0
+for arg in "$@"; do bytes=$((bytes + ${#arg} + 1)); done
+if [ "$bytes" -gt 32768 ]; then
+  printf 'jq: Argument list too long (%s bytes)\n' "$bytes" >&2
+  exit 126
+fi
+exec "${REAL_JQ:?}" "$@"
+SH
+    chmod +x "$fakebin/jq"
+    count=1
+    [ "$scenario" != backlog ] || count=60
+    {
+      printf '## Queued\n'
+      for ((i = 1; i <= count; i++)); do
+        printf -- '- [ ] queued-%s - Queued task %s (repo: alpha) (kind: ship)\n' "$i" "$i"
+        if [ "$scenario" = backlog ]; then
+          printf '  Detail with "quotes" and \\slashes: %0600d\n' "$i"
+        fi
+      done
+    } > "$home/data/backlog.md"
+    task_count=1
+    [ "$scenario" != tasks ] || task_count=60
+    for ((i = 1; i <= task_count; i++)); do
+      fm_write_meta "$home/state/ship-$i.meta" \
+        'kind=ship' 'yolo=off' "pr=https://github.com/o/r/pull/$i" \
+        "pr_head=$(printf '%0600d' "$i")"
+    done
+    PATH="$fakebin:$PATH" REAL_JQ="$real_jq" TMPDIR="$home/tmp" FM_HOME="$home" \
+      FM_SNAPSHOT_NOW=2026-10-12T12:00:00Z \
+      bash "$SNAPSHOT" --contribution-input > "$home/actual.json" \
+      || fail "bounded-argv contribution input failed for $scenario"
+    if [ "$scenario" != small ]; then
+      jq -e --arg surface "$scenario" '.[$surface] | tojson | length > 32768' \
+        "$home/actual.json" >/dev/null || fail "$scenario fixture does not exceed the argument budget"
+    fi
+    jq -e --argjson count "$count" --argjson task_count "$task_count" --arg head "$(printf '%0600d' 1)" '
+      .backlog.present == true and (.backlog.records | length) == $count
+      and (.backlog.records | map(.id) | sort) == ([range(1; $count + 1) | "queued-\(.)"] | sort)
+      and (.tasks | length) == $task_count
+      and all(.tasks[]; .kind == "ship" and .merge_authority == "attended"
+        and .pr.url == ("https://github.com/o/r/pull/" + (.id | ltrimstr("ship-"))))
+      and (.tasks[] | select(.id == "ship-1") | .pr.head == $head)
+    ' "$home/actual.json" >/dev/null || fail "$scenario contribution ownership records are wrong"
+    [ -z "$(find "$home/tmp" -mindepth 1 -print)" ] \
+      || fail "$scenario contribution input left temporary transport files"
+  done
+  pass 'contribution input preserves ownership records above a small argv budget'
+}
+
 test_empty_fleet_json() {
   local home out view
   home=$(make_home empty)
@@ -1152,6 +1212,7 @@ EOF
   pass "home-summary excludes kind=secondmate from unowned_current and terminal_in_flight"
 }
 
+test_contribution_input_bounded_argv
 test_empty_fleet_json
 test_fixture_snapshot_json
 test_home_summary_excludes_secondmate_from_child_inventory

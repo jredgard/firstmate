@@ -1294,6 +1294,7 @@ fm_pr_forgejo_read_record() {  # <host> <path> <number>
   FM_PR_RECORD_STATE=
   FM_PR_RECORD_MERGED=
   FM_PR_RECORD_HEAD=
+  FM_PR_RECORD_SOURCE_BRANCH=
   command -v jq >/dev/null 2>&1 || return 1
   case "$number" in
     ''|*[!0-9]*) return 1 ;;
@@ -1342,6 +1343,10 @@ FIELDS
   # Consumed by bin/fm-teardown.sh pr_is_merged.
   # shellcheck disable=SC2034
   FM_PR_RECORD_HEAD=$head
+  # shellcheck disable=SC2034
+  FM_PR_RECORD_SOURCE_BRANCH=$(printf '%s' "$json" | jq -r '
+    .head.ref | select(type == "string")
+    | select(explode | all(. >= 32 and . != 127))' 2>/dev/null) || FM_PR_RECORD_SOURCE_BRANCH=
 }
 
 # gerrit-axi resolves its server from the current directory's origin remote

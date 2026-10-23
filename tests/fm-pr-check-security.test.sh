@@ -2567,6 +2567,99 @@ test_gerrit_nm_ready_gate_requires_recovered_custody() {
 # error body, an unmerged record, a tea failure, and an ambiguous login all
 # stay silent, and the read never depends on how many newer pull requests the
 # repository has.
+test_forgejo_ownership_registration() {
+  local dir state variant entry url source expected before rc
+  url=https://forgejo.example/o/r/pulls/7
+  for entry in initial rerecord; do
+    for variant in matching prefixed foreign missing malformed newline control nul failed error; do
+      dir=$(make_case "ownership-forgejo-$entry-$variant")
+      state="$dir/home/state"
+      write_task_meta "$dir"
+      ln -s "$REAL_JQ" "$dir/fakebin/jq"
+      source=fm/example expected=yes
+      case "$variant" in
+        prefixed) source=refs/heads/fm/example ;;
+        foreign) source=fm/foreign ;;
+        missing|malformed|nul|failed|error) source='' expected=no ;;
+        newline) source=$'fm/example\nforeign' expected=no ;;
+        control) source=$'fm/example\001' expected=no ;;
+      esac
+      jq -n --arg source "$source" --arg variant "$variant" '
+        {state:"open",merged:false,head:{sha:"abc",ref:$source}}
+        | if $variant == "missing" then del(.head.ref)
+          elif $variant == "malformed" then .head.ref = 42
+          elif $variant == "nul" then .head.ref = "fm/example\u0000"
+          elif $variant == "error" then {message:"not found"}
+          else . end' > "$dir/pull.json"
+      cat > "$dir/fakebin/tea" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FM_TEST_TEA_LOG"
+if [ "${1:-} ${2:-}" = "login list" ]; then
+  printf '[{"name":"main","url":"https://forgejo.example"}]\n'
+elif [ "${1:-}" = api ]; then
+  [ "${FM_TEST_TEA_FAIL:-0}" != 1 ] || exit 1
+  cat "$FM_TEST_TEA_RECORD"
+else
+  exit 2
+fi
+SH
+      chmod +x "$dir/fakebin/tea"
+      : > "$dir/tea.log"
+      before=$(state_snapshot "$state")
+      rc=0
+      FM_TEST_TEA_LOG="$dir/tea.log" FM_TEST_TEA_RECORD="$dir/pull.json" \
+        FM_TEST_TEA_FAIL="$([ "$variant" = failed ] && printf 1 || printf 0)" \
+        FM_PR_CHECK_MERGE="$([ "$entry" = rerecord ] && printf 1 || printf 0)" \
+        run_check_entry "$dir" task-a "$url" > "$dir/out" 2> "$dir/err" || rc=$?
+      [ "$(grep -c '^api ' "$dir/tea.log")" -eq 1 ] \
+        || fail "Forgejo/$entry/$variant: ownership did not use one PR REST read"
+      FM_PR_RECORD_SOURCE_BRANCH=stale
+      FM_PR_RECORD_STATE=stale FM_PR_RECORD_MERGED=stale FM_PR_RECORD_HEAD=stale
+      if FM_TEST_TEA_LOG="$dir/tea.log" FM_TEST_TEA_RECORD="$dir/pull.json" \
+        FM_TEST_TEA_FAIL="$([ "$variant" = failed ] && printf 1 || printf 0)" \
+        PATH="$dir/fakebin:$BASE_PATH" fm_pr_forgejo_read_record forgejo.example o/r 7; then
+        [ "$FM_PR_RECORD_STATE:$FM_PR_RECORD_MERGED:$FM_PR_RECORD_HEAD" = open:false:abc ] \
+          || fail 'Forgejo: optional source ref changed the shared state/head record'
+        if [ "$expected" = no ]; then
+          [ -z "$FM_PR_RECORD_SOURCE_BRANCH" ] || fail 'Forgejo: unreadable source ref retained stale ownership'
+        else
+          [ "$FM_PR_RECORD_SOURCE_BRANCH" = "$source" ] || fail 'Forgejo: shared reader changed the source ref'
+        fi
+      else
+        case "$variant" in
+          failed|error) ;;
+          *) fail 'Forgejo: optional source ref made the shared state/head unreadable' ;;
+        esac
+        [ -z "$FM_PR_RECORD_SOURCE_BRANCH$FM_PR_RECORD_STATE$FM_PR_RECORD_MERGED$FM_PR_RECORD_HEAD" ] \
+          || fail 'Forgejo: failed reader retained stale record fields'
+      fi
+      if [ "$variant" = foreign ]; then
+        [ "$rc" -ne 0 ] || fail "Forgejo/$entry: foreign ownership was registered"
+        assert_grep "does not belong to task task-a's recorded branch fm/example" "$dir/err" "Forgejo: mismatch not diagnosed"
+        [ "$(state_snapshot "$state")" = "$before" ] || fail "Forgejo: mismatch changed task state"
+        rc=0
+        FM_TEST_TEA_LOG="$dir/tea.log" FM_TEST_TEA_RECORD="$dir/pull.json" \
+          run_merge_entry "$dir" task-a "$url" > "$dir/merge.out" 2> "$dir/merge.err" || rc=$?
+        [ "$rc" -ne 0 ] || fail 'Forgejo merge registered a foreign task PR'
+        assert_grep 'does not belong to task task-a' "$dir/merge.err" 'Forgejo merge did not reach ownership refusal'
+        [ "$(state_snapshot "$state")" = "$before" ] || fail 'Forgejo merge mismatch changed task state'
+        assert_no_grep '/merge' "$dir/tea.log" 'Forgejo merged despite an ownership mismatch'
+      else
+        [ "$rc" -eq 0 ] || fail "Forgejo/$entry/$variant: registration failed: $(cat "$dir/err")"
+        fm_pr_poll_artifacts_valid "$state" task-a "$POLL" || fail "Forgejo/$entry/$variant: no authenticated poll"
+        assert_grep "pr_owner_verified=$expected" "$state/task-a.meta" 'Forgejo: wrong recorded ownership verdict'
+        if [ "$expected" = no ]; then
+          assert_grep 'warning: cannot verify ownership' "$dir/err" 'Forgejo: unreadable ownership did not warn'
+          assert_grep "$url" "$dir/err" 'Forgejo: warning did not name the PR'
+        else
+          assert_no_grep 'warning: cannot verify ownership' "$dir/err" 'Forgejo: matching ownership warned'
+        fi
+      fi
+    done
+  done
+  pass 'Forgejo registration and merge re-record use one PR read for task ownership'
+}
+
 test_forgejo_merge_watch() {
   local dir state out url value
   dir=$(make_case forgejo-merge-watch)
@@ -4256,6 +4349,7 @@ test_ado_wakes_allow_sibling_merge
 test_validated_six_argument_compatibility
 test_gitlab_merge_watch
 test_forgejo_merge_watch
+test_forgejo_ownership_registration
 test_forgejo_login_list_shapes
 test_gerrit_merge_watch
 test_gitlab_ownership_registration

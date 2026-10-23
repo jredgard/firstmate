@@ -144,6 +144,9 @@ if [ "$PROVIDER" = forgejo ]; then
     echo "error: watching a Forgejo pull request at $HOST requires exactly one 'tea login' registered for that host (see 'tea login list')" >&2
     exit 1
   }
+  if fm_pr_forgejo_read_record "$HOST" "$PROJECT_PATH" "$NUMBER"; then
+    SOURCE_BRANCH=$FM_PR_RECORD_SOURCE_BRANCH
+  fi
 fi
 
 # The draft state is read before anything is recorded or armed. Only a positive
