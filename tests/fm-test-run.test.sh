@@ -1198,7 +1198,9 @@ test_portable_serial_packing_budget_boundary() {
   repo="$tmp/repo"
   mkdir -p "$repo/bin" "$repo/tests"
   # Preserve the real inventory and packing policy without executing suites.
-  # Only the fixture's measured timing input changes at the boundary.
+  # Only the fixture's timing input changes at the boundary.
+  # Give companions minimal weights so growing inventory cannot join the
+  # boundary script in its shard and turn the exact-limit case into excess.
   while IFS= read -r script; do
     printf '#!/usr/bin/env bash\nexit 0\n' >"$repo/$script"
   done < <("$RUNNER" --list --all)
@@ -1213,7 +1215,7 @@ runner = Path(sys.argv[1])
 runner.write_text(re.sub(
     r"(?m)^tests/fm-watch-triage\.test\.sh [0-9]+$",
     f"tests/fm-watch-triage.test.sh {sys.argv[2]}",
-    runner.read_text(),
+    re.sub(r"(?m)^(tests/[^\n ]+\.test\.sh) [0-9]+$", r"\1 1", runner.read_text()),
 ))
 PY
     out=$(bash "$repo/bin/fm-test-run.sh" --check-coverage 2>&1) && rc=0 || rc=$?

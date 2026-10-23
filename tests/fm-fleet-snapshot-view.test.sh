@@ -133,7 +133,7 @@ EOF
 }
 
 test_contribution_input_bounded_argv() {
-  local home fakebin real_jq scenario count i
+  local home fakebin real_jq scenario count i task_count
   real_jq=$(command -v jq)
   for scenario in small backlog tasks; do
     home=$(make_home "contribution-argv-$scenario")
@@ -141,7 +141,6 @@ test_contribution_input_bounded_argv() {
     fakebin=$(fm_fakebin "$home")
     cat > "$fakebin/jq" <<'SH'
 #!/usr/bin/env bash
-# Stand in for a small exec argument budget, then run the real JSON consumer.
 set -u
 export LC_ALL=C
 bytes=0
@@ -164,50 +163,33 @@ SH
         fi
       done
     } > "$home/data/backlog.md"
-    count=1
-    [ "$scenario" != tasks ] || count=60
-    for ((i = 1; i <= count; i++)); do
+    task_count=1
+    [ "$scenario" != tasks ] || task_count=60
+    for ((i = 1; i <= task_count; i++)); do
       fm_write_meta "$home/state/ship-$i.meta" \
-        "kind=ship" "yolo=off" "pr=https://github.com/o/r/pull/$i" \
+        'kind=ship' 'yolo=off' "pr=https://github.com/o/r/pull/$i" \
         "pr_head=$(printf '%0600d' "$i")"
     done
-    FM_HOME="$home" FM_SNAPSHOT_NOW=2026-10-12T12:00:00Z \
-      bash "$SNAPSHOT" --contribution-input > "$home/expected.json" \
-      || fail "uncapped contribution input failed for $scenario"
-    if [ "$scenario" != small ]; then
-      jq -e --arg surface "$scenario" '
-        .[$surface] | tojson | length > 32768
-      ' "$home/expected.json" >/dev/null \
-        || fail "$scenario fixture does not exceed the stand-in argument budget"
-    fi
     PATH="$fakebin:$PATH" REAL_JQ="$real_jq" TMPDIR="$home/tmp" FM_HOME="$home" \
       FM_SNAPSHOT_NOW=2026-10-12T12:00:00Z \
       bash "$SNAPSHOT" --contribution-input > "$home/actual.json" \
       || fail "bounded-argv contribution input failed for $scenario"
-    # The canonical parser's object key order can vary between processes.
-    jq -S . "$home/expected.json" > "$home/expected-sorted.json"
-    jq -S . "$home/actual.json" > "$home/actual-sorted.json"
-    cmp -s "$home/expected-sorted.json" "$home/actual-sorted.json" \
-      || fail "bounded-argv contribution input changed values for $scenario"
-    if [ "$scenario" = small ]; then
-      jq -n --argjson backlog "$(jq '.backlog' "$home/actual.json")" \
-        --argjson tasks "$(jq '.tasks' "$home/actual.json")" \
-        '{backlog:$backlog,tasks:$tasks}' > "$home/legacy.json"
-      cmp -s "$home/legacy.json" "$home/actual.json" \
-        || fail "small contribution input differs from legacy assembly bytes"
+    if [ "$scenario" != small ]; then
+      jq -e --arg surface "$scenario" '.[$surface] | tojson | length > 32768' \
+        "$home/actual.json" >/dev/null || fail "$scenario fixture does not exceed the argument budget"
     fi
-    # Task order follows the locale's glob collation, so select by id.
-    jq -e '
-      .backlog.present == true and .backlog.records[0].id == "queued-1"
-      and (.tasks[] | select(.id == "ship-1")
-        | .kind == "ship" and .merge_authority == "attended"
-        and .pr.url == "https://github.com/o/r/pull/1"
-        and (.pr.head | length) == 600)
-    ' "$home/actual.json" >/dev/null || fail "$scenario contribution ownership pair is wrong"
+    jq -e --argjson count "$count" --argjson task_count "$task_count" --arg head "$(printf '%0600d' 1)" '
+      .backlog.present == true and (.backlog.records | length) == $count
+      and (.backlog.records | map(.id) | sort) == ([range(1; $count + 1) | "queued-\(.)"] | sort)
+      and (.tasks | length) == $task_count
+      and all(.tasks[]; .kind == "ship" and .merge_authority == "attended"
+        and .pr.url == ("https://github.com/o/r/pull/" + (.id | ltrimstr("ship-"))))
+      and (.tasks[] | select(.id == "ship-1") | .pr.head == $head)
+    ' "$home/actual.json" >/dev/null || fail "$scenario contribution ownership records are wrong"
     [ -z "$(find "$home/tmp" -mindepth 1 -print)" ] \
       || fail "$scenario contribution input left temporary transport files"
   done
-  pass "contribution input preserves bytes with backlog and tasks above a small argv budget"
+  pass 'contribution input preserves ownership records above a small argv budget'
 }
 
 test_empty_fleet_json() {

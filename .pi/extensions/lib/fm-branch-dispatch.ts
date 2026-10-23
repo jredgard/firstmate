@@ -207,8 +207,9 @@ export interface UnreadWakeScope {
   eligibleTasks: string[];
   /**
    * True only when this scan itself is untrustworthy: the queue or its
-   * metadata could not be read, a line fails the structural tab-field check,
-   * or an unresolvable signal/stale row was found. False whenever the scan
+   * metadata could not be read, a metadata alias has conflicting task owners,
+   * a line fails the structural tab-field check, or an unresolvable
+   * signal/stale row was found. False whenever the scan
    * completed cleanly and simply found nothing (or nothing further) eligible
    * for the branch right now: status "unsafe" with corrupted false is the
    * ordinary "ordinary main-only content, nothing here for the branch" case,
@@ -486,22 +487,19 @@ export function scopeForUnreadWake(state: string, heartbeat: boolean, afk = fals
   let records: EndpointRecord[];
   try {
     records = endpointRecords(state);
-    const targetCounts = new Map<string, number>();
-    for (const { target } of records) {
-      if (target) targetCounts.set(target, (targetCounts.get(target) ?? 0) + 1);
-    }
     for (const { task, project, kind, target } of records) {
       if (kind === "secondmate") secondmates.add(task);
-      if (project) {
-        metadata.set(task, project);
-        taskByKey.set(task, task);
-        taskByKey.set(`${task}.status`, task);
-        taskByKey.set(`${task}.turn-ended`, task);
-        if (target && targetCounts.get(target) === 1) {
-          metadata.set(target, project);
-          taskByKey.set(target, task);
+      const aliases = [task, `${task}.status`, `${task}.turn-ended`, target];
+      for (const key of aliases) {
+        if (!key) continue;
+        const owner = taskByKey.get(key);
+        if (owner !== undefined && owner !== task) {
+          endpointMiss(state, key, records, diagnostic);
+          return UNSAFE_SCOPE;
         }
+        taskByKey.set(key, task);
       }
+      if (project) metadata.set(task, project);
     }
   } catch (error) {
     diagnostic?.(`endpoint lookup unavailable: ${JSON.stringify({ state, error: String(error) })}`);
@@ -568,13 +566,15 @@ export function scopeForUnreadWake(state: string, heartbeat: boolean, afk = fals
       // may itself start fm- and must always match the full recorded target.
       const selector = key.includes(":") ? key : key.replace(/^fm-/, "");
       task = taskByKey.get(key) ?? taskByKey.get(selector) ?? "";
-      project = metadata.get(key) ?? metadata.get(selector) ?? "";
+      project = metadata.get(task) ?? "";
       if (!task || !project) endpointMiss(state, key, records, diagnostic);
     } else {
       // A kind fm_wake_append never emits: structural corruption, not an
       // ordinary main-only row.
       return UNSAFE_SCOPE;
     }
+    // Projectless records may establish ambiguity, never routing authority.
+    if (!project || !task) return UNSAFE_SCOPE;
     // A second mate's signal is judged by its new span on both paths. For a
     // single-task log, an attended host can have accepted a routine signal
     // before its task gained a main-owned decision, so it checks the whole
@@ -644,7 +644,6 @@ export function scopeForUnreadWake(state: string, heartbeat: boolean, afk = fals
         if (!afk) continue;
       }
     }
-    if (!project || !task) return UNSAFE_SCOPE;
     projects.add(project);
     eligibleTasks.add(task);
     eligibleSeqs.push(seq);

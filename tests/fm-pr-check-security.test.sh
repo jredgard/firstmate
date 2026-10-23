@@ -549,6 +549,30 @@ EOF
     'https://evil.example/acme/p/_git/r/pullrequest/1'; do
     ! fm_pr_url_parse "$row" || fail "parser accepted a noncanonical Azure DevOps URL"
   done
+  while IFS='|' read -r url host owner repo number; do
+    [ -n "$url" ] || continue
+    fm_pr_url_parse "$url" || fail "parser rejected a canonical Forgejo pull request URL"
+    [ "$FM_PR_PROVIDER" = forgejo ] || fail "parser did not tag a plural-pulls URL as forgejo"
+    [ "$FM_PR_URL" = "$url" ] || fail "parser changed a canonical Forgejo pull request URL"
+    [ "$FM_PR_HOST" = "$host" ] || fail "parser returned wrong Forgejo host"
+    [ "$FM_PR_PATH" = "$owner/$repo" ] || fail "parser returned wrong Forgejo project path"
+    [ "$FM_PR_OWNER" = "$owner" ] || fail "parser returned wrong Forgejo owner"
+    [ "$FM_PR_REPO" = "$repo" ] || fail "parser returned wrong Forgejo repository"
+    [ "$FM_PR_NUMBER" = "$number" ] || fail "parser returned wrong Forgejo pull request number"
+  done <<'EOF'
+https://git.example.com/fixture/fixture-repo/pulls/1|git.example.com|fixture|fixture-repo|1
+https://code.internal/my-org/repo.name_with-parts/pulls/123456|code.internal|my-org|repo.name_with-parts|123456
+EOF
+  # A Forgejo-shaped URL on github.com is refused (anti-spoofing, mirroring
+  # fm_pr_forge_host_valid's refusal of github.com), and neither GitHub's
+  # singular "pull" nor GitLab's "/-/merge_requests/" is accepted as forgejo.
+  for row in \
+    'https://github.com/fixture/fixture-repo/pulls/1' \
+    'https://git.example.com/fixture/fixture-repo/pull/1' \
+    'https://git.example.com/group/sub/project/pulls/1'
+  do
+    ! fm_pr_url_parse "$row" || fail "parser accepted a URL that must not resolve as forgejo: $row"
+  done
   fm_pr_url_parse https://github.com/a/b/pull/1 || fail "parser rejected canonical URL"
   [ "$FM_PR_PROVIDER" = github ] || fail "parser did not tag a pull request URL as github"
   [ "$FM_PR_HOST" = github.com ] || fail "parser returned wrong GitHub host"
@@ -1177,6 +1201,39 @@ test_ado_registration_rejects_another_tasks_branch() {
     || fail "exact source branch refused registration: $(cat "$dir/matching.err")"
   fm_pr_poll_artifacts_valid "$state" task-a "$POLL" || fail "own source branch did not arm a bound poll"
   pass "ADO PR registration rejects a foreign source branch and accepts the recorded task branch"
+}
+
+test_ado_ready_after_green_reports_only_the_matching_latest_done() {
+  local dir state url channel scenario note
+  dir=$(make_case ado-ready-after-green)
+  state="$dir/home/state"
+  url=https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42
+  add_ado_mocks "$dir"
+  write_task_meta "$dir"
+  mkdir -p "$dir/parent/state"
+  printf 'schema=fm-secondmate-parent.v1\nroute=local\nparent_home=%s\n' "$dir/parent" > "$dir/home/.fm-secondmate-parent"
+  printf 'mate-ado\n' > "$dir/home/.fm-secondmate-home"
+  channel="$dir/parent/state/mate-ado.status"
+  : > "$dir/home/config/ready-after-green"
+  for scenario in pending other prefix green withdrawn; do
+    case "$scenario" in
+      pending) note="PR $url checks pending" ;;
+      other) note='PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/43 checks green' ;;
+      prefix) note="PR ${url}0 checks green" ;;
+      green) note="PR $url checks green, risk low" ;;
+      withdrawn) note='implementation complete'; : > "$channel" ;;
+    esac
+    printf 'done [at=1]: %s\n' "$note" >> "$state/task-a.status"
+    FM_TEST_ADO_DIR="$dir" run_check_entry "$dir" task-a "$url" > "$dir/stdout" 2> "$dir/stderr" \
+      || fail "ADO $scenario registration failed: $(cat "$dir/stderr")"
+    fm_pr_poll_artifacts_valid "$state" task-a "$POLL" || fail "ADO $scenario registration did not arm its merge poll"
+    if [ "$scenario" = green ]; then
+      assert_grep "child task-a PR ready: $url mode=no-mistakes" "$channel" 'ADO checks-green report did not reach the parent'
+    else
+      [ ! -s "$channel" ] || fail "ADO $scenario report released the PR-ready notification"
+    fi
+  done
+  pass 'ADO ready-after-green reports only the matching latest checks-green done and keeps monitoring throughout'
 }
 
 test_ado_unreadable_ownership_still_arms() {
@@ -2499,11 +2556,243 @@ test_gerrit_nm_ready_gate_requires_recovered_custody() {
   pass "a no-mistakes Gerrit ready report requires the pipeline's fixes recovered into the published copy"
 }
 
+test_forgejo_ownership_registration() {
+  local dir state variant entry url source expected before rc
+  url=https://forgejo.example/o/r/pulls/7
+  for entry in initial rerecord; do
+    for variant in matching prefixed foreign missing malformed newline control nul failed error; do
+      dir=$(make_case "ownership-forgejo-$entry-$variant")
+      state="$dir/home/state"
+      write_task_meta "$dir"
+      ln -s "$REAL_JQ" "$dir/fakebin/jq"
+      source=fm/example expected=yes
+      case "$variant" in
+        prefixed) source=refs/heads/fm/example ;;
+        foreign) source=fm/foreign ;;
+        missing|malformed|nul|failed|error) source='' expected=no ;;
+        newline) source=$'fm/example\nforeign' expected=no ;;
+        control) source=$'fm/example\001' expected=no ;;
+      esac
+      jq -n --arg source "$source" --arg variant "$variant" '
+        {state:"open",merged:false,head:{sha:"abc",ref:$source}}
+        | if $variant == "missing" then del(.head.ref)
+          elif $variant == "malformed" then .head.ref = 42
+          elif $variant == "nul" then .head.ref = "fm/example\u0000"
+          elif $variant == "error" then {message:"not found"}
+          else . end' > "$dir/pull.json"
+      cat > "$dir/fakebin/tea" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FM_TEST_TEA_LOG"
+if [ "${1:-} ${2:-}" = "login list" ]; then
+  printf '[{"name":"main","url":"https://forgejo.example"}]\n'
+elif [ "${1:-}" = api ]; then
+  [ "${FM_TEST_TEA_FAIL:-0}" != 1 ] || exit 1
+  cat "$FM_TEST_TEA_RECORD"
+else
+  exit 2
+fi
+SH
+      chmod +x "$dir/fakebin/tea"
+      : > "$dir/tea.log"
+      before=$(state_snapshot "$state")
+      rc=0
+      FM_TEST_TEA_LOG="$dir/tea.log" FM_TEST_TEA_RECORD="$dir/pull.json" \
+        FM_TEST_TEA_FAIL="$([ "$variant" = failed ] && printf 1 || printf 0)" \
+        FM_PR_CHECK_MERGE="$([ "$entry" = rerecord ] && printf 1 || printf 0)" \
+        run_check_entry "$dir" task-a "$url" > "$dir/out" 2> "$dir/err" || rc=$?
+      [ "$(grep -c '^api ' "$dir/tea.log")" -eq 1 ] \
+        || fail "Forgejo/$entry/$variant: ownership did not use one PR REST read"
+      FM_PR_RECORD_SOURCE_BRANCH=stale
+      FM_PR_RECORD_STATE=stale FM_PR_RECORD_MERGED=stale FM_PR_RECORD_HEAD=stale
+      if FM_TEST_TEA_LOG="$dir/tea.log" FM_TEST_TEA_RECORD="$dir/pull.json" \
+        FM_TEST_TEA_FAIL="$([ "$variant" = failed ] && printf 1 || printf 0)" \
+        PATH="$dir/fakebin:$BASE_PATH" fm_pr_forgejo_read_record forgejo.example o/r 7; then
+        [ "$FM_PR_RECORD_STATE:$FM_PR_RECORD_MERGED:$FM_PR_RECORD_HEAD" = open:false:abc ] \
+          || fail 'Forgejo: optional source ref changed the shared state/head record'
+        if [ "$expected" = no ]; then
+          [ -z "$FM_PR_RECORD_SOURCE_BRANCH" ] || fail 'Forgejo: unreadable source ref retained stale ownership'
+        else
+          [ "$FM_PR_RECORD_SOURCE_BRANCH" = "$source" ] || fail 'Forgejo: shared reader changed the source ref'
+        fi
+      else
+        case "$variant" in
+          failed|error) ;;
+          *) fail 'Forgejo: optional source ref made the shared state/head unreadable' ;;
+        esac
+        [ -z "$FM_PR_RECORD_SOURCE_BRANCH$FM_PR_RECORD_STATE$FM_PR_RECORD_MERGED$FM_PR_RECORD_HEAD" ] \
+          || fail 'Forgejo: failed reader retained stale record fields'
+      fi
+      if [ "$variant" = foreign ]; then
+        [ "$rc" -ne 0 ] || fail "Forgejo/$entry: foreign ownership was registered"
+        assert_grep "does not belong to task task-a's recorded branch fm/example" "$dir/err" "Forgejo: mismatch not diagnosed"
+        [ "$(state_snapshot "$state")" = "$before" ] || fail "Forgejo: mismatch changed task state"
+        rc=0
+        FM_TEST_TEA_LOG="$dir/tea.log" FM_TEST_TEA_RECORD="$dir/pull.json" \
+          run_merge_entry "$dir" task-a "$url" > "$dir/merge.out" 2> "$dir/merge.err" || rc=$?
+        [ "$rc" -ne 0 ] || fail 'Forgejo merge registered a foreign task PR'
+        assert_grep 'does not belong to task task-a' "$dir/merge.err" 'Forgejo merge did not reach ownership refusal'
+        [ "$(state_snapshot "$state")" = "$before" ] || fail 'Forgejo merge mismatch changed task state'
+        assert_no_grep '/merge' "$dir/tea.log" 'Forgejo merged despite an ownership mismatch'
+      else
+        [ "$rc" -eq 0 ] || fail "Forgejo/$entry/$variant: registration failed: $(cat "$dir/err")"
+        fm_pr_poll_artifacts_valid "$state" task-a "$POLL" || fail "Forgejo/$entry/$variant: no authenticated poll"
+        assert_grep "pr_owner_verified=$expected" "$state/task-a.meta" 'Forgejo: wrong recorded ownership verdict'
+        if [ "$expected" = no ]; then
+          assert_grep 'warning: cannot verify ownership' "$dir/err" 'Forgejo: unreadable ownership did not warn'
+          assert_grep "$url" "$dir/err" 'Forgejo: warning did not name the PR'
+        else
+          assert_no_grep 'warning: cannot verify ownership' "$dir/err" 'Forgejo: matching ownership warned'
+        fi
+      fi
+    done
+  done
+  pass 'Forgejo registration and merge re-record use one PR read for task ownership'
+}
+
 # The GitLab watch must follow a merge request exactly as the GitHub watch
 # follows a pull request, on any instance, and must never turn an unreadable
 # merge request into a merge. Its evidence against the public fixture project
 # https://gitlab.com/KarotKris/gitlab-merge-watch-fixture is in
 # docs/gitlab-merge-watch.md; this exercises the same paths hermetically.
+# A Forgejo pull request is followed by number through "tea api" on the one
+# login registered for its host. Only a boolean merged field of true wakes the
+# poll: tea api exits 0 on an HTTP error with the error body as output, so an
+# error body, an unmerged record, a tea failure, and an ambiguous login all
+# stay silent, and the read never depends on how many newer pull requests the
+# repository has.
+test_forgejo_merge_watch() {
+  local dir state out url value
+  dir=$(make_case forgejo-merge-watch)
+  state="$dir/home/state"
+  url=https://forgejo.example/o/r/pulls/7
+  cat > "$dir/fakebin/tea" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FM_TEST_TEA_LOG"
+if [ "${1:-} ${2:-}" = "login list" ]; then
+  printf '[\n'
+  printf '  {\n    "name": "main",\n    "url": "https://forgejo.example"\n  }'
+  if [ -n "${FM_TEST_TEA_SECOND_LOGIN:-}" ]; then
+    printf ',\n  {\n    "name": "other",\n    "url": "https://forgejo.example"\n  }'
+  fi
+  printf '\n]\n'
+  exit 0
+fi
+[ "${1:-}" = api ] || exit 0
+[ -z "${FM_TEST_TEA_FAIL:-}" ] || exit 1
+case "${FM_TEST_TEA_PULL:-open}" in
+  merged) printf '{"state":"closed","merged":true,"head":{"sha":"abc"}}\n' ;;
+  error) printf '{"message":"The target couldn'"'"'t be found.","url":"x"}\n' ;;
+  *) printf '{"state":"open","merged":false,"head":{"sha":"abc"}}\n' ;;
+esac
+SH
+  chmod +x "$dir/fakebin/tea"
+  ln -sf "$(command -v jq)" "$dir/fakebin/jq"
+  : > "$dir/tea.log"
+
+  write_poll_meta "$state" task-a "$url"
+  fm_pr_poll_prepare "$state" task-a forgejo "$url" forgejo.example o/r 7 "$POLL" \
+    || fail "could not prepare a Forgejo poll"
+  fm_pr_poll_publish_prepared || fail "could not publish a Forgejo poll"
+
+  for value in open error; do
+    out=$(FM_TEST_TEA_LOG="$dir/tea.log" FM_TEST_TEA_PULL=$value run_poll "$dir")
+    [ -z "$out" ] || fail "Forgejo poll emitted for a $value reading"
+  done
+  out=$(FM_TEST_TEA_LOG="$dir/tea.log" FM_TEST_TEA_PULL=merged FM_TEST_TEA_FAIL=1 run_poll "$dir")
+  [ -z "$out" ] || fail "Forgejo poll emitted after a tea failure"
+  out=$(FM_TEST_TEA_LOG="$dir/tea.log" FM_TEST_TEA_PULL=merged FM_TEST_TEA_SECOND_LOGIN=1 run_poll "$dir")
+  [ -z "$out" ] || fail "Forgejo poll emitted with an ambiguous tea login"
+  out=$(FM_TEST_TEA_LOG="$dir/tea.log" FM_TEST_TEA_PULL=merged run_poll "$dir")
+  [ "$out" = merged ] || fail "Forgejo poll did not emit exactly one merged line"
+
+  grep -qF -- "api --login main --repo o/r /repos/{owner}/{repo}/pulls/7" "$dir/tea.log" \
+    || fail "the poll did not read the one pull request by number on the host's login"
+  ! grep -qF -- "pulls list" "$dir/tea.log" \
+    || fail "the poll scanned a pull request list instead of reading by number"
+  pass "Forgejo poll reads one pull request by number through tea api and wakes only on merged true"
+}
+
+# The one tea login for a Forgejo host is found by parsing
+# `tea login list --output json` as JSON, never by splitting each line on
+# quotes. The pretty-printed fixture below is byte-for-byte what tea 0.14.0
+# prints for two logins; the two compact fixtures are the same records with one
+# object per line and as one line, the shapes a line-oriented split misread as
+# a url equal to the login name, refusing every host. Both the sourced helper
+# and the static watcher body, which keeps its own copy of the filter, must
+# resolve every shape, strip scheme, port, and path from the url, and refuse
+# an ambiguous host.
+test_forgejo_login_list_shapes() {
+  local dir state out shape url
+  dir=$(make_case forgejo-login-shapes)
+  state="$dir/home/state"
+  cat > "$dir/tea-multiline.json" <<'JSON'
+[
+  {
+    "name": "fixture-one",
+    "url": "https://git.example.com",
+    "ssh_host": "git.example.com",
+    "user": "someone",
+    "default": "true"
+  },
+  {
+    "name": "fixture-two",
+    "url": "http://code.internal:3000/",
+    "ssh_host": "code.internal",
+    "user": "other",
+    "default": "false"
+  }
+]
+JSON
+  jq -c . "$dir/tea-multiline.json" > "$dir/tea-oneline.json"
+  { printf '[\n'; jq -c '.[]' "$dir/tea-multiline.json" | sed '1!s/^/,/'; printf ']\n'; } \
+    > "$dir/tea-perobject.json"
+  [ "$(wc -l < "$dir/tea-oneline.json")" -eq 1 ] || fail "the one-line fixture is not one line"
+  grep -q '^{"name":"fixture-one","url":"https://git.example.com"' "$dir/tea-perobject.json" \
+    || fail "the per-object fixture does not put a whole login on one line"
+  printf '[{"name":"a","url":"https://git.example.com"},{"name":"b","url":"https://git.example.com:3000/x"}]\n' \
+    > "$dir/tea-ambiguous.json"
+  cat > "$dir/fakebin/tea" <<'SH'
+#!/usr/bin/env bash
+if [ "${1:-} ${2:-}" = "login list" ]; then
+  cat "$FM_TEST_TEA_LOGINS"
+  exit 0
+fi
+[ "${1:-}" = api ] || exit 0
+printf '%s\n' "$*" >> "$FM_TEST_TEA_LOG"
+printf '{"state":"closed","merged":true,"head":{"sha":"abc"}}\n'
+SH
+  chmod +x "$dir/fakebin/tea"
+  ln -sf "$(command -v jq)" "$dir/fakebin/jq"
+  : > "$dir/tea.log"
+
+  url=https://code.internal/o/r/pulls/7
+  write_poll_meta "$state" task-a "$url"
+  fm_pr_poll_prepare "$state" task-a forgejo "$url" code.internal o/r 7 "$POLL" \
+    || fail "could not prepare a Forgejo poll"
+  fm_pr_poll_publish_prepared || fail "could not publish a Forgejo poll"
+
+  for shape in multiline oneline perobject; do
+    out=$(FM_TEST_TEA_LOGINS="$dir/tea-$shape.json" PATH="$dir/fakebin:$PATH" fm_pr_forgejo_login git.example.com) \
+      || fail "$shape: the login helper refused a host with exactly one login"
+    [ "$out" = fixture-one ] || fail "$shape: the login helper resolved '$out' for git.example.com"
+    out=$(FM_TEST_TEA_LOGINS="$dir/tea-$shape.json" PATH="$dir/fakebin:$PATH" fm_pr_forgejo_login code.internal) \
+      || fail "$shape: the login helper refused a url with a port and trailing slash"
+    [ "$out" = fixture-two ] || fail "$shape: the login helper resolved '$out' for code.internal"
+    ! FM_TEST_TEA_LOGINS="$dir/tea-$shape.json" PATH="$dir/fakebin:$PATH" fm_pr_forgejo_login elsewhere.example >/dev/null \
+      || fail "$shape: the login helper resolved a host with no registered login"
+    out=$(FM_TEST_TEA_LOGINS="$dir/tea-$shape.json" FM_TEST_TEA_LOG="$dir/tea.log" run_poll "$dir")
+    [ "$out" = merged ] || fail "$shape: the static poll did not resolve the login and report the merge"
+    grep -qF -- "api --login fixture-two --repo o/r" "$dir/tea.log" \
+      || fail "$shape: the static poll did not read through the host's login"
+    : > "$dir/tea.log"
+  done
+  ! FM_TEST_TEA_LOGINS="$dir/tea-ambiguous.json" PATH="$dir/fakebin:$PATH" fm_pr_forgejo_login git.example.com >/dev/null \
+    || fail "the login helper picked one of two logins for the same host"
+  out=$(FM_TEST_TEA_LOGINS="$dir/tea-ambiguous.json" FM_TEST_TEA_LOG="$dir/tea.log" run_poll "$dir")
+  [ -z "$out" ] || fail "the static poll read through an ambiguous login"
+  pass "Forgejo login match parses tea's JSON in every line shape, in the helper and the static poll"
+}
+
 test_gitlab_merge_watch() {
   local dir state out rc url value noglab entry bindir name
   dir=$(make_case gitlab-merge-watch)
@@ -4036,6 +4325,7 @@ SH
 
 if [ "${1:-}" = --ado-only ]; then
   test_ado_registration_rejects_another_tasks_branch
+  test_ado_ready_after_green_reports_only_the_matching_latest_done
   test_ado_unreadable_ownership_still_arms
   test_ado_registration_and_poll
   test_ado_poll_states_and_watch_wakes
@@ -4050,6 +4340,7 @@ fi
 test_parser_matrix
 test_github_registration_requires_the_recorded_branch
 test_ado_registration_rejects_another_tasks_branch
+test_ado_ready_after_green_reports_only_the_matching_latest_done
 test_ado_unreadable_ownership_still_arms
 test_ado_registration_and_poll
 test_ado_poll_states_and_watch_wakes
@@ -4057,6 +4348,9 @@ test_ado_wake_failure_retries
 test_ado_wakes_allow_sibling_merge
 test_validated_six_argument_compatibility
 test_gitlab_merge_watch
+test_forgejo_merge_watch
+test_forgejo_ownership_registration
+test_forgejo_login_list_shapes
 test_gerrit_merge_watch
 test_gitlab_ownership_registration
 test_gerrit_registration_keeps_ownership_unverified
