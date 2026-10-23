@@ -1,0 +1,86 @@
+===== variant=matching  PR head.ref record: {"state":"open","merged":false,"head":{"sha":"abc","ref":"fm/example"}}
+$ FM_HOME=<lab> bin/fm-pr-check.sh task-a https://forgejo.example/o/r/pulls/7
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+armed: state/task-a.check.sh
+exit=0
+-- tea calls:
+tea login list --output json
+tea login list --output json
+tea api --login main --repo o/r /repos/{owner}/{repo}/pulls/7
+-- task meta after:
+window=firstmate:fm-task-a
+endpoint_task_id=task-a
+worktree=/tmp/fm-forgejo-drive.mlr1dm/wt-matching
+project=/tmp/fm-forgejo-drive.mlr1dm/project
+kind=ship
+branch=fm/example
+mode=no-mistakes
+pr_owner_verified=yes
+pr=https://forgejo.example/o/r/pulls/7
+-- state files:
+contributions.check.sh
+contributions.check-trust
+task-a.check.sh
+task-a.meta
+task-a.pr-poll
+task-a.pr-poll-registration
+
+===== variant=foreign  PR head.ref record: {"state":"open","merged":false,"head":{"sha":"abc","ref":"fm/other-task"}}
+$ FM_HOME=<lab> bin/fm-pr-check.sh task-a https://forgejo.example/o/r/pulls/7
+error: forgejo pull request https://forgejo.example/o/r/pulls/7 does not belong to task task-a's recorded branch fm/example; nothing recorded or armed
+exit=1
+-- tea calls:
+tea login list --output json
+tea login list --output json
+tea api --login main --repo o/r /repos/{owner}/{repo}/pulls/7
+-- task meta after:
+window=firstmate:fm-task-a
+endpoint_task_id=task-a
+worktree=/tmp/fm-forgejo-drive.mlr1dm/wt-foreign
+project=/tmp/fm-forgejo-drive.mlr1dm/project
+kind=ship
+branch=fm/example
+mode=no-mistakes
+-- state files:
+task-a.meta
+
+===== variant=unreadable  PR head.ref record: {"state":"open","merged":false,"head":{"sha":"abc"}}
+$ FM_HOME=<lab> bin/fm-pr-check.sh task-a https://forgejo.example/o/r/pulls/7
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+warning: cannot verify ownership of forgejo PR https://forgejo.example/o/r/pulls/7 for task task-a; pr_owner_verified=no, merge monitoring remains armed
+armed: state/task-a.check.sh
+exit=0
+-- tea calls:
+tea login list --output json
+tea login list --output json
+tea api --login main --repo o/r /repos/{owner}/{repo}/pulls/7
+-- task meta after:
+window=firstmate:fm-task-a
+endpoint_task_id=task-a
+worktree=/tmp/fm-forgejo-drive.mlr1dm/wt-unreadable
+project=/tmp/fm-forgejo-drive.mlr1dm/project
+kind=ship
+branch=fm/example
+mode=no-mistakes
+pr_owner_verified=no
+pr=https://forgejo.example/o/r/pulls/7
+-- state files:
+contributions.check.sh
+contributions.check-trust
+task-a.check.sh
+task-a.meta
+task-a.pr-poll
+task-a.pr-poll-registration
+

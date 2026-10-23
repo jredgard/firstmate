@@ -1,0 +1,10 @@
+=== pre-fix fm_dod_note_reports_ci_ready ===
+not-ready  PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/54336 checks green
+CI-READY   PR https://github.com/o/r/pull/2 checks green
+not-ready  PR https://dev.azure.com/acme/p/_git/r/pullrequest/54336abc checks green
+not-ready  PR https://dev.azure.com/acme/p/_git/r/pullrequest/54336 checks pending
+=== HEAD fm_dod_note_reports_ci_ready ===
+CI-READY   PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/54336 checks green
+CI-READY   PR https://github.com/o/r/pull/2 checks green
+not-ready  PR https://dev.azure.com/acme/p/_git/r/pullrequest/54336abc checks green
+not-ready  PR https://dev.azure.com/acme/p/_git/r/pullrequest/54336 checks pending

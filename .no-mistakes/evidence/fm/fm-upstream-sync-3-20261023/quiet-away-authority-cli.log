@@ -1,0 +1,43 @@
+===== quiet-words (FM_HOME=lab)
+$ FM_HOME=/tmp/fm-quiet.IcXaHb/quiet-words FM_AFK_MODE=quiet bash bin/fm-afk-contract.sh enter --words merge my green PRs
+Quiet mode recorded at 2026-10-23T15:08:41Z: you are present, so nothing waits for your return; recorded words carry the authority described in bin/fm-branch-prompt.sh Postures, and without words merge authority stays attended. Only an explicit /quiet off ends it.
+Quiet mode (recorded):
+  entered: 2026-10-23T15:08:41Z
+  holds: none - you are present, so nothing waits for your return; recorded words carry the authority described in bin/fm-branch-prompt.sh Postures, and without words merge authority stays attended.
+  your words (verbatim):
+    merge my green PRs
+exit=0
+$ FM_HOME=/tmp/fm-quiet.IcXaHb/quiet-words bash bin/fm-afk-contract.sh mode
+quiet
+exit=0
+$ FM_HOME=/tmp/fm-quiet.IcXaHb/quiet-words bash bin/fm-afk-contract.sh authority-present
+exit=0
+===== quiet-empty (FM_HOME=lab)
+$ FM_HOME=/tmp/fm-quiet.IcXaHb/quiet-empty FM_AFK_MODE=quiet bash bin/fm-afk-contract.sh enter
+Quiet mode recorded at 2026-10-23T15:08:41Z: you are present, so nothing waits for your return; recorded words carry the authority described in bin/fm-branch-prompt.sh Postures, and without words merge authority stays attended. Only an explicit /quiet off ends it.
+Quiet mode (recorded):
+  entered: 2026-10-23T15:08:41Z
+  holds: none - you are present, so nothing waits for your return; recorded words carry the authority described in bin/fm-branch-prompt.sh Postures, and without words merge authority stays attended.
+  your words: (none)
+exit=0
+$ FM_HOME=/tmp/fm-quiet.IcXaHb/quiet-empty bash bin/fm-afk-contract.sh mode
+quiet
+exit=0
+$ FM_HOME=/tmp/fm-quiet.IcXaHb/quiet-empty bash bin/fm-afk-contract.sh authority-present
+exit=1
+===== away-words (FM_HOME=lab)
+$ FM_HOME=/tmp/fm-quiet.IcXaHb/away-words bash bin/fm-afk-contract.sh enter --words merge my green PRs
+Away posture recorded at 2026-10-23T15:08:41Z: hold-for-return only. No phone channel is configured; anything that needs you waits for your return. Your away instructions are recorded verbatim; the away session will carry them out where it can, and anything it is unsure of, or that needs you, waits for your return. Destructive, irreversible, and security-sensitive actions are never pre-authorizable, whatever the words say. Expected return: not given. Spend cap: 4 concurrent workers.
+Away posture (recorded):
+  entered: 2026-10-23T15:08:41Z
+  expected return: not given
+  spend cap: 4 concurrent workers
+  reach: hold-for-return only. No phone channel is configured; anything that needs you waits for your return.
+  your words (verbatim):
+    merge my green PRs
+exit=0
+$ FM_HOME=/tmp/fm-quiet.IcXaHb/away-words bash bin/fm-afk-contract.sh mode
+away
+exit=0
+$ FM_HOME=/tmp/fm-quiet.IcXaHb/away-words bash bin/fm-afk-contract.sh authority-present
+exit=0

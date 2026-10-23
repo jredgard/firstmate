@@ -1,0 +1,17 @@
+$ git rev-list --parents -n1 b820ccfa
+b820ccfa1215a9487396dc45e464b183a59de074 a610a4e1a6d1099192f5a1243fea6c2951370806 5d718d5d775780c5449313dc4a6f55f7fb3b9b01
+$ git merge-base HEAD 5d718d5d (upstream main)
+5d718d5d775780c5449313dc4a6f55f7fb3b9b01
+$ git merge-base --is-ancestor a610a4e1 HEAD && echo fork-parent-retained
+fork-parent-retained
+$ git log --oneline --first-parent a610a4e1..HEAD
+8952ce8c no-mistakes(test): Quote test values to clear ShellCheck SC1007 and SC1010
+5ef5d0c0 no-mistakes(review): Align snapshot CI count with restored coverage
+81cefeb6 no-mistakes(review): Restore fork deltas and enforce Forgejo PR ownership
+6ac2be1f no-mistakes(review): Restore ADO CI-ready recognition across shared consumers
+b67bd6ad no-mistakes(review): Fix Forgejo cleanup and restore locale-safe lint timing fixes?
+b820ccfa Merge upstream main while preserving fork delivery and supervision
+$ git diff --stat a610a4e1 HEAD -- .agents/skills/away-quiet-supervision/SKILL.md (fork version restored; upstream unchanged)
+(empty = identical to fork)
+$ git diff --stat a610a4e1 HEAD -- .agents/skills/validation-supervision/SKILL.md (fork version restored; upstream unchanged)
+(empty = identical to fork)

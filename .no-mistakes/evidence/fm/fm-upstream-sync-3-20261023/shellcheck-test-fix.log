@@ -1,0 +1,33 @@
+Before fix (HEAD 5ef5d0c0), no-external-sources sweep over CI --list-files, codes outside SC1091/SC2034/SC2153/SC2329:
+tests/fm-lint.test.sh:1964:63: warning: Remove space after = ... [SC1007]
+tests/fm-teardown.test.sh:1432:48: warning: Use semicolon or linefeed before 'done' ... [SC1010]
+
+After fix:
+diff --git a/tests/fm-lint.test.sh b/tests/fm-lint.test.sh
+index 7229eb42..9aad8b76 100755
+--- a/tests/fm-lint.test.sh
++++ b/tests/fm-lint.test.sh
+@@ -1961,7 +1961,7 @@ test_roots_sidecar_records_per_root_lifecycle() {
+ }
+ 
+ test_root_clock_survives_a_comma_decimal_locale() {
+-  local tmp fakebin roots_log out rc locale_name comma_locale= before after
++  local tmp fakebin roots_log out rc locale_name comma_locale='' before after
+   tmp=$(fm_test_tmproot fm-lint-locale)
+   fakebin=$(fm_fakebin "$tmp")
+   fm_lint_stub_shellcheck "$fakebin" "$tmp/stub.log"
+diff --git a/tests/fm-teardown.test.sh b/tests/fm-teardown.test.sh
+index b92e6739..ca82df5d 100755
+--- a/tests/fm-teardown.test.sh
++++ b/tests/fm-teardown.test.sh
+@@ -1429,7 +1429,7 @@ test_branch_forgejo_cleanup_requires_a_closed_merged_pr() {
+       expect_code "$expected" "$rc" "branch Forgejo $state:$merged"$'\n'"$(cat "$case_dir/stderr")"
+       if [ "$expected" = 0 ]; then
+         assert_absent "$case_dir/state/task-x1.meta" 'merged Forgejo task remained active'
+-        [ "$(backlog_row_state "$case_dir")" = done ] || fail 'merged Forgejo task stayed open'
++        [ "$(backlog_row_state "$case_dir")" = "done" ] || fail 'merged Forgejo task stayed open'
+       else
+         assert_grep 'cannot verify PR https://git.example.org/team/repo/pulls/7 as completed' "$case_dir/stderr" 'unmerged Forgejo cleanup was not refused by the branch guard'
+         assert_refusal_retained_task_state "$case_dir" "$state:$merged" "$head"
+$ shellcheck --norc --format gcc -- tests/fm-lint.test.sh tests/fm-teardown.test.sh | grep -vE 'SC1091|SC2034|SC2153|SC2329'
+(no unexpected codes)

@@ -1,0 +1,26 @@
+shellcheck: version: 0.11.0
+EPOCHREALTIME under LC_ALL=de_DE.utf8: 1792766826,522648
+=== pre-fix  LC_ALL=C  fm-lint.sh --telemetry <tsv> alpha.sh ===
+fm-lint.sh: ShellCheck 0.11.0 (pinned 0.11.0)
+fm-lint.sh: full ShellCheck extended analysis enabled
+exit=
+--- roots sidecar end row:
+end	1	/tmp/fm-lint-locale.QPk7Vc/alpha.sh	0	full	1792766826564	1792766826570	6	0	ok	unavailable	1
+=== pre-fix  LC_ALL=de_DE.utf8  fm-lint.sh --telemetry <tsv> alpha.sh ===
+fm-lint.sh: ShellCheck 0.11.0 (pinned 0.11.0)
+fm-lint.sh: full ShellCheck extended analysis enabled
+exit=
+--- roots sidecar end row:
+end	1	/tmp/fm-lint-locale.QPk7Vc/alpha.sh	0	full	658904179	664963179	6059000	0	ok	unavailable	1
+=== HEAD  LC_ALL=C  fm-lint.sh --telemetry <tsv> alpha.sh ===
+fm-lint.sh: ShellCheck 0.11.0 (pinned 0.11.0)
+fm-lint.sh: full ShellCheck extended analysis enabled
+exit=
+--- roots sidecar end row:
+end	1	/tmp/fm-lint-locale.QPk7Vc/alpha.sh	0	full	1792766826755	1792766826761	6	0	ok	unavailable	1
+=== HEAD  LC_ALL=de_DE.utf8  fm-lint.sh --telemetry <tsv> alpha.sh ===
+fm-lint.sh: ShellCheck 0.11.0 (pinned 0.11.0)
+fm-lint.sh: full ShellCheck extended analysis enabled
+exit=
+--- roots sidecar end row:
+end	1	/tmp/fm-lint-locale.QPk7Vc/alpha.sh	0	full	1792766826848	1792766826854	6	0	ok	unavailable	1
