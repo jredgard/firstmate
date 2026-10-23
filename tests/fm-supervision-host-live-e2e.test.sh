@@ -101,7 +101,9 @@ diagnose() {
 wait_until 300 watcher_live || fail "the host never started a watcher cycle ($CLAUDE_VERSION)"$'\n'"$(diagnose)"
 lock_before=$(cat "$FM/state/.lock")
 
-printf 'done [at=%s]: the demo cleanup finished; nothing else is needed\n' "$(date +%s)" >> "$FM/state/demo.status"
+# A terminal event hands the lane back to main. Use a routine event to prove
+# the host stays parked and resumes its engine conversation instead.
+printf 'working [at=%s]: the demo routine check finished; nothing else is needed\n' "$(date +%s)" >> "$FM/state/demo.status"
 wait_until "$HOST_TIMEOUT_POLLS" settled_at_least 1 || fail "the first engine turn never settled ($CLAUDE_VERSION)"$'\n'"$(diagnose)"
 grep -q '	handled	turn=' "$FM/state/.supervision-host.log" \
   || fail "the real engine did not handle the away wake ($CLAUDE_VERSION)"$'\n'"$(diagnose)"

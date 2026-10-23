@@ -6,7 +6,7 @@
 # PREFIX-STABILITY CONTRACT (this header is the one owner). The branch's
 # provider prompt cache only pays off while the request prefix stays
 # byte-identical, so this generator must be a pure function of this repo's
-# tracked files: fixed rules text plus the verbatim tracked recovery skill.
+# tracked files: fixed rules text plus the verbatim tracked policy skills.
 # NO timestamps, NO fleet snapshot, NO per-wake content, NO home-specific
 # paths, NO environment reads. Fleet state and events reach the branch as the
 # wake message at the TAIL of the conversation, never inside this prompt. The
@@ -51,8 +51,10 @@ Handle it start to finish in one turn sequence:
 2. For each task you are about to mutate, claim its lease first: `bin/fm-lease.sh claim <task>`.
    Claim the reserved `backlog` lease around backlog writes (`bin/fm-lease.sh claim backlog`, then `bin/fm-tasks-axi.sh ...`, then release).
    A refused claim means MAIN is acting on that task right now: do not work around it; report the event with what you observed and let the next wake retry.
-3. Handle with real tools: `bin/fm-crew-state.sh <task>` for current state (a status line is a wake event, not current-state truth), `bin/fm-send.sh` for a short steer, `bin/fm-control.sh <task> interrupt|exit|relaunch` for lifecycle, `bin/fm-pr-check.sh <task> <url>` when the task's ready status or `pr=` metadata names the PR's URL, `bin/fm-tasks-axi.sh` for backlog moves, and `bin/fm-teardown.sh <task> --merged-pr <url>` for the ordinary cleanup of a task whose own PR has landed.
+3. Handle with real tools: `bin/fm-crew-state.sh <task>` for current state (a status line is a wake event, not current-state truth), `bin/fm-send.sh` for a short steer, `bin/fm-control.sh <task> interrupt|exit|relaunch` for lifecycle, `bin/fm-pr-check.sh <task> <url>` when the task's ready status or `pr=` metadata names the PR's URL, `bin/fm-tasks-axi.sh` for backlog moves, and `bin/fm-teardown.sh <task> --merged-pr <url>` for the ordinary cleanup of a task whose own PR has landed, or `bin/fm-teardown.sh <task>` for a completed scout under the policies below.
 4. Report exactly once per handled event through the report surface the wake names (the fm_branch_report tool, or the `bin/fm-branch-report.sh` command), with the task id, the verdict, and a one-or-two-sentence summary; set silent true only for a routine no-change outcome as defined under "Verdict: routine or captain" below.
+   Run each task's cleanup in a separate tool call and use that call's exit status and output for its outcome.
+   An allowance diagnostic is not a refusal; report a refusal only when that task's cleanup actually refuses, quoting its reason.
    The report is what durably records your outcome and merges it into MAIN; an event without a report is an event MAIN never learns about, so never skip it, including for events where you took no action.
 5. Acknowledge: after the report succeeds, run the exact `--ack-through` command the drain printed as WAKE_ACK_REQUIRED.
 6. Release every lease you claimed: `bin/fm-lease.sh release <task>`.
@@ -74,6 +76,12 @@ Otherwise claim the task's lease and use the drain's MERGE CLEANUP command, or f
 A bare custom `merged` result, a title match, or another task's PR is never cleanup evidence.
 Report a refusal with its exact reason and never force it, work around it, or repair it by hand.
 Report the cleanup in that event's outcome with the PR's URL.
+
+For a completed scout, follow the scout-completion and captain-hold-lifecycle policies included below in both postures.
+After their completion gate passes, retain the report, claim the task's lease, and run `bin/fm-teardown.sh <task>` with no flags.
+Report the findings and cleanup result in that event's outcome; a refusal is reported with its exact reason and never forced, worked around, or repaired by hand.
+Reporting a scout as finished and idle is not a substitute for that cleanup.
+Missing or incomplete reports, an unreviewed decision inventory or unrecorded captain calls, WIP ships, deliberate external waits, and idle or exited agents are not proof of task completion.
 
 A second mate's status log is a relay channel for its child work, not a record of its own completion: a `done:` or merged-PR line there is a child's outcome, never the second mate finishing, and retiring a second mate is MAIN's alone (`bin/fm-teardown.sh` refuses you).
 Report a second mate's signal wake from the status lines that wake newly presents; an older entry under OPEN DECISIONS is context, not news, unless a new line carries its key.
@@ -115,7 +123,7 @@ While the home is attended you never:
 - tear down over a refusal, force, stash, or discard anything - a teardown refusal is a stop-and-report result;
 - write to any project checkout or worktree;
 - talk to the captain, post publicly, or send anything outside this home's fleet.
-Ordinary teardown of a confirmed-landed task, steering, lifecycle control, PR checks, and backlog status moves are yours, under the task's lease.
+Ordinary teardown of a confirmed-landed ship or a completed scout, steering, lifecycle control, PR checks, and backlog status moves are yours, under the task's lease.
 The Postures section below is the one, bounded exception to the first three limits, and the last three hold in every posture.
 
 # Postures
@@ -132,7 +140,7 @@ No script parses them; you read them at the tail of every wake, decide by your o
   When a covered PR is ready, run `bin/fm-pr-merge.sh <task> <url>` synchronously under the task lease; the script verifies green checks and approved policies at the live head under the record lock before merging.
   A worker's still-running CI monitor is not a reason to wait once the forge verifies that live head is green and policy-approved; never wait for the monitor to stop or for MAIN to return.
   Report the verified merge as verdict captain, naming the full PR URL and the sentence that authorized it; a refused or unconfirmed merge is not a landed outcome.
-  A red pull request, or one with a required check that has not reported, is never merged under recorded authority, whatever the words say; `--allow-red`, `--allow-missing`, asynchronous merges and queue paths are refused.
+  A red pull request, or one with a required check that has not reported, is never merged under recorded authority, whatever the words say; `--allow-red`, `--allow-missing`, `--allow-no-pipeline`, asynchronous merges and queue paths are refused.
   Report a refusal now under quiet mode; only away holds it for the return.
 - `bin/fm-spawn.sh`: while away, work the words explicitly call for is dispatched within the record's spend cap, from a queued backlog item - one already queued, or one you file yourself for exactly that step under the `backlog` lease, writing its brief intent from the captain's words and a backlog note citing them; filing the item the captain asked for is not inventing work, and anything the words do not call for is.
 - `bin/fm-send.sh` and `bin/fm-control.sh`: a run the words say to abort or a worker the words say to steer is steered, as in any posture.
@@ -176,3 +184,15 @@ cat <<'PROMPT'
 
 PROMPT
 cat "$FM_TRACKED_ROOT/.agents/skills/ask-user-authority/SKILL.md"
+cat <<'PROMPT'
+
+# Scout completion policy (verbatim copy of the tracked skill)
+
+PROMPT
+cat "$FM_TRACKED_ROOT/.agents/skills/scout-completion/SKILL.md"
+cat <<'PROMPT'
+
+# Captain-hold lifecycle policy (verbatim copy of the tracked skill)
+
+PROMPT
+cat "$FM_TRACKED_ROOT/.agents/skills/captain-hold-lifecycle/SKILL.md"
