@@ -1,0 +1,2 @@
+fm-pr-report-compact battery: OK
+bash tests/fm-pr-report-compact.test.sh  5,68s user 2,64s system 30% cpu 27,197 total

@@ -1,0 +1,291 @@
+### scenario: 01-quiet-missing-comment-posted-from-run-record  (posture=quiet record=complete threads=empty)
+$ FM_HOME=<lab> bin/fm-pr-merge.sh task-x1 https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 
+warning: cannot verify ownership of ado PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 for task task-x1; pr_owner_verified=no, merge monitoring remains armed
+armed: state/task-x1.check.sh
+https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42: no-mistakes review comment verified before merge
+verified: https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 is completed at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+[exit=0 elapsed=2s]
+--- forge trace ---
+21:01:56 REST GET pr
+21:01:57 REST GET pr
+21:01:57 az repos pr show
+21:01:57 az GET threads (n=0)
+21:01:57 az GET threads (n=0)
+21:01:57 az POST thread (by merge guard)
+21:01:57 az GET threads (n=1)
+21:01:57 REST GET pr
+21:01:57 REST PUT vote=10
+21:01:57 REST GET pr
+21:01:58 REST PATCH complete (review comment present at completion: True)
+21:01:58 REST GET pr
+--- forge PR status: completed
+--- completion record: {"comment_present_at_completion": true, "voted": true}
+--- review-comment threads on PR: 1
+--- comment posted by merge guard (status=closed):
+## no-mistakes review — recorded findings (full texts)
+<!-- fm-pr-report-compact:attestation-head:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa -->
+
+### Review summary
+
+- Run ID: `01LABRUN`
+- Reviewed head: `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`
+- Review rounds: 2
+- Round 1: trigger `initial`; outcome: 1 finding; reviewed head: `cccccccccccccccccccccccccccccccccccccccc`
+  - `lab-finding-1` (warning): Guard skipped the empty-input case.; fixed in round 2: Handled the empty-input case.
+- Round 2: trigger `fix`; outcome: no findings; reviewed head: `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`
+- Verdict: **no residual findings.**
+
+--- merge-authority record: quiet
+
+### scenario: 02-away-branch-actor-comment-already-present-no-duplicate  (posture=away record=complete threads=present)
+$ FM_HOME=<lab> bin/fm-pr-merge.sh task-x1 https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 
+warning: cannot verify ownership of ado PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 for task task-x1; pr_owner_verified=no, merge monitoring remains armed
+armed: state/task-x1.check.sh
+https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42: no-mistakes review comment already present
+verified: https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 is completed at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+[exit=0 elapsed=2s]
+--- forge trace ---
+21:01:58 REST GET pr
+21:01:59 REST GET pr
+21:01:59 az repos pr show
+21:01:59 az GET threads (n=1)
+21:01:59 REST GET pr
+21:02:00 REST PUT vote=10
+21:02:00 REST GET pr
+21:02:00 REST PATCH complete (review comment present at completion: True)
+21:02:00 REST GET pr
+--- forge PR status: completed
+--- completion record: {"comment_present_at_completion": true, "voted": true}
+--- review-comment threads on PR: 1
+--- merge-authority record: away
+
+### scenario: 03-away-branch-actor-missing-comment  (posture=away record=complete threads=empty actor=branch)
+$ FM_HOME=<lab> bin/fm-pr-merge.sh task-x1 https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 
+note: PR merge (fm-pr-merge) proceeds for the supervision branch under the away-posture record: main is parked and its standing authority is relocated; this script's own gate still applies (docs/pi-supervision-branch.md "Postures")
+note: PR merge (fm-pr-merge) proceeds for the supervision branch under the away-posture record: main is parked and its standing authority is relocated; this script's own gate still applies (docs/pi-supervision-branch.md "Postures")
+warning: cannot verify ownership of ado PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 for task task-x1; pr_owner_verified=no, merge monitoring remains armed
+armed: state/task-x1.check.sh
+note: PR merge (fm-pr-merge) proceeds for the supervision branch under the away-posture record: main is parked and its standing authority is relocated; this script's own gate still applies (docs/pi-supervision-branch.md "Postures")
+https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42: no-mistakes review comment verified before merge
+note: PR merge (fm-pr-merge) proceeds for the supervision branch under the away-posture record: main is parked and its standing authority is relocated; this script's own gate still applies (docs/pi-supervision-branch.md "Postures")
+verified: https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 is completed at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+[exit=0 elapsed=2s]
+--- forge trace ---
+21:02:00 REST GET pr
+21:02:01 REST GET pr
+21:02:01 az repos pr show
+21:02:01 az GET threads (n=0)
+21:02:01 az GET threads (n=0)
+21:02:01 az POST thread (by merge guard)
+21:02:01 az GET threads (n=1)
+21:02:02 REST GET pr
+21:02:02 REST PUT vote=10
+21:02:02 REST GET pr
+21:02:02 REST PATCH complete (review comment present at completion: True)
+21:02:02 REST GET pr
+--- forge PR status: completed
+--- completion record: {"comment_present_at_completion": true, "voted": true}
+--- review-comment threads on PR: 1
+--- comment posted by merge guard (status=closed):
+## no-mistakes review — recorded findings (full texts)
+<!-- fm-pr-report-compact:attestation-head:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa -->
+
+### Review summary
+
+- Run ID: `01LABRUN`
+- Reviewed head: `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`
+- Review rounds: 2
+- Round 1: trigger `initial`; outcome: 1 finding; reviewed head: `cccccccccccccccccccccccccccccccccccccccc`
+  - `lab-finding-1` (warning): Guard skipped the empty-input case.; fixed in round 2: Handled the empty-input case.
+- Round 2: trigger `fix`; outcome: no findings; reviewed head: `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`
+- Verdict: **no residual findings.**
+
+--- merge-authority record: away
+
+### scenario: 04-quiet-lane-about-to-post-guard-waits  (posture=quiet record=pending threads=empty lane-posts-after=4s)
+$ FM_HOME=<lab> bin/fm-pr-merge.sh task-x1 https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 
+warning: cannot verify ownership of ado PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 for task task-x1; pr_owner_verified=no, merge monitoring remains armed
+armed: state/task-x1.check.sh
+https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42: pipeline posted the no-mistakes review comment
+verified: https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 is completed at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+[exit=0 elapsed=5s]
+--- forge trace ---
+21:02:03 REST GET pr
+21:02:03 REST GET pr
+21:02:04 az repos pr show
+21:02:04 az GET threads (n=0)
+21:02:05 az GET threads (n=0)
+21:02:06 az GET threads (n=0)
+21:02:06 LANE posted its own review comment
+21:02:07 az GET threads (n=1)
+21:02:07 REST GET pr
+21:02:07 REST PUT vote=10
+21:02:07 REST GET pr
+21:02:07 REST PATCH complete (review comment present at completion: True)
+21:02:07 REST GET pr
+--- forge PR status: completed
+--- completion record: {"comment_present_at_completion": true, "voted": true}
+--- review-comment threads on PR: 1
+--- merge-authority record: quiet
+
+### scenario: 05-quiet-posting-pending-never-posts-bounded-30s-then-posts  (posture=quiet record=pending threads=empty)
+$ FM_HOME=<lab> bin/fm-pr-merge.sh task-x1 https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 
+warning: cannot verify ownership of ado PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 for task task-x1; pr_owner_verified=no, merge monitoring remains armed
+armed: state/task-x1.check.sh
+https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42: no-mistakes review comment verified before merge
+verified: https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 is completed at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+[exit=0 elapsed=32s]
+--- forge trace ---
+21:02:08 REST GET pr
+21:02:09 REST GET pr
+21:02:09 az repos pr show
+21:02:09 az GET threads (n=0)
+21:02:10 az GET threads (n=0)
+21:02:11 az GET threads (n=0)
+21:02:12 az GET threads (n=0)
+21:02:13 az GET threads (n=0)
+21:02:14 az GET threads (n=0)
+21:02:15 az GET threads (n=0)
+21:02:16 az GET threads (n=0)
+21:02:17 az GET threads (n=0)
+21:02:18 az GET threads (n=0)
+21:02:19 az GET threads (n=0)
+21:02:20 az GET threads (n=0)
+21:02:21 az GET threads (n=0)
+21:02:22 az GET threads (n=0)
+21:02:23 az GET threads (n=0)
+21:02:24 az GET threads (n=0)
+21:02:25 az GET threads (n=0)
+21:02:26 az GET threads (n=0)
+21:02:28 az GET threads (n=0)
+21:02:29 az GET threads (n=0)
+21:02:30 az GET threads (n=0)
+21:02:31 az GET threads (n=0)
+21:02:32 az GET threads (n=0)
+21:02:33 az GET threads (n=0)
+21:02:34 az GET threads (n=0)
+21:02:35 az GET threads (n=0)
+21:02:36 az GET threads (n=0)
+21:02:37 az GET threads (n=0)
+21:02:38 az GET threads (n=0)
+21:02:39 az GET threads (n=0)
+21:02:39 az GET threads (n=0)
+21:02:39 az POST thread (by merge guard)
+21:02:39 az GET threads (n=1)
+21:02:39 REST GET pr
+21:02:39 REST PUT vote=10
+21:02:39 REST GET pr
+21:02:40 REST PATCH complete (review comment present at completion: True)
+21:02:40 REST GET pr
+--- forge PR status: completed
+--- completion record: {"comment_present_at_completion": true, "voted": true}
+--- review-comment threads on PR: 1
+--- comment posted by merge guard (status=closed):
+## no-mistakes review — recorded findings (full texts)
+<!-- fm-pr-report-compact:attestation-head:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa -->
+
+### Review summary
+
+- Run ID: `01LABRUN`
+- Reviewed head: `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`
+- Review rounds: 2
+- Round 1: trigger `initial`; outcome: 1 finding; reviewed head: `cccccccccccccccccccccccccccccccccccccccc`
+  - `lab-finding-1` (warning): Guard skipped the empty-input case.; fixed in round 2: Handled the empty-input case.
+- Round 2: trigger `fix`; outcome: no findings; reviewed head: `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`
+- Verdict: **no residual findings.**
+
+--- merge-authority record: quiet
+
+### scenario: 06-quiet-forge-refuses-post-merge-refused  (posture=quiet record=complete threads=empty forge-refuses-post)
+$ FM_HOME=<lab> bin/fm-pr-merge.sh task-x1 https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 
+warning: cannot verify ownership of ado PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 for task task-x1; pr_owner_verified=no, merge monitoring remains armed
+armed: state/task-x1.check.sh
+error: automated merge refused - missing no-mistakes review comment: forbidden missing no-mistakes review comment for https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42: Command '['az', 'devops', 'invoke', '--organization', 'https://dev.azure.com/acme', '--area', 'git', '--resource', 'pullRequestThreads', '--route-parameters', 'project=Project One', 'repositoryId=Backend', 'pullRequestId=42', '--api-version', '7.1', '--http-method', 'POST', '--in-file', '/tmp/tmp26q_jixd.json']' returned non-zero exit status 1.
+[exit=1 elapsed=1s]
+--- forge trace ---
+21:02:40 REST GET pr
+21:02:41 REST GET pr
+21:02:41 az repos pr show
+21:02:41 az GET threads (n=0)
+21:02:41 az GET threads (n=0)
+21:02:41 az POST thread REFUSED
+--- forge PR status: active
+--- review-comment threads on PR: 0
+--- merge-authority record: none
+
+### scenario: 07-quiet-review-rounds-unfinished-merge-refused  (posture=quiet record=unfinished threads=empty wait=3)
+$ FM_HOME=<lab> bin/fm-pr-merge.sh task-x1 https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 
+warning: cannot verify ownership of ado PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 for task task-x1; pr_owner_verified=no, merge monitoring remains armed
+armed: state/task-x1.check.sh
+error: automated merge refused - missing no-mistakes review comment: missing no-mistakes review comment for https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42: run 01LABRUN review/fix rounds not completed after bounded wait
+[exit=1 elapsed=4s]
+--- forge trace ---
+21:02:42 REST GET pr
+21:02:42 REST GET pr
+21:02:43 az repos pr show
+21:02:43 az GET threads (n=0)
+21:02:44 az GET threads (n=0)
+21:02:45 az GET threads (n=0)
+21:02:46 az GET threads (n=0)
+--- forge PR status: active
+--- review-comment threads on PR: 0
+--- merge-authority record: none
+
+### scenario: 08-quiet-attested-but-no-run-record-merge-refused  (posture=quiet record=none threads=empty)
+$ FM_HOME=<lab> bin/fm-pr-merge.sh task-x1 https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 
+warning: cannot verify ownership of ado PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 for task task-x1; pr_owner_verified=no, merge monitoring remains armed
+armed: state/task-x1.check.sh
+error: automated merge refused - missing no-mistakes review comment: missing no-mistakes review comment for https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42: attributed run record unavailable in ~/.no-mistakes/state.sqlite
+[exit=1 elapsed=1s]
+--- forge trace ---
+21:02:46 REST GET pr
+21:02:47 REST GET pr
+21:02:47 az repos pr show
+21:02:47 az GET threads (n=0)
+--- forge PR status: active
+--- review-comment threads on PR: 0
+--- merge-authority record: none
+
+### scenario: 09-attended-forge-refuses-post-warns-and-merges  (posture=attended record=complete threads=empty forge-refuses-post)
+$ FM_HOME=<lab> bin/fm-pr-merge.sh task-x1 https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 
+warning: cannot verify ownership of ado PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 for task task-x1; pr_owner_verified=no, merge monitoring remains armed
+armed: state/task-x1.check.sh
+WARNING: attended merge proceeding with missing no-mistakes review comment: forbidden missing no-mistakes review comment for https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42: Command '['az', 'devops', 'invoke', '--organization', 'https://dev.azure.com/acme', '--area', 'git', '--resource', 'pullRequestThreads', '--route-parameters', 'project=Project One', 'repositoryId=Backend', 'pullRequestId=42', '--api-version', '7.1', '--http-method', 'POST', '--in-file', '/tmp/tmpj7eh1_rn.json']' returned non-zero exit status 1.
+verified: https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 is completed at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+[exit=0 elapsed=2s]
+--- forge trace ---
+21:02:48 REST GET pr
+21:02:48 REST GET pr
+21:02:49 az repos pr show
+21:02:49 az GET threads (n=0)
+21:02:49 az GET threads (n=0)
+21:02:49 az POST thread REFUSED
+21:02:49 REST GET pr
+21:02:49 REST PUT vote=10
+21:02:49 REST GET pr
+21:02:49 REST PATCH complete (review comment present at completion: False)
+21:02:49 REST GET pr
+--- forge PR status: completed
+--- completion record: {"comment_present_at_completion": false, "voted": true}
+--- review-comment threads on PR: 0
+--- merge-authority record: attended
+
+### scenario: 10-quiet-unattributed-pr-unaffected  (posture=quiet record=none threads=empty no-attestation)
+$ FM_HOME=<lab> bin/fm-pr-merge.sh task-x1 https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 
+warning: cannot verify ownership of ado PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 for task task-x1; pr_owner_verified=no, merge monitoring remains armed
+armed: state/task-x1.check.sh
+verified: https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 is completed at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+[exit=0 elapsed=1s]
+--- forge trace ---
+21:02:50 REST GET pr
+21:02:51 REST GET pr
+21:02:51 az repos pr show
+21:02:51 REST PUT vote=10
+21:02:51 REST GET pr
+21:02:51 REST PATCH complete (review comment present at completion: False)
+21:02:51 REST GET pr
+--- forge PR status: completed
+--- completion record: {"comment_present_at_completion": false, "voted": true}
+--- review-comment threads on PR: 0
+--- merge-authority record: quiet
+
