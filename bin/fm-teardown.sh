@@ -677,8 +677,8 @@ if [ "$(fm_lease_actor)" = branch ] && [ "$(fm_meta_get "$META" mode)" != local-
       gerrit) fm_pr_gerrit_read_record "$4" "$6" ;;
       *) exit 1 ;;
     esac || exit 1
-    case "$FM_PR_RECORD_STATE:$FM_PR_RECORD_MERGED" in
-      MERGED:true|merged:true|completed:true) exit 0 ;;
+    case "$2:$FM_PR_RECORD_STATE:$FM_PR_RECORD_MERGED" in
+      github:MERGED:true|gitlab:merged:true|ado:completed:true|gerrit:MERGED:true|forgejo:closed:true) exit 0 ;;
       *) exit 1 ;;
     esac
   ' _ "$SCRIPT_DIR/fm-pr-lib.sh" "$FM_PR_META_PROVIDER" "$FM_PR_META_URL" \

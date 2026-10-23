@@ -1393,7 +1393,7 @@ test_squash_merged_rebased_branch_allows() {
 # Override tea to answer one login for git.example.org and a pull request
 # read through "tea api" with the supplied merged flag and head.
 add_tea_pull_for_head() {
-  local case_dir=$1 merged=$2 head=$3
+  local case_dir=$1 merged=$2 head=$3 state=${4:-closed}
   cat > "$case_dir/fakebin/tea" <<SH
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$case_dir/tea.log"
@@ -1402,9 +1402,42 @@ if [ "\${1:-} \${2:-}" = "login list" ]; then
   exit 0
 fi
 [ "\${1:-}" = api ] || exit 1
-printf '{"state":"closed","merged":%s,"head":{"sha":"%s"}}\n' '$merged' '$head'
+printf '{"state":"%s","merged":%s,"head":{"sha":"%s"}}\n' '$state' '$merged' '$head'
 SH
   chmod +x "$case_dir/fakebin/tea"
+}
+
+test_branch_forgejo_cleanup_requires_a_closed_merged_pr() {
+  local case_dir head rc state merged expected
+  for state in closed open merged; do
+    for merged in true false; do
+      case_dir=$(make_case "branch-forgejo-$state-$merged")
+      write_meta "$case_dir" no-mistakes ship
+      wt_commit_file "$case_dir" feature.txt hello
+      head=$(git -C "$case_dir/wt" rev-parse HEAD)
+      git -C "$case_dir/wt" push -q origin fm/task-x1
+      printf '%s\n' 'pr=https://git.example.org/team/repo/pulls/7' \
+        "pr_head=$head" >> "$case_dir/state/task-x1.meta"
+      seed_backlog_in_flight "$case_dir"
+      add_tea_pull_for_head "$case_dir" "$merged" "$head" "$state"
+      rc=0
+      FM_SUPERVISION_ACTOR=branch run_teardown "$case_dir" \
+        --merged-pr https://git.example.org/team/repo/pulls/7 \
+        > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+      expected=1
+      [ "$state:$merged" != closed:true ] || expected=0
+      expect_code "$expected" "$rc" "branch Forgejo $state:$merged"$'\n'"$(cat "$case_dir/stderr")"
+      if [ "$expected" = 0 ]; then
+        assert_absent "$case_dir/state/task-x1.meta" 'merged Forgejo task remained active'
+        [ "$(backlog_row_state "$case_dir")" = done ] || fail 'merged Forgejo task stayed open'
+      else
+        assert_grep 'cannot verify PR https://git.example.org/team/repo/pulls/7 as completed' "$case_dir/stderr" 'unmerged Forgejo cleanup was not refused by the branch guard'
+        assert_refusal_retained_task_state "$case_dir" "$state:$merged" "$head"
+        [ "$(backlog_row_state "$case_dir")" = in_flight ] || fail 'unmerged Forgejo task was closed'
+      fi
+    done
+  done
+  pass 'branch cleanup accepts only closed merged Forgejo PRs and preserves every refused task'
 }
 
 # A Forgejo task whose default branch moved on after the squash merge, editing
@@ -5974,6 +6007,7 @@ test_no_pr_recorded_discovers_merged_pr_by_branch_allows
 test_squash_merged_pr_allows_replayed_unpushed_patch
 test_merged_pr_with_later_local_commit_refuses
 test_squash_merged_rebased_branch_allows
+test_branch_forgejo_cleanup_requires_a_closed_merged_pr
 test_squash_merged_forgejo_pr_allows_when_main_moved_on
 test_squash_merged_same_file_different_content_refuses
 test_squash_merged_rebased_local_with_unlanded_commit_refuses

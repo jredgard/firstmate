@@ -1960,6 +1960,40 @@ test_roots_sidecar_records_per_root_lifecycle() {
   pass "the retained sidecar records each root's lifecycle with a mode, reason, and duration"
 }
 
+test_root_clock_survives_a_comma_decimal_locale() {
+  local tmp fakebin roots_log out rc locale_name comma_locale= before after
+  tmp=$(fm_test_tmproot fm-lint-locale)
+  fakebin=$(fm_fakebin "$tmp")
+  fm_lint_stub_shellcheck "$fakebin" "$tmp/stub.log"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$tmp/alpha.sh"
+  for locale_name in de_DE.UTF-8 de_DE.utf8 fr_FR.UTF-8 fr_FR.utf8; do
+    case "$(LC_ALL=$locale_name bash -c 'printf %s "$EPOCHREALTIME"' 2>/dev/null)" in
+      *,*) comma_locale=$locale_name; break ;;
+    esac
+  done
+  for locale_name in C $comma_locale; do
+    roots_log="$tmp/lint.$locale_name.roots.tsv"
+    before=$(date +%s)
+    rc=0
+    out=$(LC_ALL=$locale_name PATH="$fakebin:$PATH" FM_TEST_STUB_LOG="$tmp/stub.log" \
+      "$LINT" --telemetry "$tmp/lint.$locale_name.tsv" "$tmp/alpha.sh" 2>&1) || rc=$?
+    after=$(date +%s)
+    [ "$rc" -eq 0 ] || fail "a clean run failed under LC_ALL=$locale_name"$'\n'"$out"
+    assert_not_contains "$out" arithmetic "the root clock broke under LC_ALL=$locale_name"
+    [ "$(awk -F '\t' -v before="$before" -v after="$after" '
+      $1 == "end" && $6 ~ /^[0-9]+$/ && $7 ~ /^[0-9]+$/ && $8 ~ /^[0-9]+$/ \
+        && $6 >= before * 1000 && $7 < (after + 1) * 1000 && $7 >= $6 && $8 < 600000 { n++ }
+      END { print n + 0 }
+    ' "$roots_log")" -eq 1 ] \
+      || fail "root timestamps or duration violate the system epoch bounds under LC_ALL=$locale_name"
+  done
+  if [ -n "$comma_locale" ]; then
+    pass "the per-root clock reads EPOCHREALTIME under C and comma-decimal $comma_locale"
+  else
+    pass 'SKIP (no comma-decimal locale installed): per-root clock checked under C only'
+  fi
+}
+
 test_seeded_module_boundary_parity() {
   if ! pinned_ready; then
     pass "SKIP (ShellCheck $REQUIRED not resolved): seeded source-boundary parity check"
@@ -2059,6 +2093,7 @@ test_require_bounds_refuses_when_enforcement_is_missing
 test_pinned_shellcheck_memory_limit
 test_sidecar_result_exit_reflects_final_status
 test_roots_sidecar_records_per_root_lifecycle
+test_root_clock_survives_a_comma_decimal_locale
 test_seeded_module_boundary_parity
 test_changed_mode_lints_only_the_changed_file
 test_ci_forces_full_lint_even_with_empty_diff
