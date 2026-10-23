@@ -1961,7 +1961,7 @@ test_roots_sidecar_records_per_root_lifecycle() {
 }
 
 test_root_clock_survives_a_comma_decimal_locale() {
-  local tmp fakebin roots_log out rc locale_name comma_locale= before after
+  local tmp fakebin roots_log out rc locale_name comma_locale='' before after
   tmp=$(fm_test_tmproot fm-lint-locale)
   fakebin=$(fm_fakebin "$tmp")
   fm_lint_stub_shellcheck "$fakebin" "$tmp/stub.log"

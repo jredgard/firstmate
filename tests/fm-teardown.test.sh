@@ -1429,7 +1429,7 @@ test_branch_forgejo_cleanup_requires_a_closed_merged_pr() {
       expect_code "$expected" "$rc" "branch Forgejo $state:$merged"$'\n'"$(cat "$case_dir/stderr")"
       if [ "$expected" = 0 ]; then
         assert_absent "$case_dir/state/task-x1.meta" 'merged Forgejo task remained active'
-        [ "$(backlog_row_state "$case_dir")" = done ] || fail 'merged Forgejo task stayed open'
+        [ "$(backlog_row_state "$case_dir")" = "done" ] || fail 'merged Forgejo task stayed open'
       else
         assert_grep 'cannot verify PR https://git.example.org/team/repo/pulls/7 as completed' "$case_dir/stderr" 'unmerged Forgejo cleanup was not refused by the branch guard'
         assert_refusal_retained_task_state "$case_dir" "$state:$merged" "$head"
