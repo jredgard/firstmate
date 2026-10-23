@@ -127,6 +127,17 @@
 # file exists. A completed-status readback at the verified live head is required
 # for a landed result.
 # No prompt or extra forge arguments are accepted on that path.
+# Before completing an attributed no-mistakes Azure DevOps PR,
+# bin/fm-pr-report-compact --ensure-review-comment must confirm the current
+# head's closed-findings comment. It reuses the compactor's run-record renderer,
+# waits at most 30 seconds for pending review/PR/CI posting, rechecks before posting
+# and verifies the live comment before taking the posture lock or voting.
+# The cached result is applied against authority re-resolved under the lock:
+# quiet/away authority refuses a missing requirement; attended authority,
+# including yolo tasks, continues with a one-line warning. Direct-PR, local-only,
+# approval-only and PRs without an attributed run are unaffected.
+# FM_PR_REVIEW_COMMENT_WAIT may shorten the wait to 0..30 seconds;
+# forge reads/writes have their own bounded timeouts.
 # GitHub approval uses FM_GITHUB_REVIEWER_TOKEN or the one-line regular
 # config/github-reviewer-token file, never the ambient merger token. The token's
 # login must differ from the live PR author. Default execution approves only
@@ -1614,6 +1625,37 @@ resolve_merge_authority() {
   return 1
 }
 
+check_no_mistakes_review_comment() {
+  local mode branch
+  FM_PR_REVIEW_COMMENT_CHECKED=false
+  FM_PR_REVIEW_COMMENT_STATUS=0
+  FM_PR_REVIEW_COMMENT_DETAIL=
+  mode=$(sed -n 's/^mode=//p' "$META" | tail -1)
+  [ "$mode" = no-mistakes ] || return 0
+  [ "$MERGE_ACTION" != approve-only ] || return 0
+  branch=$(sed -n 's/^branch=//p' "$META" | tail -1)
+  FM_PR_REVIEW_COMMENT_DETAIL=$("$SCRIPT_DIR/fm-pr-report-compact" --ensure-review-comment "$URL" \
+    --head "$FM_PR_MERGE_HEAD" --branch "$branch" \
+    --review-wait "${FM_PR_REVIEW_COMMENT_WAIT:-30}" 2>&1) || FM_PR_REVIEW_COMMENT_STATUS=$?
+  if [ -n "$FM_PR_REVIEW_COMMENT_DETAIL" ]; then
+    FM_PR_REVIEW_COMMENT_CHECKED=true
+  fi
+}
+
+require_no_mistakes_review_comment() {
+  if [ "$FM_PR_REVIEW_COMMENT_STATUS" -eq 0 ]; then
+    [ -z "$FM_PR_REVIEW_COMMENT_DETAIL" ] || printf '%s\n' "$FM_PR_REVIEW_COMMENT_DETAIL"
+    return 0
+  fi
+  if [ "$FM_PR_MERGE_AUTHORITY" != attended ]; then
+    printf 'error: automated merge refused - missing no-mistakes review comment: %s\n' \
+      "${FM_PR_REVIEW_COMMENT_DETAIL//$'\n'/ }" >&2
+    return 1
+  fi
+  printf 'WARNING: attended merge proceeding with missing no-mistakes review comment: %s\n' \
+    "${FM_PR_REVIEW_COMMENT_DETAIL//$'\n'/ }" >&2
+}
+
 # Take the posture record's own lock (bin/fm-afk-contract.sh owns it) so that
 # record cannot be published, replaced, or archived between the authority read
 # below and the forge command that acts on it. Refuses without the lock: a merge
@@ -1927,10 +1969,20 @@ case "$PROVIDER" in
     else
       ado_verify_policies approve || exit 1
     fi
+    check_no_mistakes_review_comment
     hold_away_record_for_merge || exit 1
     away_status=0
     require_current_away_authority || away_status=$?
     [ "$away_status" -eq 0 ] || exit "$away_status"
+    require_no_mistakes_review_comment || exit 1
+    if [ "$FM_PR_REVIEW_COMMENT_CHECKED" = true ]; then
+      ado_verify_preconditions || exit 1
+      if [ "$MERGE_ACTION" = complete-only ]; then
+        ado_verify_policies || exit 1
+      else
+        ado_verify_policies approve || exit 1
+      fi
+    fi
     # The identity comes only from this home, never from a repository-specific
     # constant or a prompt that an away session cannot answer.
     if [ "$MERGE_ACTION" != complete-only ]; then

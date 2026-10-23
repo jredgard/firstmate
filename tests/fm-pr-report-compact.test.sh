@@ -273,7 +273,7 @@ printf '{"value":[{"comments":[{"content":"%s\\n%s\\nprior"}]}]}\n' \
 printf '{"value":[{"comments":[{"content":"%s\\nprior"}]}]}\n' \
   '## no-mistakes review — recorded findings (full texts)' > "$LEGACY_THREADS"
 
-python3 - "$TEST_HOME/.no-mistakes/state.sqlite" <<'PY'
+python3 - "$TEST_HOME/.no-mistakes/state.sqlite" "$ATTESTATION_HEAD" <<'PY'
 import json
 import sqlite3
 import sys
@@ -285,14 +285,19 @@ CREATE TABLE runs (
   head_sha TEXT NOT NULL,
   submitted_head_sha TEXT,
   review_approved_head_sha TEXT,
-  pr_url TEXT
+  pr_url TEXT,
+  last_pushed_sha TEXT,
+  status TEXT,
+  branch TEXT DEFAULT 'fm/example',
+  created_at INTEGER DEFAULT 1
 );
 CREATE TABLE step_results (
   id TEXT PRIMARY KEY,
   run_id TEXT NOT NULL,
   step_name TEXT NOT NULL,
   findings_json TEXT,
-  completed_at INTEGER
+  completed_at INTEGER,
+  status TEXT DEFAULT 'completed'
 );
 CREATE TABLE step_rounds (
   id TEXT PRIMARY KEY,
@@ -359,12 +364,15 @@ for pr_id, run_id, result_id, head, payload in (
     ("777", "run-flap", "result-flap", "head-flap-3", flap),
 ):
     db.execute(
-        "INSERT INTO runs VALUES (?, ?, ?, ?, ?)",
-        (run_id, "head-start", head, head,
-         f"https://dev.azure.com/org/project/_git/repo/pullrequest/{pr_id}"),
+        "INSERT INTO runs (id, head_sha, submitted_head_sha, review_approved_head_sha, "
+        "pr_url, last_pushed_sha, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (run_id, sys.argv[2], head, head,
+         f"https://dev.azure.com/org/project/_git/repo/pullrequest/{pr_id}",
+         sys.argv[2], "completed"),
     )
     db.execute(
-        "INSERT INTO step_results VALUES (?, ?, 'review', ?, 1)",
+        "INSERT INTO step_results (id, run_id, step_name, findings_json, completed_at) "
+        "VALUES (?, ?, 'review', ?, 1)",
         (result_id, run_id, payload),
     )
 db.execute(
@@ -416,6 +424,34 @@ db.execute(
     ("round-flap-3", "result-flap", 3, "auto_fix", flap,
      "head-flap-3", None),
 )
+db.execute(
+    "INSERT INTO runs (id, head_sha, submitted_head_sha, review_approved_head_sha, "
+    "pr_url, last_pushed_sha, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ("run-unpublished", "b" * 40, "b" * 40, "b" * 40,
+     "https://dev.azure.com/org/project/_git/repo/pullrequest/111", None, "failed"),
+)
+db.execute(
+    "INSERT INTO step_results (id, run_id, step_name, findings_json, completed_at) "
+    "VALUES (?, ?, 'review', ?, 2)",
+    ("result-unpublished", "run-unpublished", two),
+)
+for index, (run_id, review_status, pushed_head) in enumerate((
+    ("run-same-head-review-failed", "failed", None),
+    ("run-same-head-test-failed", "completed", None),
+    ("run-same-head-other-push", "completed", "b" * 40),
+), start=3):
+    db.execute(
+        "INSERT INTO runs (id, head_sha, submitted_head_sha, review_approved_head_sha, "
+        "pr_url, last_pushed_sha, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (run_id, sys.argv[2], sys.argv[2], sys.argv[2],
+         "https://dev.azure.com/org/project/_git/repo/pullrequest/111",
+         pushed_head, "failed", index),
+    )
+    db.execute(
+        "INSERT INTO step_results (id, run_id, step_name, findings_json, completed_at, status) "
+        "VALUES (?, ?, 'review', ?, ?, ?)",
+        ("result-" + run_id, run_id, two, index, review_status),
+    )
 db.commit()
 PY
 
@@ -678,6 +714,98 @@ if grep -q -- '--http-method POST\|repos pr update' "$AZ_TRACE" || \
     [ -s "$AZ_UPDATE_BODY" ]; then
   fail "missing PR must cause zero writes"
 fi
+
+for comment_url in \
+    https://dev.azure.com/org/project/_git/repo/pullrequest/111 \
+    https://org.visualstudio.com/project/_git/repo/pullrequest/111 \
+    http://dev.azure.com/org/project/_git/repo/pullrequest/111; do
+  : > "$AZ_TRACE"
+  : > "$AZ_POST_BODY"
+  : > "$AZ_UPDATE_BODY"
+  comment_rc=0
+  HOME="$TEST_HOME" PATH="$FAKE_BIN:$PATH" AZ_PR_STATUS=active \
+    AZ_PR_HEAD="$ATTESTATION_HEAD" AZ_THREADS_FILE="$SAME_ROUND_THREADS" \
+    "$TOOL" --ensure-review-comment "$comment_url" --head "$ATTESTATION_HEAD" \
+      --branch fm/example --review-wait 0 \
+      > "$TEST_DIR/comment.stdout" 2> "$TEST_DIR/comment.stderr" || comment_rc=$?
+  if [ "$comment_url" = https://dev.azure.com/org/project/_git/repo/pullrequest/111 ]; then
+    [ "$comment_rc" -eq 0 ] || fail "canonical Azure DevOps comment check must succeed"
+    grep -qF 'no-mistakes review comment already present' "$TEST_DIR/comment.stdout" || \
+      fail "canonical comment check must confirm the existing comment"
+    [ -s "$AZ_TRACE" ] || fail "canonical comment check must read the forge"
+  else
+    [ "$comment_rc" -eq 1 ] || fail "noncanonical Azure DevOps comment URL must fail"
+    grep -qF 'requires a canonical https://dev.azure.com/ PR' "$TEST_DIR/comment.stderr" || \
+      fail "noncanonical comment refusal must name the supported host"
+    [ ! -s "$AZ_TRACE" ] || fail "noncanonical comment URL must not contact the forge"
+  fi
+  [ ! -s "$AZ_POST_BODY" ] || fail "host check must not post a duplicate comment"
+  [ ! -s "$AZ_UPDATE_BODY" ] || fail "comment-only host check must not update the description"
+done
+
+for run_status in completed failed cancelled running; do
+  python3 - "$TEST_HOME/.no-mistakes/state.sqlite" "$run_status" <<'PYDB'
+import sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as db:
+    db.execute("UPDATE runs SET status = ? WHERE id = 'run-clean'", (sys.argv[2],))
+    db.execute("DELETE FROM step_results WHERE run_id = 'run-clean' AND step_name IN ('pr', 'ci')")
+    for step in ("pr", "ci"):
+        db.execute(
+            "INSERT INTO step_results (id, run_id, step_name, status) VALUES (?, ?, ?, ?)",
+            ("clean-" + step, "run-clean", step, "pending"),
+        )
+PYDB
+  : > "$AZ_TRACE"
+  : > "$AZ_POST_BODY"
+  : > "$AZ_UPDATE_BODY"
+  printf '{"value":[]}\n' > "$TEST_DIR/comment-threads.json"
+  HOME="$TEST_HOME" PATH="$FAKE_BIN:$PATH" AZ_PR_STATUS=active \
+    AZ_PR_HEAD="$ATTESTATION_HEAD" AZ_THREADS_FILE="$TEST_DIR/comment-threads.json" \
+    AZ_PERSIST_POST=true "$TOOL" --ensure-review-comment \
+      https://dev.azure.com/org/project/_git/repo/pullrequest/111 \
+      --head "$ATTESTATION_HEAD" --branch fm/example --review-wait 1 \
+      > "$TEST_DIR/comment.stdout" 2> "$TEST_DIR/comment.stderr" || \
+    fail "$run_status published-head comment check must succeed"
+  python3 - "$AZ_POST_BODY" "$run_status" <<'PY' || fail "$run_status comment must render the run that pushed the head"
+import json, sys
+thread = json.load(open(sys.argv[1]))
+content = thread["comments"][0]["content"]
+assert "Run ID: `run-clean`" in content
+assert "run-same-head-" not in content
+assert "no residual findings" in content
+assert thread["status"] == "closed"
+PY
+  posting_reads=$(grep -c -- '--http-method GET' "$AZ_TRACE")
+  if [ "$run_status" = running ]; then
+    [ "$posting_reads" -ge 4 ] || fail "active run must poll pending posting before fallback"
+  else
+    [ "$posting_reads" -eq 3 ] || fail "$run_status run must not poll terminal pending posting"
+  fi
+  [ "$(grep -c -- '--http-method POST' "$AZ_TRACE")" -eq 1 ] || fail "$run_status fallback must post once"
+  [ ! -s "$AZ_UPDATE_BODY" ] || fail "comment-only fallback must not update the description"
+done
+
+for timeout_stage in show threads; do
+  : > "$AZ_TRACE"
+  : > "$AZ_POST_BODY"
+  timeout_rc=0
+  HOME="$TEST_HOME" PATH="$FAKE_BIN:$PATH" AZ_PR_STATUS=active \
+    AZ_PR_HEAD="$ATTESTATION_HEAD" AZ_THREADS_FILE="$SAME_ROUND_THREADS" \
+    AZ_TIMEOUT_STAGE="$timeout_stage" "$TOOL" --ensure-review-comment \
+      https://dev.azure.com/org/project/_git/repo/pullrequest/111 \
+      --head "$ATTESTATION_HEAD" --branch fm/example --review-wait 3 \
+      > "$TEST_DIR/timeout.stdout" 2> "$TEST_DIR/timeout.stderr" || timeout_rc=$?
+  [ "$timeout_rc" -eq 1 ] || fail "$timeout_stage timeout must refuse the comment check"
+  grep -qF 'missing no-mistakes review comment for' "$TEST_DIR/timeout.stderr" || \
+    fail "$timeout_stage timeout must name the missing comment"
+  grep -qF 'WARNING: delayed az response' "$TEST_DIR/timeout.stderr" || \
+    fail "$timeout_stage timeout must preserve captured stderr bytes as text"
+  if grep -qE 'Traceback|TypeError' "$TEST_DIR/timeout.stderr"; then
+    fail "$timeout_stage timeout must not crash while formatting stderr"
+  fi
+  [ ! -s "$TEST_DIR/timeout.stdout" ] || fail "$timeout_stage timeout must not claim verification"
+  [ ! -s "$AZ_POST_BODY" ] || fail "$timeout_stage timeout must not post a comment"
+done
 
 if [ "$failures" -gt 0 ]; then
   echo "fm-pr-report-compact battery: $failures failure(s)" >&2

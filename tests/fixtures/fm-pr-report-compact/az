@@ -2,19 +2,23 @@
 set -eu
 
 printf '%s\n' "$*" >> "$AZ_TRACE"
+if { [ "${AZ_TIMEOUT_STAGE:-}" = show ] && [ "$1 $2 $3" = 'repos pr show' ]; } ||
+   { [ "${AZ_TIMEOUT_STAGE:-}" = threads ] && [ "$1 $2" = 'devops invoke' ]; }; then
+  exec python3 -c 'import sys, time; sys.stderr.buffer.write(b"WARNING: delayed az response\n"); sys.stderr.buffer.flush(); time.sleep(20)'
+fi
 if [ "$1 $2 $3" = "repos pr show" ]; then
   if [ "${AZ_PR_EXISTS:-true}" != "true" ]; then
     printf 'pull request not found\n' >&2
     exit 3
   fi
-  python3 - "$AZ_PR_STATUS" "$AZ_DESCRIPTION_FILE" <<'PY'
+  python3 - "$AZ_PR_STATUS" "$AZ_DESCRIPTION_FILE" "${AZ_PR_HEAD:-}" <<'PY'
 import json
 import sys
 
 with open(sys.argv[2], encoding="utf-8") as stream:
     description = stream.read()
 print(json.dumps({"description": description, "repo": "repo",
-                  "project": "project", "status": sys.argv[1]}))
+                  "project": "project", "status": sys.argv[1], "head": sys.argv[3]}))
 PY
 elif [ "$1 $2 $3 $4" = "repos pr policy list" ]; then
   python3 - "${AZ_POLICY_STATUS:-approved}" "${AZ_POLICY_BLOCKING:-true}" \
@@ -52,9 +56,29 @@ elif [ "$1 $2" = "devops invoke" ]; then
     previous="$arg"
   done
   if [ "$method" = "GET" ]; then
+    reads=$(( $(cat "$AZ_THREADS_FILE.reads" 2>/dev/null || echo 0) + 1 ))
+    printf '%s\n' "$reads" > "$AZ_THREADS_FILE.reads"
+    if [ "$reads" -eq "${AZ_RUN_HEAD_CHANGE_READ:-0}" ]; then
+      python3 - "$HOME/.no-mistakes/state.sqlite" <<'PY'
+import sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as db:
+    db.execute("UPDATE runs SET head_sha = ?", ("b" * 40,))
+PY
+    fi
+    if [ -n "${AZ_RACE_THREADS:-}" ] && [ "$reads" -ge "${AZ_RACE_READ:-2}" ]; then
+      cp "$AZ_RACE_THREADS" "$AZ_THREADS_FILE"
+    fi
     cp "$AZ_THREADS_FILE" /dev/stdout
   else
+    [ "${AZ_POST_REFUSED:-false}" != true ] || exit 3
     cp "$input" "$AZ_POST_BODY"
+    if [ "${AZ_PERSIST_POST:-false}" = true ]; then
+      python3 - "$input" "$AZ_THREADS_FILE" <<'PY'
+import json, sys
+thread = json.load(open(sys.argv[1]))
+json.dump({"value": [thread]}, open(sys.argv[2], "w"))
+PY
+    fi
     printf '{"id":42}\n'
   fi
 elif [ "$1 $2 $3" = "repos pr update" ]; then

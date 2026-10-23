@@ -4114,7 +4114,37 @@ add_ado_merge_mocks() {  # <case-dir>
   local dir=$1
   cat > "$dir/fakebin/az" <<'SH'
 #!/usr/bin/env bash
-[ "$*" = 'account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv' ] || exit 2
+if [ "$*" != 'account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv' ]; then
+  if [ -n "${AZ_TRACE:-}" ]; then
+    if [ "${FM_TEST_COMMENT_LOCK_PROBE:-false}" = true ]; then
+      FM_TEST_AFK_CONTRACT_LOCK_TIMEOUT=1 bash -c '
+        . "$FM_TEST_ROOT/bin/fm-afk-contract.sh"
+        fm_afk_contract_lock_hold "$FM_STATE_OVERRIDE" && fm_afk_contract_lock_release
+      ' > "$FM_TEST_ADO_DIR/comment-lock-probe" 2>&1 || exit 3
+      printf 'available\n' >> "$FM_TEST_ADO_DIR/comment-lock-results"
+      [ ! -e "$FM_TEST_ADO_DIR/ado-voted" ] || exit 3
+    fi
+    if [ "$1 $2 $3" = 'repos pr show' ]; then
+      case "${FM_TEST_COMMENT_AUTHORITY_CHANGE:-}" in
+        enter)
+          FM_AFK_MODE=quiet "$FM_TEST_ROOT/bin/fm-afk-contract.sh" enter --words 'merge green PRs' >/dev/null || exit 3
+          ;;
+        archive)
+          "$FM_TEST_ROOT/bin/fm-afk-contract.sh" archive >/dev/null || exit 3
+          ;;
+      esac
+      if [ "${FM_TEST_COMMENT_HEAD_CHANGE:-false}" = true ]; then
+        printf '1\n' > "$FM_TEST_ADO_DIR/ado-moving-head"
+      fi
+      if [ "${FM_TEST_COMMENT_POLICY_CHANGE:-false}" = true ]; then
+        printf '%s\n' '{"value":[{"status":"rejected","configuration":{"isBlocking":true,"type":{"displayName":"Build"}}}]}' > "$FM_TEST_ADO_DIR/ado-policies.json"
+      fi
+    fi
+    exec "$FM_TEST_ROOT/tests/fixtures/fm-pr-report-compact/az" "$@"
+  fi
+  printf '{"description":"", "repo":"Backend", "project":"Project One"}\n'
+  exit 0
+fi
 printf '%s\n' fixture-token
 SH
   cat > "$dir/fakebin/curl" <<'SH'
@@ -4180,6 +4210,10 @@ case "$method:$url" in
     : > "$FM_TEST_ADO_DIR/ado-voted"
     ;;
   PATCH:*'/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1')
+    if [ "${FM_TEST_COMMENT_REQUIRED:-false}" = true ]; then
+      jq -e '[.value[].comments[].content | contains("attestation-head:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")] | any' \
+        "$AZ_THREADS_FILE" >/dev/null || exit 3
+    fi
     [ -e "$FM_TEST_ADO_DIR/ado-voted" ] || [ -e "$FM_TEST_ADO_DIR/ado-already-approved" ] || exit 2
     del=false twi=false
     [ ! -e "$FM_TEST_ADO_DIR/ado-expect-delete-branch" ] || del=true
@@ -5337,6 +5371,199 @@ test_allow_no_pipeline_is_attended_only_and_gitlab_only() {
   pass "fm-pr-merge --allow-no-pipeline is attended-only, takes no value, and applies only to GitLab"
 }
 
+# Exercise the real comment-only compactor through the guarded merge command.
+write_merge_review_record() {  # <dir> <url> <review-status> <pr-status> <ci-status>
+  local dir=$1 url=$2 review=$3 posting=$4 ci=${5:-completed}
+  mkdir -p "$dir/user-home/.no-mistakes"
+  python3 - "$dir/user-home/.no-mistakes/state.sqlite" "$url" "$review" "$posting" "$ci" <<'PYDB'
+import json, sqlite3, sys
+path, url, review, posting, ci = sys.argv[1:]
+with sqlite3.connect(path) as db:
+    db.executescript("""
+    CREATE TABLE runs (id TEXT, branch TEXT, created_at INTEGER, pr_url TEXT,
+                       head_sha TEXT, submitted_head_sha TEXT, review_approved_head_sha TEXT,
+                       last_pushed_sha TEXT, status TEXT);
+    CREATE TABLE step_results (id TEXT, run_id TEXT, step_name TEXT, status TEXT,
+                               findings_json TEXT, completed_at INTEGER);
+    CREATE TABLE step_rounds (id TEXT, step_result_id TEXT, round INTEGER,
+                             trigger_type TEXT, findings_json TEXT,
+                             reviewed_head_sha TEXT, fix_summary TEXT);
+    """)
+    head = "a" * 40
+    run_status = "completed" if all(step == "completed" for step in (review, posting, ci)) else "running"
+    db.execute("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+               ("merge-run", "fm/example", 1, url, head, head, head, head, run_status))
+    db.execute("INSERT INTO step_results VALUES (?, ?, ?, ?, ?, ?)",
+               ("review-result", "merge-run", "review", review, '{"findings": []}', 1))
+    db.execute("INSERT INTO step_results VALUES (?, ?, ?, ?, ?, ?)",
+               ("pr-result", "merge-run", "pr", posting, None, 1))
+    db.execute("INSERT INTO step_results VALUES (?, ?, ?, ?, ?, ?)",
+               ("ci-result", "merge-run", "ci", ci, None, 1))
+    first = json.dumps({"findings": [{"id": "fixed-1", "severity": "warning",
+                       "file": "bin/example", "line": 3, "description": "Recorded fix."}]})
+    db.execute("INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
+               ("round-1", "review-result", 1, "initial", first, head, None))
+    db.execute("INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
+               ("round-2", "review-result", 2, "fix", '{"findings": []}', head, "Resolved."))
+PYDB
+}
+
+test_no_mistakes_review_comment_precondition() {
+  local scenario dir url rc expected posts wait review posting ci required
+  url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
+  for scenario in present missing posting ci-posting race pipeline unavailable attended yolo yolo-override quiet-override refused unconfirmed unreadable unfinished direct unattributed newer-ready newer-failed newer-poll same-head-review-failed same-head-test-failed same-head-other-push no-matching run-moved head-changed policy-changed authority-entered authority-returned approve-only complete-only; do
+    dir=$(make_case "review-comment-ado-$scenario")
+    add_ado_merge_mocks "$dir"
+    printf '%s\n' '<!-- no-mistakes-pipeline-attestation:v1 {"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","steps":[]} -->' > "$dir/description"
+    printf '%s\n' '{"value":[]}' > "$dir/threads"
+    printf '%s\n' '{"value":[{"comments":[{"content":"## no-mistakes review — recorded findings (full texts)\n<!-- fm-pr-report-compact:attestation-head:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa -->"}]}]}' > "$dir/present-threads"
+    review=completed posting=completed ci=completed wait=0 required=true
+    case "$scenario" in
+      posting|pipeline) posting=running; wait=1 ;;
+      ci-posting) ci=running; wait=1 ;;
+      newer-poll|run-moved) ci=running; wait=1 ;;
+      unfinished) review=fixing; wait=0.15 ;;
+    esac
+    write_merge_review_record "$dir" "$url" "$review" "$posting" "$ci"
+    case "$scenario" in
+      newer-ready|newer-failed|newer-poll|same-head-review-failed|same-head-test-failed|same-head-other-push)
+        python3 - "$dir/user-home/.no-mistakes/state.sqlite" "$scenario" <<'PYDB'
+import json, sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as db:
+    url = db.execute("SELECT pr_url FROM runs").fetchone()[0]
+    scenario = sys.argv[2]
+    head = "a" * 40 if scenario.startswith("same-head-") else "b" * 40
+    pushed = "b" * 40 if scenario == "same-head-other-push" else None
+    db.execute("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+               ("followup-run", "fm/example", 2, url, head, head, head, pushed, "failed"))
+    status = "completed" if scenario in {"newer-ready", "same-head-test-failed", "same-head-other-push"} else "failed"
+    findings = json.dumps({"findings": [{"id": "unpublished-1", "severity": "warning",
+                         "description": "Unpublished follow-up finding."}]})
+    db.execute("INSERT INTO step_results VALUES (?, ?, ?, ?, ?, ?)",
+               ("followup-review", "followup-run", "review", status, findings, 2))
+    db.execute("INSERT INTO step_results VALUES (?, ?, ?, ?, ?, ?)",
+               ("followup-pr", "followup-run", "pr", "pending", None, 2))
+    db.execute("INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
+               ("followup-round", "followup-review", 1, "initial", findings, head, None))
+PYDB
+        ;;
+      no-matching)
+        python3 - "$dir/user-home/.no-mistakes/state.sqlite" <<'PYDB'
+import sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as db:
+    db.execute("UPDATE runs SET head_sha = ?", ("b" * 40,))
+PYDB
+        ;;
+      unavailable|attended|yolo|yolo-override|quiet-override|authority-entered|authority-returned)
+        rm "$dir/user-home/.no-mistakes/state.sqlite"
+        ;;
+      unreadable) printf 'not sqlite' > "$dir/user-home/.no-mistakes/state.sqlite" ;;
+      present)
+        cp "$dir/present-threads" "$dir/threads"
+        printf 'not sqlite' > "$dir/user-home/.no-mistakes/state.sqlite"
+        ;;
+      direct) sed -i.bak 's/mode=no-mistakes/mode=direct-PR/' "$dir/state/task-x1.meta" ;;
+      unattributed)
+        : > "$dir/description"
+        rm "$dir/user-home/.no-mistakes/state.sqlite"
+        ;;
+    esac
+    set --
+    case "$scenario" in
+      attended|yolo|yolo-override|authority-returned|direct|unattributed|approve-only) required=false ;;
+    esac
+    case "$scenario" in
+      yolo|yolo-override)
+        printf 'yolo=on\n' >> "$dir/state/task-x1.meta"
+        [ "$scenario" != yolo-override ] || set -- --attended-override
+        ;;
+      attended|authority-entered) ;;
+      unavailable) FM_AFK_MODE=away write_away_record "$dir" --words 'merge green PRs' ;;
+      *) FM_AFK_MODE=quiet write_away_record "$dir" --words 'merge green PRs' ;;
+    esac
+    case "$scenario" in
+      quiet-override) set -- --attended-override ;;
+      approve-only) set -- --approve-only ;;
+      complete-only)
+        set -- --complete-only
+        : > "$dir/ado-already-approved"
+        ;;
+    esac
+    set +e
+    AZ_TRACE="$dir/comment.log" AZ_DESCRIPTION_FILE="$dir/description" \
+      AZ_PR_STATUS=active AZ_PR_HEAD=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+      AZ_THREADS_FILE="$dir/threads" AZ_POST_BODY="$dir/comment-body" \
+      AZ_PERSIST_POST="$([ "$scenario" != unconfirmed ] && echo true || echo false)" \
+      FM_TEST_COMMENT_REQUIRED="$required" FM_TEST_COMMENT_LOCK_PROBE=true \
+      FM_TEST_COMMENT_AUTHORITY_CHANGE="$([ "$scenario" != authority-entered ] || echo enter; [ "$scenario" != authority-returned ] || echo archive)" \
+      FM_TEST_COMMENT_HEAD_CHANGE="$([ "$scenario" != head-changed ] && echo false || echo true)" \
+      FM_TEST_COMMENT_POLICY_CHANGE="$([ "$scenario" != policy-changed ] && echo false || echo true)" \
+      AZ_RUN_HEAD_CHANGE_READ="$([ "$scenario" != run-moved ] && echo 0 || echo 2)" \
+      AZ_POST_REFUSED="$([ "$scenario" != refused ] && echo false || echo true)" \
+      AZ_RACE_THREADS="$([ "$scenario" != race ] && [ "$scenario" != pipeline ] || echo "$dir/present-threads")" \
+      AZ_RACE_READ=2 FM_PR_REVIEW_COMMENT_WAIT="$wait" FM_TEST_ADO_DIR="$dir" \
+      FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+      run_pr_merge "$dir" task-x1 "$url" "$@" > "$dir/stdout" 2> "$dir/stderr"
+    rc=$?
+    set -e
+    expected=0
+    case "$scenario" in
+      unavailable|quiet-override|refused|unconfirmed|unreadable|unfinished|no-matching|run-moved|head-changed|policy-changed|authority-entered) expected=1 ;;
+    esac
+    expect_code "$expected" "$rc" "review comment ado $scenario: $(cat "$dir/stderr")"
+    if [ "$expected" = 0 ] && [ "$scenario" != approve-only ]; then
+      [ -e "$dir/ado-complete" ] || fail "$scenario did not complete"
+    else
+      [ ! -e "$dir/ado-complete" ] || fail "$scenario unexpectedly completed"
+    fi
+    if [ "$expected" = 1 ]; then
+      [ ! -e "$dir/ado-voted" ] || fail "$scenario voted before refusing"
+      case "$scenario" in
+        head-changed) assert_grep 'head changed after recording' "$dir/stderr" "head change was not rejected" ;;
+        policy-changed) assert_grep 'policies not approved' "$dir/stderr" "policy change was not rejected" ;;
+        *) assert_grep 'automated merge refused - missing no-mistakes review comment' "$dir/stderr" "requirement not named" ;;
+      esac
+    fi
+    case "$scenario" in
+      attended|yolo|yolo-override|authority-returned)
+        assert_grep 'WARNING: attended merge proceeding' "$dir/stderr" "attended exception was silent"
+        [ "$(sed -n 6p "$dir/state/task-x1.merge-authority")" = attended ] || fail "returned authority not persisted"
+        ;;
+    esac
+    posts=$(grep -c 'POST' "$dir/comment.log" 2>/dev/null || true)
+    posts=${posts:-0}
+    case "$scenario" in
+      missing|posting|ci-posting|newer-ready|newer-failed|newer-poll|same-head-review-failed|same-head-test-failed|same-head-other-push|head-changed|policy-changed|complete-only)
+        [ "$posts" = 1 ] || fail "$scenario must post once (got $posts)"
+        assert_grep 'fixed-1' "$dir/comment-body" "recorded findings not preserved"
+        assert_grep 'no residual findings' "$dir/comment-body" "closed verdict missing"
+        # shellcheck disable=SC2016  # Literal Markdown backticks in the rendered comment.
+        assert_grep 'Run ID: `merge-run`' "$dir/comment-body" "wrong run rendered"
+        assert_no_grep 'unpublished-1' "$dir/comment-body" "unpublished findings were posted"
+        assert_grep 'review comment verified before merge' "$dir/stdout" "post not verified"
+        ;;
+      refused|unconfirmed) [ "$posts" = 1 ] || fail "$scenario did not attempt posting" ;;
+      *) [ "$posts" = 0 ] || fail "$scenario posted a duplicate/unneeded comment" ;;
+    esac
+    case "$scenario" in
+      posting|ci-posting|newer-poll)
+        [ "$(cat "$dir/threads.reads")" -ge 4 ] || fail "$scenario skipped the pending-step wait"
+        ;;
+      pipeline) [ "$(cat "$dir/threads.reads")" -ge 2 ] || fail "$scenario never waited/rechecked" ;;
+      approve-only)
+        [ -e "$dir/ado-voted" ] || fail "approve-only did not vote"
+        [ ! -e "$dir/comment.log" ] || fail "approve-only checked the comment"
+        ;;
+    esac
+    case "$scenario" in
+      direct|approve-only) ;;
+      *) [ -s "$dir/comment-lock-results" ] || fail "$scenario did not prove posture lock availability" ;;
+    esac
+  done
+  pass "Azure DevOps comments use the attested run before locking/voting, with bounded waits, current authority and no duplicates"
+}
+
+test_no_mistakes_review_comment_precondition
 test_gitlab_head_override_args_refuse_before_recording
 test_ado_headless_merge_and_refusals
 test_quiet_words_keep_ado_green_and_completion_guards
