@@ -339,7 +339,9 @@ def review_findings_comment(
 
     Read-only against ~/.no-mistakes/state.sqlite: the run is matched by the
     /pullrequest/<id> suffix in normalization mode; the merge caller supplies
-    the full URL and attributed run ID. Compaction drops <details> bodies from the
+    the full URL and attributed run ID. Either way only a run that sits at and
+    pushed the attested head qualifies, so an unpushed same-head rerun cannot
+    supply the review. Compaction drops <details> bodies from the
     description; this preserves their substance where the char limit is ~150k
     and edits survive merge. Clean reviews still get a summary-only thread.
     """
