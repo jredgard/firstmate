@@ -259,6 +259,9 @@ test_ci_ready_requires_pr_reference() {
     'paused: PROD deploy watch, checks green on TEST' \
     'paused: checks green on TEST, PROPERTIES watch' \
     'PR checks green' \
+    'PR https://dev.azure.com/acme/project/_git/repo/pullrequest/ checks green' \
+    'PR https://dev.azure.com/acme/project/_git/repo/pullrequest/54336abc checks green' \
+    'PR https://dev.azure.com/acme/project/_git/repo/pullrequest/54336 checks pending' \
     'PR #12 checks pending'; do
     if fm_dod_note_reports_ci_ready "$note"; then
       fail "non-CI-ready note accepted: $note"
@@ -270,11 +273,38 @@ test_ci_ready_requires_pr_reference() {
     'PR #12 checks green' \
     'checks green: PR#12' \
     'https://gitlab.com/o/r/-/merge_requests/5 checks green' \
+    'PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/54336 checks green' \
+    'checks green: https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/54336' \
     'https://git.example.org/team/repo/pulls/12 checks green'; do
     fm_dod_note_reports_ci_ready "$note" \
       || fail "CI-ready PR reference rejected: $note"
   done
   pass "CI-ready notes require checks green and an actual PR reference"
+}
+
+test_ado_ci_ready_done_checks_named_head() {
+  local repo wt url line mode sha reason rc
+  repo="$TMP_ROOT/ado-ci-ready-repo"
+  wt="$TMP_ROOT/ado-ci-ready-wt"
+  url=https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/54336
+  fm_pr_url_parse "$url" || fail 'canonical Azure DevOps PR URL was rejected'
+  [ "$FM_PR_PROVIDER:$FM_PR_NUMBER" = ado:54336 ] || fail 'ADO PR identity was parsed incorrectly'
+  fm_git_worktree "$repo" "$wt" fm/ado-ci-ready
+  git -C "$wt" commit -q --allow-empty -m 'only in the worker copy'
+  sha=$(git -C "$wt" rev-parse HEAD)
+  line="done [at=1]: PR $url checks green"
+  for mode in no-mistakes ''; do
+    fm_dod_should_gate_ship_done ship "$mode" "$line" || fail 'ADO checks-green done skipped the named-head gate'
+    rc=0
+    reason=$(accept_done ship "$mode" "$wt" "$repo" "$line") || rc=$?
+    [ "$rc" -eq 1 ] || fail 'ADO checks-green done accepted an unpreserved named head'
+    assert_contains "$reason" "named head $sha is unreachable outside the worker copy" 'ADO refusal did not name the unpreserved commit'
+  done
+  git -C "$wt" update-ref refs/remotes/origin/fm/ado-ci-ready "$sha"
+  for mode in no-mistakes ''; do
+    accept_done ship "$mode" "$wt" "$repo" "$line" || fail 'ADO checks-green done refused a preserved named head'
+  done
+  pass 'ADO checks-green done gates the named head in explicit and default no-mistakes modes'
 }
 
 test_ci_ready_variants_are_gated() {
@@ -559,6 +589,7 @@ test_merge_marker_binds_to_the_named_pr
 test_forge_recorded_head_is_accepted_without_local_object
 test_direct_pr_recorded_head_does_not_cover_unpushed_commit
 test_ci_ready_requires_pr_reference
+test_ado_ci_ready_done_checks_named_head
 test_ci_ready_variants_are_gated
 test_keyed_and_spaced_done_lines_are_gated
 test_local_only_linked_branch_is_accepted

@@ -1203,6 +1203,39 @@ test_ado_registration_rejects_another_tasks_branch() {
   pass "ADO PR registration rejects a foreign source branch and accepts the recorded task branch"
 }
 
+test_ado_ready_after_green_reports_only_the_matching_latest_done() {
+  local dir state url channel scenario note
+  dir=$(make_case ado-ready-after-green)
+  state="$dir/home/state"
+  url=https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42
+  add_ado_mocks "$dir"
+  write_task_meta "$dir"
+  mkdir -p "$dir/parent/state"
+  printf 'schema=fm-secondmate-parent.v1\nroute=local\nparent_home=%s\n' "$dir/parent" > "$dir/home/.fm-secondmate-parent"
+  printf 'mate-ado\n' > "$dir/home/.fm-secondmate-home"
+  channel="$dir/parent/state/mate-ado.status"
+  : > "$dir/home/config/ready-after-green"
+  for scenario in pending other prefix green withdrawn; do
+    case "$scenario" in
+      pending) note="PR $url checks pending" ;;
+      other) note='PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/43 checks green' ;;
+      prefix) note="PR ${url}0 checks green" ;;
+      green) note="PR $url checks green, risk low" ;;
+      withdrawn) note='implementation complete'; : > "$channel" ;;
+    esac
+    printf 'done [at=1]: %s\n' "$note" >> "$state/task-a.status"
+    FM_TEST_ADO_DIR="$dir" run_check_entry "$dir" task-a "$url" > "$dir/stdout" 2> "$dir/stderr" \
+      || fail "ADO $scenario registration failed: $(cat "$dir/stderr")"
+    fm_pr_poll_artifacts_valid "$state" task-a "$POLL" || fail "ADO $scenario registration did not arm its merge poll"
+    if [ "$scenario" = green ]; then
+      assert_grep "child task-a PR ready: $url mode=no-mistakes" "$channel" 'ADO checks-green report did not reach the parent'
+    else
+      [ ! -s "$channel" ] || fail "ADO $scenario report released the PR-ready notification"
+    fi
+  done
+  pass 'ADO ready-after-green reports only the matching latest checks-green done and keeps monitoring throughout'
+}
+
 test_ado_unreadable_ownership_still_arms() {
   local dir state url
   dir=$(make_case ado-unreadable-ownership)
@@ -4199,6 +4232,7 @@ SH
 
 if [ "${1:-}" = --ado-only ]; then
   test_ado_registration_rejects_another_tasks_branch
+  test_ado_ready_after_green_reports_only_the_matching_latest_done
   test_ado_unreadable_ownership_still_arms
   test_ado_registration_and_poll
   test_ado_poll_states_and_watch_wakes
@@ -4213,6 +4247,7 @@ fi
 test_parser_matrix
 test_github_registration_requires_the_recorded_branch
 test_ado_registration_rejects_another_tasks_branch
+test_ado_ready_after_green_reports_only_the_matching_latest_done
 test_ado_unreadable_ownership_still_arms
 test_ado_registration_and_poll
 test_ado_poll_states_and_watch_wakes

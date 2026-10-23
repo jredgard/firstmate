@@ -1183,18 +1183,23 @@ test_gate_block_parked_not_superseded() {
 }
 
 test_ci_ready_done_log_beats_monitoring_run() {
-  reset_fakes
-  local d; d=$(new_case ci-ready)
-  make_repo_on_branch "$d/wt" fm/feat-ci
-  make_fakebin "$d" >/dev/null
-  fm_write_meta "$d/state/feat-ci.meta" "window=fm:fm-feat-ci" "worktree=$d/wt" "kind=ship"
-  printf 'done: PR https://github.com/o/r/pull/2 checks green\n' > "$d/state/feat-ci.status"
-  FM_FAKE_AXI_STATUS="$(run_ci_monitoring fm/feat-ci)"
-  local out; out=$(run_crew_state "$d" feat-ci)
-  assert_contains "$out" "state: done" "ci-ready status log -> done"
-  assert_contains "$out" "source: status-log" "ci-ready state comes from the status log"
-  assert_contains "$out" "checks green" "ci-ready detail preserves the report"
-  assert_not_contains "$out" "state: working" "ci-ready is not hidden by monitoring run"
+  local d out url provider
+  for provider in github ado; do
+    reset_fakes
+    d=$(new_case "ci-ready-$provider")
+    make_repo_on_branch "$d/wt" fm/feat-ci
+    make_fakebin "$d" >/dev/null
+    fm_write_meta "$d/state/feat-ci.meta" "window=fm:fm-feat-ci" "worktree=$d/wt" "kind=ship"
+    url=https://github.com/o/r/pull/2
+    [ "$provider" != ado ] || url=https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/54336
+    printf 'done: PR %s checks green\n' "$url" > "$d/state/feat-ci.status"
+    FM_FAKE_AXI_STATUS="$(run_ci_monitoring fm/feat-ci)"
+    out=$(run_crew_state "$d" feat-ci)
+    assert_contains "$out" "state: done" "$provider ci-ready status log -> done"
+    assert_contains "$out" "source: status-log" "$provider ci-ready state comes from the status log"
+    assert_contains "$out" "$url checks green" "$provider ci-ready detail preserves the report"
+    assert_not_contains "$out" "state: working" "$provider ci-ready is not hidden by monitoring run"
+  done
   pass "ci-ready status log beats monitoring run"
 }
 
@@ -1258,17 +1263,22 @@ test_ci_monitoring_no_checks_stays_working() {
 # The crew's own "done: ... checks green" report must not be promoted by the
 # status-log override when the ci log says no check ever reported.
 test_ci_no_checks_status_log_override_stays_working() {
-  reset_fakes
-  local d; d=$(new_case ci-nochecks-status-log)
-  make_repo_on_branch "$d/wt" fm/feat-cinocheckssl
-  make_fakebin "$d" >/dev/null
-  fm_write_meta "$d/state/feat-cinocheckssl.meta" "window=fm:fm-feat-cinocheckssl" "worktree=$d/wt" "kind=ship"
-  printf 'done: PR https://github.com/o/r/pull/2 checks green\n' > "$d/state/feat-cinocheckssl.status"
-  FM_FAKE_AXI_STATUS="$(run_ci_monitoring fm/feat-cinocheckssl)"
-  FM_FAKE_CI_LOGS="no CI checks reported - still monitoring until merged or closed"
-  local out; out=$(run_crew_state "$d" feat-cinocheckssl)
-  assert_contains "$out" "state: working" "crew-reported green with no CI checks -> working"
-  assert_not_contains "$out" "source: status-log" "no-checks must not reach the status-log override"
+  local d out url provider
+  for provider in github ado; do
+    reset_fakes
+    d=$(new_case "ci-nochecks-status-log-$provider")
+    make_repo_on_branch "$d/wt" fm/feat-cinocheckssl
+    make_fakebin "$d" >/dev/null
+    fm_write_meta "$d/state/feat-cinocheckssl.meta" "window=fm:fm-feat-cinocheckssl" "worktree=$d/wt" "kind=ship"
+    url=https://github.com/o/r/pull/2
+    [ "$provider" != ado ] || url=https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/54336
+    printf 'done: PR %s checks green\n' "$url" > "$d/state/feat-cinocheckssl.status"
+    FM_FAKE_AXI_STATUS="$(run_ci_monitoring fm/feat-cinocheckssl)"
+    FM_FAKE_CI_LOGS="no CI checks reported - still monitoring until merged or closed"
+    out=$(run_crew_state "$d" feat-cinocheckssl)
+    assert_contains "$out" "state: working" "$provider crew-reported green with no CI checks -> working"
+    assert_not_contains "$out" "source: status-log" "$provider no-checks must not reach the status-log override"
+  done
   pass "status-log override refuses a PR with no CI checks"
 }
 
