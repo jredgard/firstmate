@@ -2556,17 +2556,6 @@ test_gerrit_nm_ready_gate_requires_recovered_custody() {
   pass "a no-mistakes Gerrit ready report requires the pipeline's fixes recovered into the published copy"
 }
 
-# The GitLab watch must follow a merge request exactly as the GitHub watch
-# follows a pull request, on any instance, and must never turn an unreadable
-# merge request into a merge. Its evidence against the public fixture project
-# https://gitlab.com/KarotKris/gitlab-merge-watch-fixture is in
-# docs/gitlab-merge-watch.md; this exercises the same paths hermetically.
-# A Forgejo pull request is followed by number through "tea api" on the one
-# login registered for its host. Only a boolean merged field of true wakes the
-# poll: tea api exits 0 on an HTTP error with the error body as output, so an
-# error body, an unmerged record, a tea failure, and an ambiguous login all
-# stay silent, and the read never depends on how many newer pull requests the
-# repository has.
 test_forgejo_ownership_registration() {
   local dir state variant entry url source expected before rc
   url=https://forgejo.example/o/r/pulls/7
@@ -2660,6 +2649,17 @@ SH
   pass 'Forgejo registration and merge re-record use one PR read for task ownership'
 }
 
+# The GitLab watch must follow a merge request exactly as the GitHub watch
+# follows a pull request, on any instance, and must never turn an unreadable
+# merge request into a merge. Its evidence against the public fixture project
+# https://gitlab.com/KarotKris/gitlab-merge-watch-fixture is in
+# docs/gitlab-merge-watch.md; this exercises the same paths hermetically.
+# A Forgejo pull request is followed by number through "tea api" on the one
+# login registered for its host. Only a boolean merged field of true wakes the
+# poll: tea api exits 0 on an HTTP error with the error body as output, so an
+# error body, an unmerged record, a tea failure, and an ambiguous login all
+# stay silent, and the read never depends on how many newer pull requests the
+# repository has.
 test_forgejo_merge_watch() {
   local dir state out url value
   dir=$(make_case forgejo-merge-watch)
