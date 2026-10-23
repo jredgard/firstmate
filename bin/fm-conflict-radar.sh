@@ -35,6 +35,8 @@
 # Shared paths require two distinct participants including a tracked task;
 # external-only PR overlaps remain matrix evidence, not human-output alerts.
 # Fresh measured paths replace prior paths; failed reads retain prior paths.
+# Response bodies and path lists enter jq through files, never argv. Missing
+# or invalid source arrays are unmeasured, never proof of no overlap.
 # Closed PR evidence remains while an associated task meta exists. When both
 # task meta and PR are gone, the source is pruned; failed PR reads retain it.
 # JSON stdout is {projects:[<memory>...]}. Human output names every shared
@@ -159,24 +161,24 @@ forge_identity() {
 }
 
 pr_files() {
-  local number=$1 url=$2 page=1 response count iteration cached skip=0 next_skip next_top=100
+  local number=$1 url=$2 page=1 count iteration cached skip=0 next_skip next_top=100
   PR_ITERATION=
   printf '[]\n' > "$SCRATCH/pr-paths.json"
   if [ "$PROVIDER" = github ]; then
     while [ "$page" -le 30 ]; do
-      response=$(gh_json "/repos/$REPOSITORY/pulls/$number/files?per_page=100&page=$page") || return 1
-      printf '%s' "$response" | jq -e 'type=="array" and all(.[]; (.filename|type)=="string")' >/dev/null || return 1
-      count=$(printf '%s' "$response" | jq 'length')
-      jq --argjson response "$response" '. + [$response[] | .filename, .previous_filename // empty] | unique' \
-        "$SCRATCH/pr-paths.json" > "$SCRATCH/next.json"
-      mv "$SCRATCH/next.json" "$SCRATCH/pr-paths.json"
+      gh_json "/repos/$REPOSITORY/pulls/$number/files?per_page=100&page=$page" > "$SCRATCH/response.json" || return 1
+      jq -e 'type=="array" and all(.[]; (.filename|type)=="string")' "$SCRATCH/response.json" >/dev/null || return 1
+      count=$(jq 'length' "$SCRATCH/response.json")
+      jq --slurpfile response "$SCRATCH/response.json" '. + [$response[0][] | .filename, .previous_filename // empty] | unique' \
+        "$SCRATCH/pr-paths.json" > "$SCRATCH/next.json" || return 1
+      mv "$SCRATCH/next.json" "$SCRATCH/pr-paths.json" || return 1
       [ "$count" -eq 100 ] || return 0
       page=$((page+1))
     done
     return 1
   fi
-  response=$(ado_json "$ADO_BASE/pullRequests/$number/iterations?api-version=7.1") || return 1
-  iteration=$(printf '%s' "$response" | jq -er '.value | map(.id) | max | select(type=="number" and .>0)') || return 1
+  ado_json "$ADO_BASE/pullRequests/$number/iterations?api-version=7.1" > "$SCRATCH/response.json" || return 1
+  iteration=$(jq -er '.value | map(.id) | max | select(type=="number" and .>0)' "$SCRATCH/response.json") || return 1
   if cached=$(jq -ce --arg url "$url" --argjson number "$number" --argjson iteration "$iteration" '
     .sources[] | select(.kind=="pr" and .pr_id==$number and .url==$url
       and .iteration_id==$iteration and .measurement=="measured") |
@@ -186,14 +188,14 @@ pr_files() {
     return 0
   fi
   while [ "$page" -le 100 ]; do
-    response=$(ado_json "$ADO_BASE/pullRequests/$number/iterations/$iteration/changes?compareTo=0&\$skip=$skip&\$top=$next_top&api-version=7.1") || return 1
-    printf '%s' "$response" | jq -e '(.changeEntries|type)=="array" and all(.changeEntries[]; (.item.path|type)=="string")' >/dev/null || return 1
-    jq --argjson response "$response" '. + [$response.changeEntries[] | select(.item.isFolder != true) |
+    ado_json "$ADO_BASE/pullRequests/$number/iterations/$iteration/changes?compareTo=0&\$skip=$skip&\$top=$next_top&api-version=7.1" > "$SCRATCH/response.json" || return 1
+    jq -e '(.changeEntries|type)=="array" and all(.changeEntries[]; (.item.path|type)=="string")' "$SCRATCH/response.json" >/dev/null || return 1
+    jq --slurpfile response "$SCRATCH/response.json" '. + [$response[0].changeEntries[] | select(.item.isFolder != true) |
       .item.path, .originalPath // empty | ltrimstr("/")] | unique' \
-      "$SCRATCH/pr-paths.json" > "$SCRATCH/next.json"
-    mv "$SCRATCH/next.json" "$SCRATCH/pr-paths.json"
-    next_skip=$(printf '%s' "$response" | jq -er '.nextSkip // 0') || return 1
-    next_top=$(printf '%s' "$response" | jq -er '.nextTop // 0') || return 1
+      "$SCRATCH/pr-paths.json" > "$SCRATCH/next.json" || return 1
+    mv "$SCRATCH/next.json" "$SCRATCH/pr-paths.json" || return 1
+    next_skip=$(jq -er '.nextSkip // 0' "$SCRATCH/response.json") || return 1
+    next_top=$(jq -er '.nextTop // 0' "$SCRATCH/response.json") || return 1
     [[ "$next_skip" =~ ^[0-9]+$ && "$next_top" =~ ^[0-9]+$ ]] || return 1
     if [ "$next_top" -eq 0 ]; then PR_ITERATION=$iteration; return 0; fi
     [ "$next_skip" -gt "$skip" ] || return 1
@@ -203,22 +205,22 @@ pr_files() {
 }
 
 open_prs() {
-  local page=1 skip=0 response count
+  local page=1 skip=0 count
   printf '[]\n' > "$SCRATCH/prs.json"
   while [ "$page" -le 100 ]; do
     if [ "$PROVIDER" = github ]; then
-      response=$(gh_json "/repos/$REPOSITORY/pulls?state=open&per_page=100&page=$page") || return 1
-      response=$(printf '%s' "$response" | jq -e 'select(type=="array") | map({pr_id:.number,url:.html_url,branch:.head.ref,status:"open"})') || return 1
+      gh_json "/repos/$REPOSITORY/pulls?state=open&per_page=100&page=$page" > "$SCRATCH/response.json" || return 1
+      jq -e 'select(type=="array") | map({pr_id:.number,url:.html_url,branch:.head.ref,status:"open"})' "$SCRATCH/response.json" > "$SCRATCH/pr-page.json" || return 1
     else
-      response=$(ado_json "$ADO_BASE/pullRequests?searchCriteria.status=active&\$top=100&\$skip=$skip&api-version=7.1") || return 1
-      response=$(printf '%s' "$response" | jq -e 'select((.value|type)=="array") | [.value[] |
+      ado_json "$ADO_BASE/pullRequests?searchCriteria.status=active&\$top=100&\$skip=$skip&api-version=7.1" > "$SCRATCH/response.json" || return 1
+      jq -e 'select((.value|type)=="array") | [.value[] |
         {pr_id:.pullRequestId,url:(.repository.webUrl+"/pullrequest/"+(.pullRequestId|tostring)),
-        branch:(.sourceRefName|ltrimstr("refs/heads/")),status:"open"}]') || return 1
+        branch:(.sourceRefName|ltrimstr("refs/heads/")),status:"open"}]' "$SCRATCH/response.json" > "$SCRATCH/pr-page.json" || return 1
     fi
-    printf '%s' "$response" | jq -e 'all(.[]; (.pr_id|type)=="number" and (.url|type)=="string" and (.branch|type)=="string")' >/dev/null || return 1
-    count=$(printf '%s' "$response" | jq 'length')
-    jq --argjson response "$response" '. + $response' "$SCRATCH/prs.json" > "$SCRATCH/next.json"
-    mv "$SCRATCH/next.json" "$SCRATCH/prs.json"
+    jq -e 'all(.[]; (.pr_id|type)=="number" and (.url|type)=="string" and (.branch|type)=="string")' "$SCRATCH/pr-page.json" >/dev/null || return 1
+    count=$(jq 'length' "$SCRATCH/pr-page.json")
+    jq --slurpfile response "$SCRATCH/pr-page.json" '. + $response[0]' "$SCRATCH/prs.json" > "$SCRATCH/next.json" || return 1
+    mv "$SCRATCH/next.json" "$SCRATCH/prs.json" || return 1
     [ "$count" -eq 100 ] || return 0
     page=$((page+1)); skip=$((skip+100))
   done
@@ -242,7 +244,7 @@ while IFS= read -r project_json; do
   project_path=$(jq -r '.[0].project_path // empty' "$SCRATCH/project-tasks.json")
   [ -n "$project_path" ] || project_path=$(jq -r '.project_path // empty' "$SCRATCH/previous.json")
   [ -n "$project_path" ] || project_path="$FM_HOME/projects/$project"
-  ledgers=$(bash "$SCRIPT_DIR/fm-project-mode.sh" --ledgers "$project")
+  bash "$SCRIPT_DIR/fm-project-mode.sh" --ledgers "$project" > "$SCRATCH/ledgers.txt"
   : > "$SCRATCH/sources.jsonl"
   : > "$SCRATCH/unmeasured.jsonl"
   origin=
@@ -257,9 +259,8 @@ while IFS= read -r project_json; do
     radar_git "$worktree" diff --no-ext-diff --no-textconv --no-renames --name-only -z --cached HEAD -- >> "$SCRATCH/paths.nul" 2>/dev/null || measurement=unmeasured
     radar_git "$worktree" diff --no-ext-diff --no-textconv --no-renames --name-only -z -- >> "$SCRATCH/paths.nul" 2>/dev/null || measurement=unmeasured
     radar_git "$worktree" ls-files --others --exclude-standard -z >> "$SCRATCH/paths.nul" 2>/dev/null || measurement=unmeasured
-    paths=$(jq -Rs 'split("\u0000") | map(select(length>0)) | unique' "$SCRATCH/paths.nul")
-    task=$(printf '%s' "$task" | jq --argjson paths "$paths" --arg measurement "$measurement" --arg now "$now" \
-      '. + {paths:$paths,measurement:$measurement,status:"tracked",observed_at:$now}')
+    task=$(printf '%s' "$task" | jq --rawfile paths "$SCRATCH/paths.nul" --arg measurement "$measurement" --arg now "$now" \
+      '. + {paths:($paths | split("\u0000") | map(select(length>0)) | unique),measurement:$measurement,status:"tracked",observed_at:$now}')
     append_source "$task"
     [ "$measurement" = measured ] || unmeasured "$(printf '%s' "$task" | jq -r '.id'): worktree or base unreadable"
     if [ -z "$origin" ]; then
@@ -306,7 +307,8 @@ while IFS= read -r project_json; do
     fi
     case "$state" in
       closed|completed|abandoned)
-        jq -e --argjson old "$old_pr" 'any(.[]; .task_id as $id | ($old.task_ids // [] | index($id))!=null or .pr_url==$old.url or (.branch!="" and .branch==$old.branch))' \
+        printf '%s\n' "$old_pr" > "$SCRATCH/old-pr.json"
+        jq -e --slurpfile old "$SCRATCH/old-pr.json" 'any(.[]; .task_id as $id | ($old[0].task_ids // [] | index($id))!=null or .pr_url==$old[0].url or (.branch!="" and .branch==$old[0].branch))' \
           "$SCRATCH/project-tasks.json" >/dev/null || continue ;;
       *) unmeasured "pr:$url: previous PR completion unmeasured" ;;
     esac
@@ -314,21 +316,31 @@ while IFS= read -r project_json; do
   done < <(jq -c '.sources[] | select(.kind=="pr")' "$SCRATCH/previous.json")
   jq -s --slurpfile previous "$SCRATCH/previous.json" --slurpfile tasks "$SCRATCH/project-tasks.json" \
     --slurpfile unmeasured "$SCRATCH/unmeasured.jsonl" --arg project "$project" --arg project_path "$project_path" \
-    --arg now "$now" --arg ledgers "$ledgers" '
+    --arg now "$now" --rawfile ledgers "$SCRATCH/ledgers.txt" '
+    def paths: if type=="array" then map(select(type=="string")) else [] end;
+    def valid_paths: type=="array" and all(.[]?; type=="string");
+    map(if (.paths|valid_paths|not) then .measurement="unmeasured" else . end) |
+    [.[] | select(.paths|valid_paths|not) |
+      "\(.id): paths unmeasured (missing or invalid array)"] as $missing_paths |
+    map(.paths=(.paths|paths)) |
     map(. as $source | ($previous[0].sources | map(select(.id==$source.id)) | .[0]) as $old |
       if .measurement=="unmeasured" and $old!=null then
-        .paths=((.paths+$old.paths)|unique) | .observed_at=$old.observed_at
+        .paths=((.paths+($old.paths|paths))|unique) | .observed_at=$old.observed_at
       else . end) |
     map(if .kind=="pr" then . as $pr | .task_ids=[$tasks[0][] |
       .task_id as $id | select(.pr_url==$pr.url or (.branch!="" and .branch==$pr.branch)
         or (($pr.task_ids // [] | index($id))!=null)) | .task_id] else . end) as $sources |
-    ($ledgers | split(",") | map(select(length>0))) as $ledger_paths |
+    ($unmeasured+$missing_paths) as $issues |
+    ($issues + [$sources[] | select(.measurement=="unmeasured") | .id as $id |
+      select(all($issues[]; startswith($id+":")|not)) |
+      "\($id): previous paths unmeasured"]) as $all_unmeasured |
+    ($ledgers | rtrimstr("\n") | split(",") | map(select(length>0))) as $ledger_paths |
     def class($path):
       if ($ledger_paths|index($path))!=null or ($path|test("(?i)\\.(md|markdown|rst|adoc)$|(^|/)(readme|index|changelog|notes|verify|build-status)(\\.txt)?$")) then "ledger"
       elif ($path|test("(?i)\\.(csproj|fsproj|vbproj|lock|properties|ini|env)$|(^|/)(requirements|constraints)[^/]*\\.txt$|(^|/)(Directory\\.(Packages|Build)\\.props|packages\\.lock\\.json|package-lock\\.json|npm-shrinkwrap\\.json|global\\.json|package\\.json|pnpm-lock\\.yaml|\\.(env|editorconfig|npmrc|yarnrc))$")) then "mechanical"
       else "code" end;
     {schema_version:1,project:$project,project_path:$project_path,timestamp:$now,ledgers:$ledger_paths,
-      sources:$sources,unmeasured:$unmeasured,
+      sources:$sources,unmeasured:$all_unmeasured,
       matrix:([$sources[] | . as $source | .paths[] |
         {path:.,source:$source.id,participants:(if $source.kind=="pr" and ($source.task_ids|length)>0
           then [$source.task_ids[]|"task:"+.] else [$source.id] end)}] |
