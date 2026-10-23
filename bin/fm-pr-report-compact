@@ -495,11 +495,6 @@ def review_findings_comment(
     return "\n".join(lines), None
 
 
-def comment_covers_attestation(content: str, head: str) -> bool:
-    """Use one comment identity rule on both forges and in normalization mode."""
-    return content.startswith(COMMENT_HEADING) and round_marker(head) in content
-
-
 def findings_thread_covers_attestation(
     org: str, project: str, repo: str, pr_id: str, current_attestation_head: str,
     timeout: "float | None" = None,
@@ -516,8 +511,10 @@ def findings_thread_covers_attestation(
     threads = json.loads(result.stdout)["value"]
     if not isinstance(threads, list):
         raise ValueError("forge returned an unreadable review-comment thread list")
+    marker = round_marker(current_attestation_head)
     return any(
-        comment_covers_attestation(comment.get("content") or "", current_attestation_head)
+        (comment.get("content") or "").startswith(COMMENT_HEADING)
+        and marker in (comment.get("content") or "")
         for thread in threads
         for comment in thread.get("comments", [])
     )
@@ -640,9 +637,6 @@ def ensure_review_comment(pr_url: str, head: str, branch: str, wait: float) -> i
     parsed = urlsplit(pr_url)
     parts = parsed.path.strip("/").split("/")
     pr_id = parts[-1]
-    ado = parsed.hostname == "dev.azure.com" or (
-        parsed.hostname or ""
-    ).endswith(".visualstudio.com")
     deadline = time.monotonic() + wait
 
     def read_timeout() -> float:
@@ -650,12 +644,9 @@ def ensure_review_comment(pr_url: str, head: str, branch: str, wait: float) -> i
         return min(15, max(1, remaining)) if remaining > 0 else 15
 
     try:
-        if not ado:
-            raise ValueError("comment-only mode requires an Azure DevOps PR")
-        if parsed.hostname == "dev.azure.com":
-            org = f"https://dev.azure.com/{parts[0]}"
-        else:
-            org = f"https://{parsed.hostname}"
+        if parsed.scheme != "https" or parsed.netloc != "dev.azure.com":
+            raise ValueError("comment-only mode requires a canonical https://dev.azure.com/ PR")
+        org = f"https://dev.azure.com/{parts[0]}"
         show = subprocess.run(
             ["az", "repos", "pr", "show", "--id", pr_id,
              "--organization", org, "--query",

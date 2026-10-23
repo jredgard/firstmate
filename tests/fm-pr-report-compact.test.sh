@@ -688,6 +688,34 @@ if grep -q -- '--http-method POST\|repos pr update' "$AZ_TRACE" || \
   fail "missing PR must cause zero writes"
 fi
 
+for comment_url in \
+    https://dev.azure.com/org/project/_git/repo/pullrequest/111 \
+    https://org.visualstudio.com/project/_git/repo/pullrequest/111 \
+    http://dev.azure.com/org/project/_git/repo/pullrequest/111; do
+  : > "$AZ_TRACE"
+  : > "$AZ_POST_BODY"
+  : > "$AZ_UPDATE_BODY"
+  comment_rc=0
+  HOME="$TEST_HOME" PATH="$FAKE_BIN:$PATH" AZ_PR_STATUS=active \
+    AZ_PR_HEAD="$ATTESTATION_HEAD" AZ_THREADS_FILE="$SAME_ROUND_THREADS" \
+    "$TOOL" --ensure-review-comment "$comment_url" --head "$ATTESTATION_HEAD" \
+      --branch fm/example --review-wait 0 \
+      > "$TEST_DIR/comment.stdout" 2> "$TEST_DIR/comment.stderr" || comment_rc=$?
+  if [ "$comment_url" = https://dev.azure.com/org/project/_git/repo/pullrequest/111 ]; then
+    [ "$comment_rc" -eq 0 ] || fail "canonical Azure DevOps comment check must succeed"
+    grep -qF 'no-mistakes review comment already present' "$TEST_DIR/comment.stdout" || \
+      fail "canonical comment check must confirm the existing comment"
+    [ -s "$AZ_TRACE" ] || fail "canonical comment check must read the forge"
+  else
+    [ "$comment_rc" -eq 1 ] || fail "noncanonical Azure DevOps comment URL must fail"
+    grep -qF 'requires a canonical https://dev.azure.com/ PR' "$TEST_DIR/comment.stderr" || \
+      fail "noncanonical comment refusal must name the supported host"
+    [ ! -s "$AZ_TRACE" ] || fail "noncanonical comment URL must not contact the forge"
+  fi
+  [ ! -s "$AZ_POST_BODY" ] || fail "host check must not post a duplicate comment"
+  [ ! -s "$AZ_UPDATE_BODY" ] || fail "comment-only host check must not update the description"
+done
+
 if [ "$failures" -gt 0 ]; then
   echo "fm-pr-report-compact battery: $failures failure(s)" >&2
   exit 1

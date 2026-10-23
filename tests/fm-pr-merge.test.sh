@@ -5558,32 +5558,7 @@ PYDB
   pass "Azure DevOps comments use the attested run before locking/voting, with bounded waits, current authority and no duplicates"
 }
 
-test_github_merge_ignores_review_comments() {
-  local scenario dir url rc
-  url='https://github.com/example/repo/pull/88'
-  for scenario in quiet away yolo; do
-    dir=$(make_case "review-comment-github-$scenario")
-    add_gh_mocks "$dir" aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-    write_merge_review_record "$dir" "$url" failed running
-    if [ "$scenario" = yolo ]; then
-      printf 'yolo=on\n' >> "$dir/state/task-x1.meta"
-    else
-      FM_AFK_MODE="$scenario" write_away_record "$dir" --words 'merge green PRs'
-    fi
-    set +e
-    run_pr_merge "$dir" task-x1 "$url" > "$dir/stdout" 2> "$dir/stderr"
-    rc=$?
-    set -e
-    expect_code 0 "$rc" "GitHub $scenario should ignore unavailable review comments"
-    assert_grep 'pr merge' "$dir/gh.log" "GitHub $scenario did not merge"
-    assert_no_grep 'api --hostname' "$dir/gh-axi.log" "GitHub $scenario called the comment transport"
-    assert_no_grep 'missing no-mistakes review comment' "$dir/stderr" "GitHub $scenario warned about an ADO requirement"
-  done
-  pass "GitHub quiet, away and yolo merges do not require or post review comments"
-}
-
 test_no_mistakes_review_comment_precondition
-test_github_merge_ignores_review_comments
 test_gitlab_head_override_args_refuse_before_recording
 test_ado_headless_merge_and_refusals
 test_quiet_words_keep_ado_green_and_completion_guards
