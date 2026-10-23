@@ -127,6 +127,16 @@
 # file exists. A completed-status readback at the verified live head is required
 # for a landed result.
 # No prompt or extra forge arguments are accepted on that path.
+# Before completing an attributed no-mistakes PR on Azure DevOps or GitHub,
+# bin/fm-pr-report-compact --ensure-review-comment must confirm the current
+# head's closed-findings comment. It reuses the compactor's run-record renderer,
+# waits at most 30 seconds for pending review/PR/CI posting, rechecks before posting
+# and verifies the live comment. Quiet/away authority and yolo refuse a missing
+# requirement; an attended explicit merge continues with a one-line warning.
+# --attended-override selects that attended exception to yolo only, never to
+# recorded quiet/away authority. Direct-PR, local-only, approval-only and PRs
+# without an attributed run are unaffected. FM_PR_REVIEW_COMMENT_WAIT may shorten
+# the wait to 0..30 seconds; forge reads/writes have their own bounded timeouts.
 # GitHub approval uses FM_GITHUB_REVIEWER_TOKEN or the one-line regular
 # config/github-reviewer-token file, never the ambient merger token. The token's
 # login must differ from the live PR author. Default execution approves only
@@ -1614,6 +1624,36 @@ resolve_merge_authority() {
   return 1
 }
 
+require_no_mistakes_review_comment() {
+  local mode branch yolo detail
+  FM_PR_REVIEW_COMMENT_CHECKED=false
+  mode=$(sed -n 's/^mode=//p' "$META" | tail -1)
+  [ "$mode" = no-mistakes ] || return 0
+  [ "$MERGE_ACTION" != approve-only ] || return 0
+  branch=$(sed -n 's/^branch=//p' "$META" | tail -1)
+  yolo=$(sed -n 's/^yolo=//p' "$META" | tail -1)
+  if detail=$("$SCRIPT_DIR/fm-pr-report-compact" --ensure-review-comment "$URL" \
+      --head "$FM_PR_MERGE_HEAD" --branch "$branch" \
+      --review-wait "${FM_PR_REVIEW_COMMENT_WAIT:-30}" 2>&1); then
+    if [ -n "$detail" ]; then
+      FM_PR_REVIEW_COMMENT_CHECKED=true
+      printf '%s\n' "$detail"
+    fi
+    return 0
+  fi
+  # Authority is resolved under the existing posture lock; the yolo bit is
+  # task-local and does not change the persisted merge-authority vocabulary.
+  if [ "$FM_PR_MERGE_AUTHORITY" != attended ] \
+      || { [ "$yolo" = on ] && [ "$ATTENDED_OVERRIDE" != true ]; }; then
+    printf 'error: automated merge refused - missing no-mistakes review comment: %s\n' \
+      "${detail//$'\n'/ }" >&2
+    return 1
+  fi
+  printf 'WARNING: attended merge proceeding with missing no-mistakes review comment: %s\n' \
+    "${detail//$'\n'/ }" >&2
+  FM_PR_REVIEW_COMMENT_CHECKED=true
+}
+
 # Take the posture record's own lock (bin/fm-afk-contract.sh owns it) so that
 # record cannot be published, replaced, or archived between the authority read
 # below and the forge command that acts on it. Refuses without the lock: a merge
@@ -1950,6 +1990,12 @@ case "$PROVIDER" in
     away_status=0
     require_current_away_authority || away_status=$?
     [ "$away_status" -eq 0 ] || exit "$away_status"
+    require_no_mistakes_review_comment || exit 1
+    # Waiting/posting must not make the earlier live-green read stale.
+    if [ "$FM_PR_REVIEW_COMMENT_CHECKED" = true ]; then
+      ado_verify_preconditions || exit 1
+      ado_verify_policies || exit 1
+    fi
     ado_delete_source=$(ado_completion_option FM_ADO_DELETE_SOURCE_BRANCH ado-delete-source-branch)
     ado_transition_items=$(ado_completion_option FM_ADO_TRANSITION_WORK_ITEMS ado-transition-work-items)
     ado_body=$(jq -nc --arg head "$FM_PR_MERGE_HEAD" \
@@ -2003,6 +2049,16 @@ case "$PROVIDER" in
       away_status=0
       require_current_away_authority || away_status=$?
       [ "$away_status" -eq 0 ] || exit "$away_status"
+      refuse_github_queue_while_away || exit 2
+    fi
+    require_no_mistakes_review_comment || exit 1
+    if [ "$FM_PR_REVIEW_COMMENT_CHECKED" = true ]; then
+      verified_comment_head=$FM_PR_MERGE_HEAD
+      github_wait_for_mergeable || exit 1
+      if [ "$FM_PR_MERGE_HEAD" != "$verified_comment_head" ]; then
+        echo "error: GitHub head changed after review-comment verification for $URL; retry to verify its current head" >&2
+        exit 1
+      fi
       refuse_github_queue_while_away || exit 2
     fi
     merge_status=0

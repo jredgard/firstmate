@@ -37,7 +37,8 @@ the current round.
 Usage:
   fm-pr-report-compact <org-url> <pr-id>            # normalize in place via az
   fm-pr-report-compact --stdin < body > normalized  # pure CI-green test filter
-  Either form accepts --nm-skip <value>.
+  fm-pr-report-compact --ensure-review-comment <pr-url> --head <sha> --branch <branch>
+  The normalization and --stdin forms accept --nm-skip <value>.
 
 --nm-skip supplies the caller's intake-resolved skip value: lint or an empty
 value for no skips. Omitting it grants no skips. Other values exit 2.
@@ -48,11 +49,24 @@ Always posts the review comment (skipping only when the description carries no
 readable attestation, no local run data is found, or a comment for the current
 attestation already exists). Only active PRs are normalized: on a completed or
 abandoned PR the comment still posts and the description is left as-merged.
-Run it only after the pipeline reports checks-passed (custody has returned);
+Run the normalization form only after checks-passed (custody has returned),
 never during a run. The --stdin interface performs no network calls and treats
 PR and CI as verified so description shapes can be tested in isolation.
+
+--ensure-review-comment is the merge guard's comment-only interface for Azure
+DevOps and GitHub; it never rewrites the description or judges merge authority.
+It matches runs by the full PR URL and task branch, requires completed review
+rounds, waits up to --review-wait seconds (default 30) when review or PR/CI posting
+is pending, rechecks before posting, and verifies the live comment afterwards.
+An attestation attributes a PR even when the local record is unavailable; a PR
+with neither an attestation nor a matching run is unaffected.
+Forge calls have a 15-second timeout; the wait deadline includes polling reads.
+Exit zero with no output means unattributed; an attributed success reports its
+verification, so the merge guard can refresh green/head conditions after it.
+Failure exits nonzero and names the missing no-mistakes review comment.
 """
 import argparse
+import base64
 import json
 import os
 import re
@@ -60,6 +74,8 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import time
+from urllib.parse import urlsplit
 
 CAP = 4000
 COMMENT_HEADING = "## no-mistakes review — recorded findings (full texts)"
@@ -316,13 +332,14 @@ def round_marker(head_sha: str) -> str:
 
 
 def review_findings_comment(
-    pr_id: str, current_attestation_head: str
+    pr_id: str, current_attestation_head: str, *, pr_url: "str | None" = None,
+    run_id: "str | None" = None,
 ) -> "tuple[str | None, str | None]":
     """Render the run's review record, or a reason it cannot be rendered.
 
     Read-only against ~/.no-mistakes/state.sqlite: the run is matched by the
-    /pullrequest/<id> suffix of its recorded pr_url, so the tool needs no run
-    id argument. Compaction drops the report's <details> bodies from the
+    /pullrequest/<id> suffix in normalization mode; the merge caller supplies
+    the full URL and attributed run ID. Compaction drops <details> bodies from the
     description; this preserves their substance where the char limit is ~150k
     and edits survive merge. Clean reviews still get a summary-only thread.
     """
@@ -337,10 +354,12 @@ def review_findings_comment(
                                    runs.submitted_head_sha, runs.head_sha)
                    FROM step_results res
                    JOIN runs ON runs.id = res.run_id
-                   WHERE runs.pr_url LIKE '%/pullrequest/' || ?
+                   WHERE ((? IS NULL AND runs.pr_url LIKE '%/pullrequest/' || ?)
+                          OR runs.pr_url = ?)
+                     AND (? IS NULL OR runs.id = ?)
                      AND res.step_name = 'review'
                    ORDER BY res.completed_at DESC LIMIT 1""",
-                (pr_id,),
+                (pr_url, pr_id, pr_url, run_id, run_id),
             ).fetchone()
             if not row:
                 return None, f"no recorded review run found for PR {pr_id}"
@@ -475,8 +494,14 @@ def review_findings_comment(
     return "\n".join(lines), None
 
 
+def comment_covers_attestation(content: str, head: str) -> bool:
+    """Use one comment identity rule on both forges and in normalization mode."""
+    return content.startswith(COMMENT_HEADING) and round_marker(head) in content
+
+
 def findings_thread_covers_attestation(
-    org: str, project: str, repo: str, pr_id: str, current_attestation_head: str
+    org: str, project: str, repo: str, pr_id: str, current_attestation_head: str,
+    timeout: "float | None" = None,
 ) -> bool:
     """True when a findings comment covers the current attestation round."""
     result = subprocess.run(
@@ -485,19 +510,20 @@ def findings_thread_covers_attestation(
          "--route-parameters", f"project={project}", f"repositoryId={repo}",
          f"pullRequestId={pr_id}",
          "--api-version", "7.1", "--http-method", "GET"],
-        capture_output=True, text=True, check=True,
+        capture_output=True, text=True, check=True, timeout=timeout,
     )
-    threads = json.loads(result.stdout).get("value", [])
-    marker = round_marker(current_attestation_head)
+    threads = json.loads(result.stdout)["value"]
+    if not isinstance(threads, list):
+        raise ValueError("forge returned an unreadable review-comment thread list")
     return any(
-        (comment.get("content") or "").startswith(COMMENT_HEADING)
-        and marker in (comment.get("content") or "")
+        comment_covers_attestation(comment.get("content") or "", current_attestation_head)
         for thread in threads
         for comment in thread.get("comments", [])
     )
 
 
-def post_thread(org: str, project: str, repo: str, pr_id: str, content: str) -> None:
+def post_thread(org: str, project: str, repo: str, pr_id: str, content: str,
+                timeout: "float | None" = None) -> None:
     """Post content as a closed comment thread on the PR."""
     thread = {
         "comments": [{"parentCommentId": 0, "content": content, "commentType": 1}],
@@ -516,7 +542,7 @@ def post_thread(org: str, project: str, repo: str, pr_id: str, content: str) -> 
              f"pullRequestId={pr_id}",
              "--api-version", "7.1", "--http-method", "POST",
              "--in-file", body_path],
-            check=True, stdout=subprocess.DEVNULL,
+            check=True, stdout=subprocess.DEVNULL, timeout=timeout,
         )
     finally:
         os.unlink(body_path)
@@ -582,15 +608,182 @@ def nm_skip_valid(value: str) -> bool:
     return False
 
 
+def matched_run(pr_url: str, branch: str) -> "tuple[str | None, bool, bool]":
+    """Attribute the exact PR and branch, and inspect review/posting readiness.
+
+    A missing database is not proof of attribution; the live attestation is the
+    independent attribution signal used by the caller in that case.
+    """
+    db_path = os.path.expanduser("~/.no-mistakes/state.sqlite")
+    if not os.path.exists(db_path):
+        return None, False, False
+    with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=1) as db:
+        row = db.execute(
+            "SELECT id FROM runs WHERE pr_url = ? AND branch = ? "
+            "ORDER BY created_at DESC LIMIT 1", (pr_url, branch),
+        ).fetchone()
+        if not row:
+            return None, False, False
+        steps = dict(db.execute(
+            "SELECT step_name, status FROM step_results WHERE run_id = ?",
+            (row[0],),
+        ))
+        review_ready = steps.get("review") == "completed"
+        posting_pending = any(steps.get(step) in {"pending", "running", "fixing"}
+                              for step in ("pr", "ci"))
+        return row[0], review_ready, posting_pending
+
+
+def ensure_review_comment(pr_url: str, head: str, branch: str, wait: float) -> int:
+    """Comment-only precondition; authority decisions stay in fm-pr-merge.sh."""
+    parsed = urlsplit(pr_url)
+    parts = parsed.path.strip("/").split("/")
+    pr_id = parts[-1]
+    ado = parsed.hostname == "dev.azure.com" or (
+        parsed.hostname or ""
+    ).endswith(".visualstudio.com")
+    deadline = time.monotonic() + wait
+
+    def read_timeout() -> float:
+        remaining = deadline - time.monotonic()
+        return min(15, max(1, remaining)) if remaining > 0 else 15
+
+    def github_api(path: str, expression: str, *, content: "str | None" = None):
+        command = ["gh-axi", "api", "--hostname", parsed.hostname, "--full"]
+        body = None
+        if content is not None:
+            command += ["POST", path, "--input", "-"]
+            body = json.dumps({"body": content})
+        else:
+            command += [path, "--paginate", "--jq", f"({expression}) | @base64"]
+        raw = subprocess.run(command, input=body, capture_output=True,
+                             text=True, check=True,
+                             timeout=15 if content is not None else read_timeout()).stdout
+        if content is not None:
+            return raw
+        # gh-axi wraps a caller-shaped scalar in its documented TOON envelope.
+        match = re.search(r"^  body: (.*)$", raw, re.MULTILINE)
+        if not match or not re.search(r"^  truncated: false$", raw, re.MULTILINE):
+            raise ValueError("gh-axi returned an unreadable or truncated comment response")
+        encoded = match.group(1)
+        if encoded.startswith('"'):
+            encoded = json.loads(encoded)
+        return "\n".join(base64.b64decode(page, validate=True).decode()
+                         for page in encoded.splitlines())
+
+    try:
+        if ado:
+            if parsed.hostname == "dev.azure.com":
+                org = f"https://dev.azure.com/{parts[0]}"
+            else:
+                org = f"https://{parsed.hostname}"
+            show = subprocess.run(
+                ["az", "repos", "pr", "show", "--id", pr_id,
+                 "--organization", org, "--query",
+                 "{description: description, repo: repository.name, "
+                 "project: repository.project.name, head: lastMergeSourceCommit.commitId}",
+                 "-o", "json"], capture_output=True, text=True, check=True, timeout=15,
+            )
+            pr = json.loads(show.stdout)
+            if not pr.get("repo") or not pr.get("project"):
+                raise ValueError("PR repository/project could not be read")
+            description = pr.get("description") or ""
+
+            def present():
+                return findings_thread_covers_attestation(
+                    org, pr["project"], pr["repo"], pr_id, head, read_timeout(),
+                )
+
+            def post(content):
+                post_thread(org, pr["project"], pr["repo"], pr_id, content, 15)
+        else:
+            repo = "/".join(parts[:2])
+            pr = json.loads(github_api(
+                f"/repos/{repo}/pulls/{pr_id}", "{body, head: .head.sha} | tojson",
+            ))
+            description = pr.get("body") or ""
+
+            def present():
+                raw = github_api(f"/repos/{repo}/issues/{pr_id}/comments",
+                                 "[.[].body] | tojson")
+                comments = [body for page in raw.splitlines()
+                            for body in json.loads(page)]
+                return any(comment_covers_attestation(body or "", head) for body in comments)
+
+            def post(content):
+                github_api(f"/repos/{repo}/issues/{pr_id}/comments", "", content=content)
+
+        attested_head = attestation_head(description)
+        if attested_head is not None:
+            if pr.get("head") != head:
+                raise ValueError("live PR head changed during review-comment check")
+            if attested_head != head:
+                raise ValueError("current head's no-mistakes attestation is missing or stale")
+            if present():
+                print(f"{pr_url}: no-mistakes review comment already present")
+                return 0
+        try:
+            run_id, ready, pending = matched_run(pr_url, branch)
+        except sqlite3.Error:
+            if attested_head is None:
+                # Without attribution, an unavailable record alone cannot turn
+                # an unrelated PR into a no-mistakes task.
+                return 0
+            raise
+        if not attested_head and not run_id:
+            return 0
+        if pr.get("head") != head:
+            raise ValueError("live PR head changed during review-comment check")
+        if attested_head != head:
+            raise ValueError("current head's no-mistakes attestation is missing or stale")
+        while run_id and (not ready or pending) and time.monotonic() < deadline:
+            time.sleep(min(1, max(0, deadline - time.monotonic())))
+            if present():
+                print(f"{pr_url}: pipeline posted the no-mistakes review comment")
+                return 0
+            run_id, ready, pending = matched_run(pr_url, branch)
+        if not run_id:
+            raise ValueError("attributed run record unavailable in ~/.no-mistakes/state.sqlite")
+        if not ready:
+            raise ValueError(f"run {run_id} review/fix rounds not completed after bounded wait")
+        comment, error = review_findings_comment(
+            pr_id, head, pr_url=pr_url, run_id=run_id,
+        )
+        if comment is None:
+            raise ValueError(error)
+        # A pipeline post during the record read wins: never post over that race.
+        if not present():
+            post(comment)
+        if not present():
+            raise ValueError("forge did not confirm the posted review comment")
+        print(f"{pr_url}: no-mistakes review comment verified before merge")
+        return 0
+    except (OSError, ValueError, KeyError, TypeError, sqlite3.Error,
+            subprocess.SubprocessError) as exc:
+        detail = (getattr(exc, "stderr", "") or str(exc)).strip().replace("\n", " ")
+        print(f"missing no-mistakes review comment for {pr_url}: {detail}", file=sys.stderr)
+        return 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--stdin", action="store_true")
     parser.add_argument("--nm-skip", default="")
+    parser.add_argument("--ensure-review-comment")
+    parser.add_argument("--head")
+    parser.add_argument("--branch")
+    parser.add_argument("--review-wait", type=float, default=30)
     parser.add_argument("org", nargs="?")
     parser.add_argument("pr_id", nargs="?")
     args = parser.parse_args()
+    if args.ensure_review_comment:
+        if args.stdin or args.org or args.pr_id or not args.head or not args.branch \
+                or not 0 <= args.review_wait <= 30:
+            parser.error("comment-only mode requires --head, --branch and a wait of 0..30 seconds")
+        return ensure_review_comment(args.ensure_review_comment, args.head,
+                                     args.branch, args.review_wait)
     if (args.stdin and (args.org or args.pr_id)) or (
         not args.stdin and (not args.org or not args.pr_id)
     ):

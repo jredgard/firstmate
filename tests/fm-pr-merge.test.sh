@@ -172,6 +172,10 @@ add_gh_mocks() {
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$FM_TEST_GH_AXI_LOG"
 case "${1:-} ${2:-}" in
+  "api --hostname")
+    "$FM_TEST_ROOT/tests/fixtures/fm-pr-report-compact/gh-axi" "$@"
+    exit $?
+    ;;
   "api /user")
     [ "${GH_TOKEN:-}" = fixture-reviewer-token ] || exit 2
     if [ -f "$(dirname "$FM_TEST_GH_VIEW_JSON")/reviewer-response" ]; then
@@ -254,6 +258,10 @@ case "${1:-} ${2:-}" in
     esac
     ;;
   "pr merge")
+    if [ "${FM_TEST_COMMENT_REQUIRED:-false}" = true ]; then
+      jq -e '[.value[].comments[].content | contains("attestation-head:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")] | any' \
+        "$AZ_THREADS_FILE" >/dev/null || exit 3
+    fi
     if [ -n "${FM_TEST_META_AT_MERGE:-}" ] && [ -f "${FM_STATE_OVERRIDE:-}/task-x1.meta" ]; then
       cat "$FM_STATE_OVERRIDE/task-x1.meta" > "$FM_TEST_META_AT_MERGE"
     fi
@@ -4114,7 +4122,13 @@ add_ado_merge_mocks() {  # <case-dir>
   local dir=$1
   cat > "$dir/fakebin/az" <<'SH'
 #!/usr/bin/env bash
-[ "$*" = 'account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv' ] || exit 2
+if [ "$*" != 'account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv' ]; then
+  if [ -n "${AZ_TRACE:-}" ]; then
+    exec "$FM_TEST_ROOT/tests/fixtures/fm-pr-report-compact/az" "$@"
+  fi
+  printf '{"description":"", "repo":"Backend", "project":"Project One"}\n'
+  exit 0
+fi
 printf '%s\n' fixture-token
 SH
   cat > "$dir/fakebin/curl" <<'SH'
@@ -4180,6 +4194,10 @@ case "$method:$url" in
     : > "$FM_TEST_ADO_DIR/ado-voted"
     ;;
   PATCH:*'/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1')
+    if [ "${FM_TEST_COMMENT_REQUIRED:-false}" = true ]; then
+      jq -e '[.value[].comments[].content | contains("attestation-head:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")] | any' \
+        "$AZ_THREADS_FILE" >/dev/null || exit 3
+    fi
     [ -e "$FM_TEST_ADO_DIR/ado-voted" ] || [ -e "$FM_TEST_ADO_DIR/ado-already-approved" ] || exit 2
     del=false twi=false
     [ ! -e "$FM_TEST_ADO_DIR/ado-expect-delete-branch" ] || del=true
@@ -5337,6 +5355,148 @@ test_allow_no_pipeline_is_attended_only_and_gitlab_only() {
   pass "fm-pr-merge --allow-no-pipeline is attended-only, takes no value, and applies only to GitLab"
 }
 
+# Exercise the real comment-only compactor through the guarded merge command.
+write_merge_review_record() {  # <dir> <url> <review-status> <pr-status> <ci-status>
+  local dir=$1 url=$2 review=$3 posting=$4 ci=${5:-completed}
+  mkdir -p "$dir/user-home/.no-mistakes"
+  python3 - "$dir/user-home/.no-mistakes/state.sqlite" "$url" "$review" "$posting" "$ci" <<'PYDB'
+import json, sqlite3, sys
+path, url, review, posting, ci = sys.argv[1:]
+with sqlite3.connect(path) as db:
+    db.executescript("""
+    CREATE TABLE runs (id TEXT, branch TEXT, created_at INTEGER, pr_url TEXT,
+                       head_sha TEXT, submitted_head_sha TEXT, review_approved_head_sha TEXT);
+    CREATE TABLE step_results (id TEXT, run_id TEXT, step_name TEXT, status TEXT,
+                               findings_json TEXT, completed_at INTEGER);
+    CREATE TABLE step_rounds (id TEXT, step_result_id TEXT, round INTEGER,
+                             trigger_type TEXT, findings_json TEXT,
+                             reviewed_head_sha TEXT, fix_summary TEXT);
+    """)
+    head = "a" * 40
+    db.execute("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?, ?)",
+               ("merge-run", "fm/example", 1, url, head, head, head))
+    db.execute("INSERT INTO step_results VALUES (?, ?, ?, ?, ?, ?)",
+               ("review-result", "merge-run", "review", review, '{"findings": []}', 1))
+    db.execute("INSERT INTO step_results VALUES (?, ?, ?, ?, ?, ?)",
+               ("pr-result", "merge-run", "pr", posting, None, 1))
+    db.execute("INSERT INTO step_results VALUES (?, ?, ?, ?, ?, ?)",
+               ("ci-result", "merge-run", "ci", ci, None, 1))
+    first = json.dumps({"findings": [{"id": "fixed-1", "severity": "warning",
+                       "file": "bin/example", "line": 3, "description": "Recorded fix."}]})
+    db.execute("INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
+               ("round-1", "review-result", 1, "initial", first, head, None))
+    db.execute("INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
+               ("round-2", "review-result", 2, "fix", '{"findings": []}', head, "Resolved."))
+PYDB
+}
+
+test_no_mistakes_review_comment_precondition() {
+  local forge scenario dir url rc expected posts wait review posting ci required
+  for forge in ado github; do
+    for scenario in present missing posting ci-posting race pipeline unavailable attended yolo yolo-attended refused unconfirmed unreadable unfinished direct unattributed; do
+      dir=$(make_case "review-comment-$forge-$scenario")
+      if [ "$forge" = ado ]; then
+        url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
+        add_ado_merge_mocks "$dir"
+      else
+        url='https://github.com/example/repo/pull/88'
+        add_gh_mocks "$dir" aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      fi
+      printf '%s\n' '<!-- no-mistakes-pipeline-attestation:v1 {"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","steps":[]} -->' > "$dir/description"
+      printf '%s\n' '{"value":[]}' > "$dir/threads"
+      printf '%s\n' '{"value":[{"comments":[{"content":"## no-mistakes review — recorded findings (full texts)\n<!-- fm-pr-report-compact:attestation-head:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa -->"}]}]}' > "$dir/present-threads"
+      review=completed posting=completed ci=completed wait=0 required=true
+      case "$scenario" in
+        posting|pipeline) posting=running; wait=1 ;;
+        ci-posting) ci=running; wait=1 ;;
+        unfinished) review=fixing; wait=0.15 ;;
+      esac
+      write_merge_review_record "$dir" "$url" "$review" "$posting" "$ci"
+      case "$scenario" in
+        unavailable|attended|yolo|yolo-attended) rm "$dir/user-home/.no-mistakes/state.sqlite" ;;
+        unreadable) printf 'not sqlite' > "$dir/user-home/.no-mistakes/state.sqlite" ;;
+        present)
+          cp "$dir/present-threads" "$dir/threads"
+          # A live comment is sufficient even when the run can no longer be read.
+          printf 'not sqlite' > "$dir/user-home/.no-mistakes/state.sqlite"
+          ;;
+        direct) sed -i.bak 's/mode=no-mistakes/mode=direct-PR/' "$dir/state/task-x1.meta" ;;
+        unattributed)
+          : > "$dir/description"
+          rm "$dir/user-home/.no-mistakes/state.sqlite"
+          ;;
+      esac
+      set --
+      case "$scenario" in attended|yolo-attended|direct|unattributed) required=false ;; esac
+      if [ "$scenario" = yolo ] || [ "$scenario" = yolo-attended ]; then
+        printf 'yolo=on\n' >> "$dir/state/task-x1.meta"
+        [ "$scenario" != yolo-attended ] || set -- --attended-override
+      elif [ "$scenario" = unavailable ]; then
+        FM_AFK_MODE=away write_away_record "$dir" --words 'merge green PRs'
+      elif [ "$scenario" != attended ]; then
+        FM_AFK_MODE=quiet write_away_record "$dir" --words 'merge green PRs'
+      fi
+      set +e
+      AZ_TRACE="$dir/comment.log" AZ_DESCRIPTION_FILE="$dir/description" \
+        AZ_PR_STATUS=active AZ_PR_HEAD=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+        AZ_THREADS_FILE="$dir/threads" AZ_POST_BODY="$dir/comment-body" \
+        AZ_PERSIST_POST="$([ "$scenario" != unconfirmed ] && echo true || echo false)" \
+        FM_TEST_COMMENT_REQUIRED="$required" \
+        AZ_POST_REFUSED="$([ "$scenario" != refused ] && echo false || echo true)" \
+        AZ_RACE_THREADS="$([ "$scenario" != race ] && [ "$scenario" != pipeline ] || echo "$dir/present-threads")" \
+        AZ_RACE_READ=2 FM_PR_REVIEW_COMMENT_WAIT="$wait" FM_TEST_ADO_DIR="$dir" \
+        FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+        run_pr_merge "$dir" task-x1 "$url" "$@" > "$dir/stdout" 2> "$dir/stderr"
+      rc=$?
+      set -e
+      expected=0
+      case "$scenario" in unavailable|yolo|refused|unconfirmed|unreadable|unfinished) expected=1 ;; esac
+      expect_code "$expected" "$rc" "review comment $forge $scenario: $(cat "$dir/stderr")"
+      if [ "$forge" = ado ]; then
+        if [ "$expected" = 0 ]; then
+          [ -e "$dir/ado-complete" ] || fail "$forge $scenario did not complete"
+        else
+          [ ! -e "$dir/ado-complete" ] || fail "$forge $scenario completed without comment"
+        fi
+      else
+        if [ "$expected" = 0 ]; then
+          assert_grep 'pr merge' "$dir/gh.log" "$forge $scenario did not merge"
+        else
+          assert_no_grep 'pr merge' "$dir/gh.log" "$forge $scenario merged without comment"
+        fi
+      fi
+      if [ "$expected" = 1 ]; then
+        assert_grep 'automated merge refused - missing no-mistakes review comment' "$dir/stderr" "requirement not named"
+      fi
+      if [ "$scenario" = attended ] || [ "$scenario" = yolo-attended ]; then
+        assert_grep 'WARNING: attended merge proceeding' "$dir/stderr" "attended exception was silent"
+      fi
+      posts=$(grep -c 'POST' "$dir/comment.log" 2>/dev/null || true)
+      posts=${posts:-0}
+      case "$scenario" in
+        missing|posting|ci-posting)
+          [ "$posts" = 1 ] || fail "$forge $scenario must post once (got $posts)"
+          assert_grep 'fixed-1' "$dir/comment-body" "recorded findings not preserved"
+          assert_grep 'no residual findings' "$dir/comment-body" "closed verdict missing"
+          assert_grep 'review comment verified before merge' "$dir/stdout" "post not verified"
+          ;;
+        refused|unconfirmed) [ "$posts" = 1 ] || fail "$forge $scenario did not attempt posting" ;;
+        *) [ "$posts" = 0 ] || fail "$forge $scenario posted a duplicate/unneeded comment" ;;
+      esac
+      case "$scenario" in
+        posting|ci-posting)
+          [ "$(cat "$dir/threads.reads")" -ge 4 ] || fail "$forge $scenario skipped the pending-step wait"
+          ;;
+        pipeline)
+          [ "$(cat "$dir/threads.reads")" -ge 2 ] || fail "$forge $scenario never waited/rechecked"
+          ;;
+      esac
+    done
+  done
+  pass "no-mistakes review comments precede automated completion on both forges, with bounded waits and no recheck duplicates"
+}
+
+test_no_mistakes_review_comment_precondition
 test_gitlab_head_override_args_refuse_before_recording
 test_ado_headless_merge_and_refusals
 test_quiet_words_keep_ado_green_and_completion_guards

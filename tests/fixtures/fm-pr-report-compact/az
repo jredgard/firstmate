@@ -7,14 +7,14 @@ if [ "$1 $2 $3" = "repos pr show" ]; then
     printf 'pull request not found\n' >&2
     exit 3
   fi
-  python3 - "$AZ_PR_STATUS" "$AZ_DESCRIPTION_FILE" <<'PY'
+  python3 - "$AZ_PR_STATUS" "$AZ_DESCRIPTION_FILE" "${AZ_PR_HEAD:-}" <<'PY'
 import json
 import sys
 
 with open(sys.argv[2], encoding="utf-8") as stream:
     description = stream.read()
 print(json.dumps({"description": description, "repo": "repo",
-                  "project": "project", "status": sys.argv[1]}))
+                  "project": "project", "status": sys.argv[1], "head": sys.argv[3]}))
 PY
 elif [ "$1 $2 $3 $4" = "repos pr policy list" ]; then
   python3 - "${AZ_POLICY_STATUS:-approved}" "${AZ_POLICY_BLOCKING:-true}" \
@@ -52,9 +52,22 @@ elif [ "$1 $2" = "devops invoke" ]; then
     previous="$arg"
   done
   if [ "$method" = "GET" ]; then
+    reads=$(( $(cat "$AZ_THREADS_FILE.reads" 2>/dev/null || echo 0) + 1 ))
+    printf '%s\n' "$reads" > "$AZ_THREADS_FILE.reads"
+    if [ -n "${AZ_RACE_THREADS:-}" ] && [ "$reads" -ge "${AZ_RACE_READ:-2}" ]; then
+      cp "$AZ_RACE_THREADS" "$AZ_THREADS_FILE"
+    fi
     cp "$AZ_THREADS_FILE" /dev/stdout
   else
+    [ "${AZ_POST_REFUSED:-false}" != true ] || exit 3
     cp "$input" "$AZ_POST_BODY"
+    if [ "${AZ_PERSIST_POST:-false}" = true ]; then
+      python3 - "$input" "$AZ_THREADS_FILE" <<'PY'
+import json, sys
+thread = json.load(open(sys.argv[1]))
+json.dump({"value": [thread]}, open(sys.argv[2], "w"))
+PY
+    fi
     printf '{"id":42}\n'
   fi
 elif [ "$1 $2 $3" = "repos pr update" ]; then
