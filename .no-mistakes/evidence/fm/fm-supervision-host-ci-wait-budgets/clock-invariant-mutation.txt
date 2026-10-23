@@ -1,0 +1,18 @@
+# Injected-clock invariant mutation check
+# mutant = head tree with park_elapsed forced to ignore FM_TEST_SUPERVISION_HOST_CLOCK (bin/fm-supervision-host.sh:506 'if false && ...'), disposable copy only
+[head] test_park_boundary_ends_the_park_before_the_hook_timeout -> ok - host: the park ends itself with a boundary wake and a stopped watcher (1s)
+[mutant] test_park_boundary_ends_the_park_before_the_hook_timeout -> not ok - boundary: the host did not end its park (16s)
+[head] test_park_test_clock_requires_the_marker -> ok - host: the park's test clock is inert without the test marker (2s)
+[mutant] test_park_test_clock_requires_the_marker -> not ok - clock-armed: the marked test clock did not end the park (46s)
+## boundary-head
+wait_until budget=150 used=3 wall=0.3s ok watcher_live /tmp/fm-supervision-host.PztEp2/boundary
+wait_until budget=150 used=10 wall=1.0s ok host_exited /tmp/fm-supervision-host.PztEp2/boundary
+## boundary-mutant
+wait_until budget=150 used=3 wall=0.3s ok watcher_live /tmp/fm-supervision-host.fDzJSz/boundary
+wait_until budget=150 used=150 wall=15.1s TIMEOUT host_exited /tmp/fm-supervision-host.fDzJSz/boundary
+## clockarmed-head
+wait_until budget=450 used=3 wall=0.3s ok host_exited /tmp/fm-supervision-host.4f1xje/clock-armed
+wait_until budget=150 used=2 wall=0.2s ok watcher_live /tmp/fm-supervision-host.4f1xje/clock-unmarked
+wait_until budget=450 used=17 wall=1.7s ok handled_at_least /tmp/fm-supervision-host.4f1xje/clock-unmarked
+## clockarmed-mutant
+wait_until budget=450 used=450 wall=45.3s TIMEOUT host_exited /tmp/fm-supervision-host.lpZo2O/clock-armed

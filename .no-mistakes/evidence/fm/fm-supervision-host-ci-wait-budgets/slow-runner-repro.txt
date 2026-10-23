@@ -1,0 +1,35 @@
+# Slow-runner reproduction: focused cases run under a systemd --user scope with CPUQuota=10%
+# Same suite fixtures; only difference between trees is the committed poll budget.
+# base = c2895c2d (250-poll budget), head = 84ef2f1b (450-poll budget)
+[base] test_report_without_acknowledgement_hands_the_wake_to_main -> not ok - noack: the host counted an unacknowledged wake handled: 1792791873	start	gen=host-819933-1792791872	primary=claude
+[base] test_return_during_a_failed_turn_still_hands_its_outcomes_to_main -> not ok - return-fail: the host did not hand the wake to main
+[head] test_report_without_acknowledgement_hands_the_wake_to_main -> ok - host: a turn that reports but leaves its granted rows queued hands the wake to main
+[head] test_return_during_a_failed_turn_still_hands_its_outcomes_to_main -> ok - host: a captain return during a failed engine turn still hands that turn's outcomes to main
+
+## base wait_until instrumentation (polls used / budget)
+wait_until budget=150 used=21 wall=2.7s ok watcher_live /tmp/fm-supervision-host.9lK47S/away-noack
+wait_until budget=250 used=250 wall=29.1s TIMEOUT host_exited /tmp/fm-supervision-host.9lK47S/away-noack
+wait_until budget=150 used=21 wall=2.7s ok watcher_live /tmp/fm-supervision-host.Cg0fle/away-return-fail
+wait_until budget=250 used=250 wall=29.3s TIMEOUT host_exited /tmp/fm-supervision-host.Cg0fle/away-return-fail
+## head wait_until instrumentation (polls used / budget)
+wait_until budget=150 used=22 wall=2.7s ok watcher_live /tmp/fm-supervision-host.0ZSKKY/away-noack
+wait_until budget=450 used=290 wall=34.5s ok host_exited /tmp/fm-supervision-host.0ZSKKY/away-noack
+wait_until budget=150 used=18 wall=2.3s ok watcher_live /tmp/fm-supervision-host.A1czrF/away-return-fail
+wait_until budget=450 used=323 wall=38.4s ok host_exited /tmp/fm-supervision-host.A1czrF/away-return-fail
+
+## Calibration (unloaded / other quotas, head tree)
+unloaded:
+wait_until budget=150 used=2 wall=0,0s ok watcher_live /tmp/fm-supervision-host.nGhBMa/away-noack
+wait_until budget=450 used=19 wall=2,0s ok host_exited /tmp/fm-supervision-host.nGhBMa/away-noack
+wait_until budget=150 used=2 wall=0,0s ok watcher_live /tmp/fm-supervision-host.nGhBMa/away-return-fail
+wait_until budget=450 used=20 wall=2,0s ok host_exited /tmp/fm-supervision-host.nGhBMa/away-return-fail
+quota 10% (first run):
+wait_until budget=150 used=22 wall=2.7s ok watcher_live /tmp/fm-supervision-host.kAFMVz/away-noack
+wait_until budget=450 used=313 wall=37.3s ok host_exited /tmp/fm-supervision-host.kAFMVz/away-noack
+wait_until budget=150 used=20 wall=2.5s ok watcher_live /tmp/fm-supervision-host.W4M7eA/away-return-fail
+wait_until budget=450 used=320 wall=38.6s ok host_exited /tmp/fm-supervision-host.W4M7eA/away-return-fail
+quota 5% (too slow for either budget):
+wait_until budget=150 used=38 wall=6.4s ok watcher_live /tmp/fm-supervision-host.nXOsMn/away-noack
+wait_until budget=450 used=450 wall=66.6s TIMEOUT host_exited /tmp/fm-supervision-host.nXOsMn/away-noack
+wait_until budget=150 used=36 wall=6.5s ok watcher_live /tmp/fm-supervision-host.PpwSbr/away-return-fail
+wait_until budget=450 used=450 wall=65.9s TIMEOUT host_exited /tmp/fm-supervision-host.PpwSbr/away-return-fail

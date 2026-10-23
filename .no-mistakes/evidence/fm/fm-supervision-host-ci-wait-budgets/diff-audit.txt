@@ -1,0 +1,16 @@
+removed lines: 99
+added non-comment lines: 99
+added comment lines: 99
+budget transitions (old->new):
+      3 150	450
+      4 200	450
+     92 250	450
+non-budget differences after normalizing the poll count:
+none
+restored per review decision:
+3334:  wait_until 150 host_exited "$home" || fail "boundary: the host did not end its park"
+3564:  wait_until 200 host_exited "$home" || append_status "$home" 'second close' 'done'
+3 x 150->450 lines:
+| fail "the watcher's downtime resurface did not reach main: $(cat "$1/host.out")"|+  wait_until 450 host_exited "$1" || fail "the watcher's downtime resurface did not reach main: $(cat "$1/host.out")"
+| fail "clock-armed: the marked test clock did not end the park"|+  wait_until 450 host_exited "$home" || fail "clock-armed: the marked test clock did not end the park"
+| fail "held: the escalating turn never finished"|+  wait_until 450 handled_at_least "$home" 1 || fail "held: the escalating turn never finished"
