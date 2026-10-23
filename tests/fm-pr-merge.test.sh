@@ -5537,6 +5537,7 @@ PYDB
         [ "$posts" = 1 ] || fail "$scenario must post once (got $posts)"
         assert_grep 'fixed-1' "$dir/comment-body" "recorded findings not preserved"
         assert_grep 'no residual findings' "$dir/comment-body" "closed verdict missing"
+        # shellcheck disable=SC2016  # Literal Markdown backticks in the rendered comment.
         assert_grep 'Run ID: `merge-run`' "$dir/comment-body" "wrong run rendered"
         assert_no_grep 'unpublished-1' "$dir/comment-body" "unpublished findings were posted"
         assert_grep 'review comment verified before merge' "$dir/stdout" "post not verified"
