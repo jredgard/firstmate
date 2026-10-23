@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Public-interface conflict radar tests: Git paths, classification, missing
-# worktrees, bounded forge pagination, deduplication and memory reconciliation.
+# worktrees, large forge/path payloads, bounded pagination and memory recovery.
 set -euo pipefail
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -27,6 +27,13 @@ case "$3" in */files\?*) [ ! -e "$RADAR_FIXTURE/files-fail" ] || exit 1 ;; esac
 case "$3" in
   */pulls\?*) file="$RADAR_FIXTURE/prs.json" ;;
   */pulls/7/files*)
+    if [ -e "$RADAR_FIXTURE/large-files.json" ]; then
+      page=${3##*page=}
+      printf 'api_response:\n  body: '
+      jq -r --argjson page "$page" '.[(($page-1)*100):($page*100)] | @base64' "$RADAR_FIXTURE/large-files.json"
+      printf '  truncated: false\n'
+      exit 0
+    fi
     if [ -e "$RADAR_FIXTURE/pages" ]; then
       case "$3" in *page=1) file="$RADAR_FIXTURE/files-page1.json" ;; *page=2) file="$RADAR_FIXTURE/files-page2.json" ;; *) exit 1 ;; esac
     else file="$RADAR_FIXTURE/files.json"; fi ;;
@@ -72,6 +79,51 @@ run_radar
 assert_json '.projects[0] | (.matrix|length)==0 and (.unmeasured|length)==0' 'no changed paths produces measured empty matrix'
 [ "$(bash "$RADAR" app)" = 'app: no overlap' ] || fail 'no overlap output'
 pass 'human no overlap output'
+
+# Exercise the real forge fold before the worktree/ledger collection so each
+# oversized input boundary is reached independently by the same fixture.
+arg_max=$(getconf ARG_MAX)
+jq -n '[range(2400) | "large/"+([range(150)|"x"]|join(""))+(.|tostring)+".sh"]' > "$RADAR_FIXTURE/large-paths.json"
+jq -n --argjson padding "$((arg_max/100+1024))" --slurpfile paths "$RADAR_FIXTURE/large-paths.json" '
+  ([range($padding)|"p"]|join("")) as $patch |
+  $paths[0] | to_entries | map({filename:.value} + if .key<100 then {patch:$patch} else {} end)
+' > "$RADAR_FIXTURE/large-files.json"
+jq '.[:100]' "$RADAR_FIXTURE/large-files.json" > "$RADAR_FIXTURE/large-page.json"
+[ "$(wc -c < "$RADAR_FIXTURE/large-page.json")" -gt "$arg_max" ] || fail 'synthetic response page does not exceed ARG_MAX'
+[ "$(wc -c < "$RADAR_FIXTURE/large-paths.json")" -gt 300000 ] || fail 'synthetic path set is too small'
+printf '[{"number":7,"html_url":"https://github.com/fixture/app/pull/7","head":{"ref":"ship/alpha"}}]\n' > "$RADAR_FIXTURE/prs.json"
+run_radar
+assert_json '.projects[0] | (.unmeasured|length)==0 and (.matrix|length)==2400 and any(.sources[]; .kind=="pr" and .measurement=="measured" and (.paths|length)==2400)' 'large GitHub pages and accumulated paths remain measured'
+mkdir -p "$TMP_ROOT/alpha/large"
+while IFS= read -r path; do : > "$TMP_ROOT/alpha/$path"; done < <(jq -r '.[]' "$RADAR_FIXTURE/large-paths.json")
+cp "$FM_DATA_OVERRIDE/projects.md" "$TMP_ROOT/projects.md"
+printf '%s\n' "- app [ledgers=$(jq -r 'join(",")' "$RADAR_FIXTURE/large-paths.json") direct-PR +yolo branch=ship/] - fixture" > "$FM_DATA_OVERRIDE/projects.md"
+run_radar
+assert_json '.projects[0] | (.unmeasured|length)==0 and (.ledgers|length)==2400 and (.matrix|length)==2400 and all(.matrix[]; .class=="ledger" and (.shared|not) and (.sources|length)==2) and any(.sources[]; .task_id=="alpha" and .measurement=="measured" and (.paths|length)==2400)' 'large worktree paths and registry ledger lists persist without argv limits'
+jq -e '(.matrix|length)==2400 and all(.sources[]; .measurement=="measured")' "$FM_STATE_OVERRIDE/conflict-radar/app.json" >/dev/null || fail 'large evidence was not persisted'
+pass 'large source matrix is stored in private memory'
+rm -r "$TMP_ROOT/alpha/large"
+mv "$TMP_ROOT/projects.md" "$FM_DATA_OVERRIDE/projects.md"
+rm "$RADAR_FIXTURE/large-files.json"
+printf '[]\n' > "$RADAR_FIXTURE/prs.json"
+printf '{"state":"closed"}\n' > "$RADAR_FIXTURE/state.json"
+run_radar
+assert_json '.projects[0] | (.unmeasured|length)==0 and (.matrix|length)==2400 and any(.sources[]; .kind=="pr" and .status=="closed" and .measurement=="measured" and (.paths|length)==2400)' 'large completed-PR path list survives retained-source assembly'
+
+# Completed PRs still associated with tracked tasks must expose damaged memory
+# as missing evidence, including null and absent array fields from older runs.
+jq '.sources |= map(if .kind=="pr" then .paths=null | .task_ids=null else . end) |
+  .sources += [.sources[] | select(.kind=="pr") | .id="pr:https://github.com/fixture/app/pull/8" |
+    .url="https://github.com/fixture/app/pull/8" | .pr_id=8 | .branch="ship/beta" | del(.paths,.task_ids)]
+' "$FM_STATE_OVERRIDE/conflict-radar/app.json" > "$TMP_ROOT/null-memory.json"
+mv "$TMP_ROOT/null-memory.json" "$FM_STATE_OVERRIDE/conflict-radar/app.json"
+run_radar
+assert_json '.projects[0] | (.unmeasured|length)==2 and (.matrix|length)==0 and ([.sources[] | select(.kind=="pr")]|length)==2 and all(.sources[] | select(.kind=="pr"); .measurement=="unmeasured" and .paths==[] and (.task_ids|type)=="array")' 'null and missing source arrays remain visible as unmeasured without crashing'
+jq -e '(.unmeasured|length)==2 and all(.sources[] | select(.kind=="pr"); .measurement=="unmeasured" and .paths==[])' "$FM_STATE_OVERRIDE/conflict-radar/app.json" >/dev/null || fail 'null source evidence was not persisted as unmeasured'
+output=$(bash "$RADAR" app)
+[[ "$output" == *'app: unmeasured: pr:https://github.com/fixture/app/pull/7:'* && "$output" == *'app: overlap unmeasured'* && "$output" != *'no overlap'* ]] || fail 'null paths claimed measured no overlap'
+pass 'human output exposes null paths as missing evidence'
+rm "$FM_STATE_OVERRIDE/conflict-radar/app.json"
 
 printf '[{"number":7,"html_url":"https://github.com/fixture/app/pull/7","head":{"ref":"team/first"}},{"number":8,"html_url":"https://github.com/fixture/app/pull/8","head":{"ref":"team/second"}}]\n' > "$RADAR_FIXTURE/prs.json"
 printf '[{"filename":"README.md"},{"filename":"package-lock.json"},{"filename":"code.sh"},{"filename":"external-only.md"}]\n' > "$RADAR_FIXTURE/files.json"
@@ -236,6 +288,7 @@ case "$url" in
   */iterations/4/changes\?*)
     [ ! -e "$RADAR_FIXTURE/changes-fail" ] || exit 1
     printf '{"changeEntries":[{"item":{"path":"/CMakeLists.txt"}},{"item":{"path":"/NOTES.txt"}}],"nextSkip":0,"nextTop":0}\n' ;;
+  */iterations/5/changes\?*) cat "$RADAR_FIXTURE/ado-large-changes.json" ;;
   */pullRequests/7\?*|*/pullRequests/8\?*) printf '{"status":"completed"}\n' ;;
   *) exit 1 ;;
 esac
@@ -312,6 +365,15 @@ assert_json '.projects[0].matrix | any(.path=="CMakeLists.txt" and .class=="code
 : > "$RADAR_CALLS"
 run_radar
 assert_ado_calls 2 0 'recovered new iteration is reusable on the next observation'
+jq '{changeEntries:map({item:{path:("/"+.)}}),nextSkip:0,nextTop:0}' "$RADAR_FIXTURE/large-paths.json" > "$RADAR_FIXTURE/ado-large-changes.json"
+printf '{"value":[{"id":5}]}\n' > "$RADAR_FIXTURE/iterations.json"
+: > "$RADAR_CALLS"
+run_radar
+assert_ado_calls 2 2 'large Azure change pages are read once for each new PR iteration'
+assert_json '.projects[0] | (.unmeasured|length)==0 and all(.sources[] | select(.kind=="pr"); .measurement=="measured" and .iteration_id==5 and (.paths|length)==2400 and all(.paths[]; startswith("large/")))' 'large Azure change pages normalize and persist the complete path set'
+: > "$RADAR_CALLS"
+run_radar
+assert_ado_calls 2 0 'large Azure path lists reuse the matching measured iteration'
 printf '{"value":[]}\n' > "$RADAR_FIXTURE/ado-prs.json"
 : > "$RADAR_CALLS"
 run_radar
