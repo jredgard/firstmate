@@ -172,10 +172,6 @@ add_gh_mocks() {
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$FM_TEST_GH_AXI_LOG"
 case "${1:-} ${2:-}" in
-  "api --hostname")
-    "$FM_TEST_ROOT/tests/fixtures/fm-pr-report-compact/gh-axi" "$@"
-    exit $?
-    ;;
   "api /user")
     [ "${GH_TOKEN:-}" = fixture-reviewer-token ] || exit 2
     if [ -f "$(dirname "$FM_TEST_GH_VIEW_JSON")/reviewer-response" ]; then
@@ -258,10 +254,6 @@ case "${1:-} ${2:-}" in
     esac
     ;;
   "pr merge")
-    if [ "${FM_TEST_COMMENT_REQUIRED:-false}" = true ]; then
-      jq -e '[.value[].comments[].content | contains("attestation-head:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")] | any' \
-        "$AZ_THREADS_FILE" >/dev/null || exit 3
-    fi
     if [ -n "${FM_TEST_META_AT_MERGE:-}" ] && [ -f "${FM_STATE_OVERRIDE:-}/task-x1.meta" ]; then
       cat "$FM_STATE_OVERRIDE/task-x1.meta" > "$FM_TEST_META_AT_MERGE"
     fi
@@ -4124,6 +4116,30 @@ add_ado_merge_mocks() {  # <case-dir>
 #!/usr/bin/env bash
 if [ "$*" != 'account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv' ]; then
   if [ -n "${AZ_TRACE:-}" ]; then
+    if [ "${FM_TEST_COMMENT_LOCK_PROBE:-false}" = true ]; then
+      FM_TEST_AFK_CONTRACT_LOCK_TIMEOUT=1 bash -c '
+        . "$FM_TEST_ROOT/bin/fm-afk-contract.sh"
+        fm_afk_contract_lock_hold "$FM_STATE_OVERRIDE" && fm_afk_contract_lock_release
+      ' > "$FM_TEST_ADO_DIR/comment-lock-probe" 2>&1 || exit 3
+      printf 'available\n' >> "$FM_TEST_ADO_DIR/comment-lock-results"
+      [ ! -e "$FM_TEST_ADO_DIR/ado-voted" ] || exit 3
+    fi
+    if [ "$1 $2 $3" = 'repos pr show' ]; then
+      case "${FM_TEST_COMMENT_AUTHORITY_CHANGE:-}" in
+        enter)
+          FM_AFK_MODE=quiet "$FM_TEST_ROOT/bin/fm-afk-contract.sh" enter --words 'merge green PRs' >/dev/null || exit 3
+          ;;
+        archive)
+          "$FM_TEST_ROOT/bin/fm-afk-contract.sh" archive >/dev/null || exit 3
+          ;;
+      esac
+      if [ "${FM_TEST_COMMENT_HEAD_CHANGE:-false}" = true ]; then
+        printf '1\n' > "$FM_TEST_ADO_DIR/ado-moving-head"
+      fi
+      if [ "${FM_TEST_COMMENT_POLICY_CHANGE:-false}" = true ]; then
+        printf '%s\n' '{"value":[{"status":"rejected","configuration":{"isBlocking":true,"type":{"displayName":"Build"}}}]}' > "$FM_TEST_ADO_DIR/ado-policies.json"
+      fi
+    fi
     exec "$FM_TEST_ROOT/tests/fixtures/fm-pr-report-compact/az" "$@"
   fi
   printf '{"description":"", "repo":"Backend", "project":"Project One"}\n'
@@ -5391,112 +5407,183 @@ PYDB
 }
 
 test_no_mistakes_review_comment_precondition() {
-  local forge scenario dir url rc expected posts wait review posting ci required
-  for forge in ado github; do
-    for scenario in present missing posting ci-posting race pipeline unavailable attended yolo yolo-attended refused unconfirmed unreadable unfinished direct unattributed; do
-      dir=$(make_case "review-comment-$forge-$scenario")
-      if [ "$forge" = ado ]; then
-        url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
-        add_ado_merge_mocks "$dir"
-      else
-        url='https://github.com/example/repo/pull/88'
-        add_gh_mocks "$dir" aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-      fi
-      printf '%s\n' '<!-- no-mistakes-pipeline-attestation:v1 {"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","steps":[]} -->' > "$dir/description"
-      printf '%s\n' '{"value":[]}' > "$dir/threads"
-      printf '%s\n' '{"value":[{"comments":[{"content":"## no-mistakes review — recorded findings (full texts)\n<!-- fm-pr-report-compact:attestation-head:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa -->"}]}]}' > "$dir/present-threads"
-      review=completed posting=completed ci=completed wait=0 required=true
-      case "$scenario" in
-        posting|pipeline) posting=running; wait=1 ;;
-        ci-posting) ci=running; wait=1 ;;
-        unfinished) review=fixing; wait=0.15 ;;
-      esac
-      write_merge_review_record "$dir" "$url" "$review" "$posting" "$ci"
-      case "$scenario" in
-        unavailable|attended|yolo|yolo-attended) rm "$dir/user-home/.no-mistakes/state.sqlite" ;;
-        unreadable) printf 'not sqlite' > "$dir/user-home/.no-mistakes/state.sqlite" ;;
-        present)
-          cp "$dir/present-threads" "$dir/threads"
-          # A live comment is sufficient even when the run can no longer be read.
-          printf 'not sqlite' > "$dir/user-home/.no-mistakes/state.sqlite"
-          ;;
-        direct) sed -i.bak 's/mode=no-mistakes/mode=direct-PR/' "$dir/state/task-x1.meta" ;;
-        unattributed)
-          : > "$dir/description"
-          rm "$dir/user-home/.no-mistakes/state.sqlite"
-          ;;
-      esac
-      set --
-      case "$scenario" in attended|yolo-attended|direct|unattributed) required=false ;; esac
-      if [ "$scenario" = yolo ] || [ "$scenario" = yolo-attended ]; then
+  local scenario dir url rc expected posts wait review posting ci required
+  url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
+  for scenario in present missing posting ci-posting race pipeline unavailable attended yolo yolo-override quiet-override refused unconfirmed unreadable unfinished direct unattributed newer-ready newer-failed newer-poll no-matching run-moved head-changed policy-changed authority-entered authority-returned approve-only complete-only; do
+    dir=$(make_case "review-comment-ado-$scenario")
+    add_ado_merge_mocks "$dir"
+    printf '%s\n' '<!-- no-mistakes-pipeline-attestation:v1 {"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","steps":[]} -->' > "$dir/description"
+    printf '%s\n' '{"value":[]}' > "$dir/threads"
+    printf '%s\n' '{"value":[{"comments":[{"content":"## no-mistakes review — recorded findings (full texts)\n<!-- fm-pr-report-compact:attestation-head:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa -->"}]}]}' > "$dir/present-threads"
+    review=completed posting=completed ci=completed wait=0 required=true
+    case "$scenario" in
+      posting|pipeline) posting=running; wait=1 ;;
+      ci-posting) ci=running; wait=1 ;;
+      newer-poll|run-moved) ci=running; wait=1 ;;
+      unfinished) review=fixing; wait=0.15 ;;
+    esac
+    write_merge_review_record "$dir" "$url" "$review" "$posting" "$ci"
+    case "$scenario" in
+      newer-ready|newer-failed|newer-poll)
+        python3 - "$dir/user-home/.no-mistakes/state.sqlite" "$scenario" <<'PYDB'
+import json, sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as db:
+    url = db.execute("SELECT pr_url FROM runs").fetchone()[0]
+    head = "b" * 40
+    db.execute("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?, ?)",
+               ("followup-run", "fm/example", 2, url, head, head, head))
+    status = "completed" if sys.argv[2] == "newer-ready" else "failed"
+    findings = json.dumps({"findings": [{"id": "unpublished-1", "severity": "warning",
+                         "description": "Unpublished follow-up finding."}]})
+    db.execute("INSERT INTO step_results VALUES (?, ?, ?, ?, ?, ?)",
+               ("followup-review", "followup-run", "review", status, findings, 2))
+    db.execute("INSERT INTO step_results VALUES (?, ?, ?, ?, ?, ?)",
+               ("followup-pr", "followup-run", "pr", "running", None, 2))
+    db.execute("INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
+               ("followup-round", "followup-review", 1, "initial", findings, head, None))
+PYDB
+        ;;
+      no-matching)
+        python3 - "$dir/user-home/.no-mistakes/state.sqlite" <<'PYDB'
+import sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as db:
+    db.execute("UPDATE runs SET head_sha = ?", ("b" * 40,))
+PYDB
+        ;;
+      unavailable|attended|yolo|yolo-override|quiet-override|authority-entered|authority-returned)
+        rm "$dir/user-home/.no-mistakes/state.sqlite"
+        ;;
+      unreadable) printf 'not sqlite' > "$dir/user-home/.no-mistakes/state.sqlite" ;;
+      present)
+        cp "$dir/present-threads" "$dir/threads"
+        printf 'not sqlite' > "$dir/user-home/.no-mistakes/state.sqlite"
+        ;;
+      direct) sed -i.bak 's/mode=no-mistakes/mode=direct-PR/' "$dir/state/task-x1.meta" ;;
+      unattributed)
+        : > "$dir/description"
+        rm "$dir/user-home/.no-mistakes/state.sqlite"
+        ;;
+    esac
+    set --
+    case "$scenario" in
+      attended|yolo|yolo-override|authority-returned|direct|unattributed|approve-only) required=false ;;
+    esac
+    case "$scenario" in
+      yolo|yolo-override)
         printf 'yolo=on\n' >> "$dir/state/task-x1.meta"
-        [ "$scenario" != yolo-attended ] || set -- --attended-override
-      elif [ "$scenario" = unavailable ]; then
-        FM_AFK_MODE=away write_away_record "$dir" --words 'merge green PRs'
-      elif [ "$scenario" != attended ]; then
-        FM_AFK_MODE=quiet write_away_record "$dir" --words 'merge green PRs'
-      fi
-      set +e
-      AZ_TRACE="$dir/comment.log" AZ_DESCRIPTION_FILE="$dir/description" \
-        AZ_PR_STATUS=active AZ_PR_HEAD=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
-        AZ_THREADS_FILE="$dir/threads" AZ_POST_BODY="$dir/comment-body" \
-        AZ_PERSIST_POST="$([ "$scenario" != unconfirmed ] && echo true || echo false)" \
-        FM_TEST_COMMENT_REQUIRED="$required" \
-        AZ_POST_REFUSED="$([ "$scenario" != refused ] && echo false || echo true)" \
-        AZ_RACE_THREADS="$([ "$scenario" != race ] && [ "$scenario" != pipeline ] || echo "$dir/present-threads")" \
-        AZ_RACE_READ=2 FM_PR_REVIEW_COMMENT_WAIT="$wait" FM_TEST_ADO_DIR="$dir" \
-        FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
-        run_pr_merge "$dir" task-x1 "$url" "$@" > "$dir/stdout" 2> "$dir/stderr"
-      rc=$?
-      set -e
-      expected=0
-      case "$scenario" in unavailable|yolo|refused|unconfirmed|unreadable|unfinished) expected=1 ;; esac
-      expect_code "$expected" "$rc" "review comment $forge $scenario: $(cat "$dir/stderr")"
-      if [ "$forge" = ado ]; then
-        if [ "$expected" = 0 ]; then
-          [ -e "$dir/ado-complete" ] || fail "$forge $scenario did not complete"
-        else
-          [ ! -e "$dir/ado-complete" ] || fail "$forge $scenario completed without comment"
-        fi
-      else
-        if [ "$expected" = 0 ]; then
-          assert_grep 'pr merge' "$dir/gh.log" "$forge $scenario did not merge"
-        else
-          assert_no_grep 'pr merge' "$dir/gh.log" "$forge $scenario merged without comment"
-        fi
-      fi
-      if [ "$expected" = 1 ]; then
-        assert_grep 'automated merge refused - missing no-mistakes review comment' "$dir/stderr" "requirement not named"
-      fi
-      if [ "$scenario" = attended ] || [ "$scenario" = yolo-attended ]; then
+        [ "$scenario" != yolo-override ] || set -- --attended-override
+        ;;
+      attended|authority-entered) ;;
+      unavailable) FM_AFK_MODE=away write_away_record "$dir" --words 'merge green PRs' ;;
+      *) FM_AFK_MODE=quiet write_away_record "$dir" --words 'merge green PRs' ;;
+    esac
+    case "$scenario" in
+      quiet-override) set -- --attended-override ;;
+      approve-only) set -- --approve-only ;;
+      complete-only)
+        set -- --complete-only
+        : > "$dir/ado-already-approved"
+        ;;
+    esac
+    set +e
+    AZ_TRACE="$dir/comment.log" AZ_DESCRIPTION_FILE="$dir/description" \
+      AZ_PR_STATUS=active AZ_PR_HEAD=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+      AZ_THREADS_FILE="$dir/threads" AZ_POST_BODY="$dir/comment-body" \
+      AZ_PERSIST_POST="$([ "$scenario" != unconfirmed ] && echo true || echo false)" \
+      FM_TEST_COMMENT_REQUIRED="$required" FM_TEST_COMMENT_LOCK_PROBE=true \
+      FM_TEST_COMMENT_AUTHORITY_CHANGE="$([ "$scenario" != authority-entered ] || echo enter; [ "$scenario" != authority-returned ] || echo archive)" \
+      FM_TEST_COMMENT_HEAD_CHANGE="$([ "$scenario" != head-changed ] && echo false || echo true)" \
+      FM_TEST_COMMENT_POLICY_CHANGE="$([ "$scenario" != policy-changed ] && echo false || echo true)" \
+      AZ_RUN_HEAD_CHANGE_READ="$([ "$scenario" != run-moved ] && echo 0 || echo 2)" \
+      AZ_POST_REFUSED="$([ "$scenario" != refused ] && echo false || echo true)" \
+      AZ_RACE_THREADS="$([ "$scenario" != race ] && [ "$scenario" != pipeline ] || echo "$dir/present-threads")" \
+      AZ_RACE_READ=2 FM_PR_REVIEW_COMMENT_WAIT="$wait" FM_TEST_ADO_DIR="$dir" \
+      FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+      run_pr_merge "$dir" task-x1 "$url" "$@" > "$dir/stdout" 2> "$dir/stderr"
+    rc=$?
+    set -e
+    expected=0
+    case "$scenario" in
+      unavailable|quiet-override|refused|unconfirmed|unreadable|unfinished|no-matching|run-moved|head-changed|policy-changed|authority-entered) expected=1 ;;
+    esac
+    expect_code "$expected" "$rc" "review comment ado $scenario: $(cat "$dir/stderr")"
+    if [ "$expected" = 0 ] && [ "$scenario" != approve-only ]; then
+      [ -e "$dir/ado-complete" ] || fail "$scenario did not complete"
+    else
+      [ ! -e "$dir/ado-complete" ] || fail "$scenario unexpectedly completed"
+    fi
+    if [ "$expected" = 1 ]; then
+      [ ! -e "$dir/ado-voted" ] || fail "$scenario voted before refusing"
+      case "$scenario" in
+        head-changed) assert_grep 'head changed after recording' "$dir/stderr" "head change was not rejected" ;;
+        policy-changed) assert_grep 'policies not approved' "$dir/stderr" "policy change was not rejected" ;;
+        *) assert_grep 'automated merge refused - missing no-mistakes review comment' "$dir/stderr" "requirement not named" ;;
+      esac
+    fi
+    case "$scenario" in
+      attended|yolo|yolo-override|authority-returned)
         assert_grep 'WARNING: attended merge proceeding' "$dir/stderr" "attended exception was silent"
-      fi
-      posts=$(grep -c 'POST' "$dir/comment.log" 2>/dev/null || true)
-      posts=${posts:-0}
-      case "$scenario" in
-        missing|posting|ci-posting)
-          [ "$posts" = 1 ] || fail "$forge $scenario must post once (got $posts)"
-          assert_grep 'fixed-1' "$dir/comment-body" "recorded findings not preserved"
-          assert_grep 'no residual findings' "$dir/comment-body" "closed verdict missing"
-          assert_grep 'review comment verified before merge' "$dir/stdout" "post not verified"
-          ;;
-        refused|unconfirmed) [ "$posts" = 1 ] || fail "$forge $scenario did not attempt posting" ;;
-        *) [ "$posts" = 0 ] || fail "$forge $scenario posted a duplicate/unneeded comment" ;;
-      esac
-      case "$scenario" in
-        posting|ci-posting)
-          [ "$(cat "$dir/threads.reads")" -ge 4 ] || fail "$forge $scenario skipped the pending-step wait"
-          ;;
-        pipeline)
-          [ "$(cat "$dir/threads.reads")" -ge 2 ] || fail "$forge $scenario never waited/rechecked"
-          ;;
-      esac
-    done
+        [ "$(sed -n 6p "$dir/state/task-x1.merge-authority")" = attended ] || fail "returned authority not persisted"
+        ;;
+    esac
+    posts=$(grep -c 'POST' "$dir/comment.log" 2>/dev/null || true)
+    posts=${posts:-0}
+    case "$scenario" in
+      missing|posting|ci-posting|newer-ready|newer-failed|newer-poll|head-changed|policy-changed|complete-only)
+        [ "$posts" = 1 ] || fail "$scenario must post once (got $posts)"
+        assert_grep 'fixed-1' "$dir/comment-body" "recorded findings not preserved"
+        assert_grep 'no residual findings' "$dir/comment-body" "closed verdict missing"
+        assert_grep 'Run ID: `merge-run`' "$dir/comment-body" "wrong run rendered"
+        assert_no_grep 'unpublished-1' "$dir/comment-body" "unpublished findings were posted"
+        assert_grep 'review comment verified before merge' "$dir/stdout" "post not verified"
+        ;;
+      refused|unconfirmed) [ "$posts" = 1 ] || fail "$scenario did not attempt posting" ;;
+      *) [ "$posts" = 0 ] || fail "$scenario posted a duplicate/unneeded comment" ;;
+    esac
+    case "$scenario" in
+      posting|ci-posting|newer-poll)
+        [ "$(cat "$dir/threads.reads")" -ge 4 ] || fail "$scenario skipped the pending-step wait"
+        ;;
+      pipeline) [ "$(cat "$dir/threads.reads")" -ge 2 ] || fail "$scenario never waited/rechecked" ;;
+      approve-only)
+        [ -e "$dir/ado-voted" ] || fail "approve-only did not vote"
+        [ ! -e "$dir/comment.log" ] || fail "approve-only checked the comment"
+        ;;
+    esac
+    case "$scenario" in
+      direct|approve-only) ;;
+      *) [ -s "$dir/comment-lock-results" ] || fail "$scenario did not prove posture lock availability" ;;
+    esac
   done
-  pass "no-mistakes review comments precede automated completion on both forges, with bounded waits and no recheck duplicates"
+  pass "Azure DevOps comments use the attested run before locking/voting, with bounded waits, current authority and no duplicates"
+}
+
+test_github_merge_ignores_review_comments() {
+  local scenario dir url rc
+  url='https://github.com/example/repo/pull/88'
+  for scenario in quiet away yolo; do
+    dir=$(make_case "review-comment-github-$scenario")
+    add_gh_mocks "$dir" aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    write_merge_review_record "$dir" "$url" failed running
+    if [ "$scenario" = yolo ]; then
+      printf 'yolo=on\n' >> "$dir/state/task-x1.meta"
+    else
+      FM_AFK_MODE="$scenario" write_away_record "$dir" --words 'merge green PRs'
+    fi
+    set +e
+    run_pr_merge "$dir" task-x1 "$url" > "$dir/stdout" 2> "$dir/stderr"
+    rc=$?
+    set -e
+    expect_code 0 "$rc" "GitHub $scenario should ignore unavailable review comments"
+    assert_grep 'pr merge' "$dir/gh.log" "GitHub $scenario did not merge"
+    assert_no_grep 'api --hostname' "$dir/gh-axi.log" "GitHub $scenario called the comment transport"
+    assert_no_grep 'missing no-mistakes review comment' "$dir/stderr" "GitHub $scenario warned about an ADO requirement"
+  done
+  pass "GitHub quiet, away and yolo merges do not require or post review comments"
 }
 
 test_no_mistakes_review_comment_precondition
+test_github_merge_ignores_review_comments
 test_gitlab_head_override_args_refuse_before_recording
 test_ado_headless_merge_and_refusals
 test_quiet_words_keep_ado_green_and_completion_guards

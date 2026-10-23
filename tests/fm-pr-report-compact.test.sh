@@ -273,7 +273,7 @@ printf '{"value":[{"comments":[{"content":"%s\\n%s\\nprior"}]}]}\n' \
 printf '{"value":[{"comments":[{"content":"%s\\nprior"}]}]}\n' \
   '## no-mistakes review — recorded findings (full texts)' > "$LEGACY_THREADS"
 
-python3 - "$TEST_HOME/.no-mistakes/state.sqlite" <<'PY'
+python3 - "$TEST_HOME/.no-mistakes/state.sqlite" "$ATTESTATION_HEAD" <<'PY'
 import json
 import sqlite3
 import sys
@@ -360,7 +360,7 @@ for pr_id, run_id, result_id, head, payload in (
 ):
     db.execute(
         "INSERT INTO runs VALUES (?, ?, ?, ?, ?)",
-        (run_id, "head-start", head, head,
+        (run_id, sys.argv[2], head, head,
          f"https://dev.azure.com/org/project/_git/repo/pullrequest/{pr_id}"),
     )
     db.execute(
@@ -415,6 +415,15 @@ db.execute(
     "INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
     ("round-flap-3", "result-flap", 3, "auto_fix", flap,
      "head-flap-3", None),
+)
+db.execute(
+    "INSERT INTO runs VALUES (?, ?, ?, ?, ?)",
+    ("run-unpublished", "b" * 40, "b" * 40, "b" * 40,
+     "https://dev.azure.com/org/project/_git/repo/pullrequest/111"),
+)
+db.execute(
+    "INSERT INTO step_results VALUES (?, ?, 'review', ?, 2)",
+    ("result-unpublished", "run-unpublished", two),
 )
 db.commit()
 PY

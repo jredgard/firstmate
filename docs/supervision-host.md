@@ -144,7 +144,7 @@ Every close except a pending main handback goes to the engine; captain outcomes 
 Every turn that starts attended meets the attended rule again at its start, and the offer's scan is the scope the turn claims: a close accepted away whose turn starts attended, because the captain returned in between, or an attended close whose task turned main-only (a decision appeared) while the successor started, reaches main unchanged and leaves that successor cycle running, with the handoff that turn had confirmed handed back to downtime as already announced, so that successor does not announce the same close again.
 A captain who leaves while an attended turn runs turns its captain outcomes into away outcomes: they wait for the return too.
 The record relocates its covered PR merge authority to the engine while main is parked, rather than requiring a separate main-addressed instruction for each PR; `bin/fm-branch-prompt.sh` "Postures" owns interpretation, synchronous live-head merging, and captain-outcome reporting.
-Attributed no-mistakes PRs must carry their review comment before quiet/away or yolo completion; `bin/fm-pr-merge.sh` owns the bounded wait, run-record fallback, verification and attended exception.
+Attributed no-mistakes Azure DevOps PRs must carry their review comment before quiet/away completion; `bin/fm-pr-merge.sh` owns the bounded wait, run-record fallback, verification and attended warning.
 
 #### Main handback while away
 

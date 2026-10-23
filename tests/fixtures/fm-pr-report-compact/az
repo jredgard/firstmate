@@ -54,6 +54,13 @@ elif [ "$1 $2" = "devops invoke" ]; then
   if [ "$method" = "GET" ]; then
     reads=$(( $(cat "$AZ_THREADS_FILE.reads" 2>/dev/null || echo 0) + 1 ))
     printf '%s\n' "$reads" > "$AZ_THREADS_FILE.reads"
+    if [ "$reads" -eq "${AZ_RUN_HEAD_CHANGE_READ:-0}" ]; then
+      python3 - "$HOME/.no-mistakes/state.sqlite" <<'PY'
+import sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as db:
+    db.execute("UPDATE runs SET head_sha = ?", ("b" * 40,))
+PY
+    fi
     if [ -n "${AZ_RACE_THREADS:-}" ] && [ "$reads" -ge "${AZ_RACE_READ:-2}" ]; then
       cp "$AZ_RACE_THREADS" "$AZ_THREADS_FILE"
     fi
