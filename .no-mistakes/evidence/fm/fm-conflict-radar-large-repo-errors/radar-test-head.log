@@ -1,0 +1,71 @@
+ok - order-independent ledger token preserves posture and branch queries
+ok - no changed paths produces measured empty matrix
+ok - human no overlap output
+ok - large GitHub pages and accumulated paths remain measured
+ok - large worktree paths and registry ledger lists persist without argv limits
+ok - large source matrix is stored in private memory
+ok - large completed-PR path list survives retained-source assembly
+ok - null and missing source arrays remain visible as unmeasured without crashing
+ok - human output exposes null paths as missing evidence
+ok - external-only overlaps retain all evidence without shared alerts
+ok - external-only overlaps stay in radar memory but not human output
+ok - task-versus-external overlaps remain shared across every class
+ok - external-only sibling path remains evidence beside fleet alerts
+ok - human output prints task-involving rows only
+ok - completed external evidence is pruned without associated tasks
+ok - two ships with disjoint changed paths have no overlap
+ok - committed shared ledger path
+ok - staged shared mechanical path
+ok - unstaged shared code path
+ok - untracked spaced text path stays intact as code
+ok - explicit JSON ledger overrides code classification
+ok - explicit registry text ledger overrides code classification
+ok - only documentation basenames and document extensions are built-in ledgers
+ok - committed dependency text manifests are mechanical in both ships
+ok - build files, arbitrary text and non-document README extensions remain code
+ok - radar does not refresh index
+ok - automatic project selection
+ok - unreadable worktree retains earlier observed paths
+ok - empty worktree cannot read the radar caller checkout
+ok - fresh measurement replaces prior reverted paths
+ok - task and its PR count as one participant
+ok - PR-only path is observed
+ok - failed PR file read retains prior matrix evidence
+ok - GitHub changed-file pagination includes rename source and second page
+ok - completed PR remains until associated task teardown
+ok - gone task and completed PR evidence is pruned
+ok - forge failure is explicitly unmeasured
+ok - failed forge never claims no overlap
+ok - automatic selection excludes scouts and single-ship projects
+ok - missing origin HEAD is unmeasured
+ok - restored origin HEAD measures committed task paths
+ok - shared Azure request boundary memoizes across direct and captured reads and writes
+ok - shared Azure requests preserve methods and JSON bodies without exporting a bearer
+ok - one run token covers both PR iterations and all change pages
+ok - Azure latest iteration compares to base and follows both change pages
+ok - Azure paths normalize leading slash and classify package props
+ok - Azure PR and its own task are not false overlap
+ok - latest measured iteration is persisted for each PR
+ok - renamed Azure dependency manifest uses shared classification
+ok - older memory without iteration keys refreshes both file lists
+ok - unchanged PR iterations reuse independent cached file lists with a fresh run token
+ok - Azure HTTPS clone userinfo is normalized without exposing credentials
+ok - same iteration in different PRs never shares file-list cache
+ok - failed iteration reads keep prior paths but do not claim a cache hit
+ok - failed reads retain evidence without a reusable measured iteration
+ok - a successful refresh replaces failed-read evidence before caching
+ok - new iteration reads changes and failed pages never become cached
+ok - failed new iteration retains old paths only as unmeasured evidence
+ok - recovery fetches new iteration rather than reusing stale paths
+ok - fresh iteration replaces earlier paths and records its cache key
+ok - Azure and task text paths share the same documentation-name policy
+ok - recovered new iteration is reusable on the next observation
+ok - large Azure change pages are read once for each new PR iteration
+ok - large Azure change pages normalize and persist the complete path set
+ok - large Azure path lists reuse the matching measured iteration
+ok - PR listing and both completion checks share one token
+ok - Azure completed PR retains paths until teardown
+ok - Git timeout is bounded and reported as unmeasured
+ok - last teardown prunes completed PR using remembered project path
+ok - corrupt memory refuses rather than silently erasing evidence
+bash tests/fm-conflict-radar.test.sh  9,98s user 4,26s system 97% cpu 14,548 total

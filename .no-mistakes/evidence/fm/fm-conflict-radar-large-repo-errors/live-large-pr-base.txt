@@ -1,0 +1,22 @@
+ARG_MAX=2097152; first files page bytes=1043102
+--- $ bin/fm-conflict-radar.sh firstmate
+/tmp/radar-base.fBfWcy/bin/fm-conflict-radar.sh: line 170: /usr/bin/jq: Argument list too long
+/tmp/radar-base.fBfWcy/bin/fm-conflict-radar.sh: line 170: /usr/bin/jq: Argument list too long
+/tmp/radar-base.fBfWcy/bin/fm-conflict-radar.sh: line 170: /usr/bin/jq: Argument list too long
+/tmp/radar-base.fBfWcy/bin/fm-conflict-radar.sh: line 170: /usr/bin/jq: Argument list too long
+/tmp/radar-base.fBfWcy/bin/fm-conflict-radar.sh: line 170: /usr/bin/jq: Argument list too long
+/tmp/radar-base.fBfWcy/bin/fm-conflict-radar.sh: line 170: /usr/bin/jq: Argument list too long
+/tmp/radar-base.fBfWcy/bin/fm-conflict-radar.sh: line 170: /usr/bin/jq: Argument list too long
+jq: error (at /tmp/fm-conflict-radar.UAA6Re/sources.jsonl:42): Cannot iterate over null (null)
+exit=5
+--- $ bin/fm-conflict-radar.sh --json firstmate | jq (summary)
+/tmp/radar-base.fBfWcy/bin/fm-conflict-radar.sh: line 170: /usr/bin/jq: Argument list too long
+/tmp/radar-base.fBfWcy/bin/fm-conflict-radar.sh: line 170: /usr/bin/jq: Argument list too long
+/tmp/radar-base.fBfWcy/bin/fm-conflict-radar.sh: line 170: /usr/bin/jq: Argument list too long
+/tmp/radar-base.fBfWcy/bin/fm-conflict-radar.sh: line 170: /usr/bin/jq: Argument list too long
+/tmp/radar-base.fBfWcy/bin/fm-conflict-radar.sh: line 170: /usr/bin/jq: Argument list too long
+/tmp/radar-base.fBfWcy/bin/fm-conflict-radar.sh: line 170: /usr/bin/jq: Argument list too long
+/tmp/radar-base.fBfWcy/bin/fm-conflict-radar.sh: line 170: /usr/bin/jq: Argument list too long
+jq: error (at /tmp/fm-conflict-radar.F8Bn0j/sources.jsonl:42): Cannot iterate over null (null)
+exit=5
+files pages requested: 14

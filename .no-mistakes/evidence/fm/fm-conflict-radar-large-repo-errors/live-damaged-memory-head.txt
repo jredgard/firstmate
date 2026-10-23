@@ -1,0 +1,18 @@
+### A: remembered PR source with paths:null (old run that died mid-fold)
+firstmate: unmeasured: pr:https://github.com/fixture/firstmate/pull/52: paths unmeasured (missing or invalid array)
+firstmate: overlap unmeasured (no measured shared paths)
+exit=0
+{"unmeasured":["pr:https://github.com/fixture/firstmate/pull/52: previous paths unmeasured"],"pr":[{"measurement":"unmeasured","paths":"array:0"}]}
+exit=0
+### A2: remembered PR source with the paths field absent
+firstmate: unmeasured: pr:https://github.com/fixture/firstmate/pull/52: paths unmeasured (missing or invalid array)
+firstmate: overlap unmeasured (no measured shared paths)
+exit=0
+### B: remembered PR source with valid paths but task_ids:null (must stay measured)
+firstmate: code "bin/fm-shared-0042.sh" sources=pr:https://github.com/fixture/firstmate/pull/52,task:other
+exit=0
+{"unmeasured":[],"pr":[{"status":"closed","measurement":"measured","paths":650,"task_ids":["sync"]}]}
+exit=0
+### B2: same memory, task_ids key deleted
+firstmate: code "bin/fm-shared-0042.sh" sources=pr:https://github.com/fixture/firstmate/pull/52,task:other
+exit=0

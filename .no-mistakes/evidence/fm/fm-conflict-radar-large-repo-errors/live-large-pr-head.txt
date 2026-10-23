@@ -1,0 +1,42 @@
+ARG_MAX=2097152; first files page bytes=1043102
+--- $ bin/fm-conflict-radar.sh firstmate
+firstmate: code "bin/fm-shared-0042.sh" sources=pr:https://github.com/fixture/firstmate/pull/52,task:other
+exit=0
+--- $ bin/fm-conflict-radar.sh --json firstmate | jq (summary)
+exit=0
+{
+  "unmeasured": [],
+  "sources": [
+    {
+      "id": "task:other",
+      "measurement": "measured",
+      "paths": 1,
+      "task_ids": null
+    },
+    {
+      "id": "task:sync",
+      "measurement": "measured",
+      "paths": 0,
+      "task_ids": null
+    },
+    {
+      "id": "pr:https://github.com/fixture/firstmate/pull/52",
+      "measurement": "measured",
+      "paths": 650,
+      "task_ids": [
+        "sync"
+      ]
+    }
+  ],
+  "matrix_rows": 650,
+  "shared": [
+    {
+      "path": "bin/fm-shared-0042.sh",
+      "participants": [
+        "task:other",
+        "task:sync"
+      ]
+    }
+  ]
+}
+files pages requested: 14

@@ -1,0 +1,3 @@
+### BASE script, remembered closed PR source with paths:null
+jq: error (at /tmp/fm-conflict-radar.TR2kDi/sources.jsonl:45): Cannot iterate over null (null)
+exit=5
