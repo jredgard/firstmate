@@ -357,10 +357,11 @@ def review_findings_comment(
                    WHERE ((? IS NULL AND runs.pr_url LIKE '%/pullrequest/' || ?)
                           OR runs.pr_url = ?)
                      AND (? IS NULL OR runs.id = ?)
-                     AND runs.head_sha = ?
+                     AND runs.head_sha = ? AND runs.last_pushed_sha = ?
                      AND res.step_name = 'review'
                    ORDER BY res.completed_at DESC LIMIT 1""",
-                (pr_url, pr_id, pr_url, run_id, run_id, current_attestation_head),
+                (pr_url, pr_id, pr_url, run_id, run_id,
+                 current_attestation_head, current_attestation_head),
             ).fetchone()
             if not row:
                 return None, f"no recorded review run found for PR {pr_id}"
@@ -617,8 +618,9 @@ def matched_run(pr_url: str, branch: str, head: str) -> "tuple[str | None, bool,
         return None, False, False
     with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=1) as db:
         row = db.execute(
-            "SELECT id FROM runs WHERE pr_url = ? AND branch = ? AND head_sha = ? "
-            "ORDER BY created_at DESC LIMIT 1", (pr_url, branch, head),
+            "SELECT id, status FROM runs WHERE pr_url = ? AND branch = ? "
+            "AND head_sha = ? AND last_pushed_sha = ? "
+            "ORDER BY created_at DESC LIMIT 1", (pr_url, branch, head, head),
         ).fetchone()
         if not row:
             return None, False, False
@@ -627,8 +629,9 @@ def matched_run(pr_url: str, branch: str, head: str) -> "tuple[str | None, bool,
             (row[0],),
         ))
         review_ready = steps.get("review") == "completed"
-        posting_pending = any(steps.get(step) in {"pending", "running", "fixing"}
-                              for step in ("pr", "ci"))
+        posting_pending = row[1] not in {"completed", "failed", "cancelled"} and any(
+            steps.get(step) in {"pending", "running", "fixing"} for step in ("pr", "ci")
+        )
         return row[0], review_ready, posting_pending
 
 
@@ -714,7 +717,10 @@ def ensure_review_comment(pr_url: str, head: str, branch: str, wait: float) -> i
         return 0
     except (OSError, ValueError, KeyError, TypeError, sqlite3.Error,
             subprocess.SubprocessError) as exc:
-        detail = (getattr(exc, "stderr", "") or str(exc)).strip().replace("\n", " ")
+        detail = getattr(exc, "stderr", "") or str(exc)
+        if isinstance(detail, bytes):
+            detail = detail.decode("utf-8", errors="replace")
+        detail = detail.strip().replace("\n", " ")
         print(f"missing no-mistakes review comment for {pr_url}: {detail}", file=sys.stderr)
         return 1
 

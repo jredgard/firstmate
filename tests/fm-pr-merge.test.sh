@@ -5381,7 +5381,8 @@ path, url, review, posting, ci = sys.argv[1:]
 with sqlite3.connect(path) as db:
     db.executescript("""
     CREATE TABLE runs (id TEXT, branch TEXT, created_at INTEGER, pr_url TEXT,
-                       head_sha TEXT, submitted_head_sha TEXT, review_approved_head_sha TEXT);
+                       head_sha TEXT, submitted_head_sha TEXT, review_approved_head_sha TEXT,
+                       last_pushed_sha TEXT, status TEXT);
     CREATE TABLE step_results (id TEXT, run_id TEXT, step_name TEXT, status TEXT,
                                findings_json TEXT, completed_at INTEGER);
     CREATE TABLE step_rounds (id TEXT, step_result_id TEXT, round INTEGER,
@@ -5389,8 +5390,9 @@ with sqlite3.connect(path) as db:
                              reviewed_head_sha TEXT, fix_summary TEXT);
     """)
     head = "a" * 40
-    db.execute("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?, ?)",
-               ("merge-run", "fm/example", 1, url, head, head, head))
+    run_status = "completed" if all(step == "completed" for step in (review, posting, ci)) else "running"
+    db.execute("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+               ("merge-run", "fm/example", 1, url, head, head, head, head, run_status))
     db.execute("INSERT INTO step_results VALUES (?, ?, ?, ?, ?, ?)",
                ("review-result", "merge-run", "review", review, '{"findings": []}', 1))
     db.execute("INSERT INTO step_results VALUES (?, ?, ?, ?, ?, ?)",
@@ -5409,7 +5411,7 @@ PYDB
 test_no_mistakes_review_comment_precondition() {
   local scenario dir url rc expected posts wait review posting ci required
   url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
-  for scenario in present missing posting ci-posting race pipeline unavailable attended yolo yolo-override quiet-override refused unconfirmed unreadable unfinished direct unattributed newer-ready newer-failed newer-poll no-matching run-moved head-changed policy-changed authority-entered authority-returned approve-only complete-only; do
+  for scenario in present missing posting ci-posting race pipeline unavailable attended yolo yolo-override quiet-override refused unconfirmed unreadable unfinished direct unattributed newer-ready newer-failed newer-poll same-head-review-failed same-head-test-failed same-head-other-push no-matching run-moved head-changed policy-changed authority-entered authority-returned approve-only complete-only; do
     dir=$(make_case "review-comment-ado-$scenario")
     add_ado_merge_mocks "$dir"
     printf '%s\n' '<!-- no-mistakes-pipeline-attestation:v1 {"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","steps":[]} -->' > "$dir/description"
@@ -5424,21 +5426,23 @@ test_no_mistakes_review_comment_precondition() {
     esac
     write_merge_review_record "$dir" "$url" "$review" "$posting" "$ci"
     case "$scenario" in
-      newer-ready|newer-failed|newer-poll)
+      newer-ready|newer-failed|newer-poll|same-head-review-failed|same-head-test-failed|same-head-other-push)
         python3 - "$dir/user-home/.no-mistakes/state.sqlite" "$scenario" <<'PYDB'
 import json, sqlite3, sys
 with sqlite3.connect(sys.argv[1]) as db:
     url = db.execute("SELECT pr_url FROM runs").fetchone()[0]
-    head = "b" * 40
-    db.execute("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?, ?)",
-               ("followup-run", "fm/example", 2, url, head, head, head))
-    status = "completed" if sys.argv[2] == "newer-ready" else "failed"
+    scenario = sys.argv[2]
+    head = "a" * 40 if scenario.startswith("same-head-") else "b" * 40
+    pushed = "b" * 40 if scenario == "same-head-other-push" else None
+    db.execute("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+               ("followup-run", "fm/example", 2, url, head, head, head, pushed, "failed"))
+    status = "completed" if scenario in {"newer-ready", "same-head-test-failed", "same-head-other-push"} else "failed"
     findings = json.dumps({"findings": [{"id": "unpublished-1", "severity": "warning",
                          "description": "Unpublished follow-up finding."}]})
     db.execute("INSERT INTO step_results VALUES (?, ?, ?, ?, ?, ?)",
                ("followup-review", "followup-run", "review", status, findings, 2))
     db.execute("INSERT INTO step_results VALUES (?, ?, ?, ?, ?, ?)",
-               ("followup-pr", "followup-run", "pr", "running", None, 2))
+               ("followup-pr", "followup-run", "pr", "pending", None, 2))
     db.execute("INSERT INTO step_rounds VALUES (?, ?, ?, ?, ?, ?, ?)",
                ("followup-round", "followup-review", 1, "initial", findings, head, None))
 PYDB
@@ -5529,7 +5533,7 @@ PYDB
     posts=$(grep -c 'POST' "$dir/comment.log" 2>/dev/null || true)
     posts=${posts:-0}
     case "$scenario" in
-      missing|posting|ci-posting|newer-ready|newer-failed|newer-poll|head-changed|policy-changed|complete-only)
+      missing|posting|ci-posting|newer-ready|newer-failed|newer-poll|same-head-review-failed|same-head-test-failed|same-head-other-push|head-changed|policy-changed|complete-only)
         [ "$posts" = 1 ] || fail "$scenario must post once (got $posts)"
         assert_grep 'fixed-1' "$dir/comment-body" "recorded findings not preserved"
         assert_grep 'no residual findings' "$dir/comment-body" "closed verdict missing"

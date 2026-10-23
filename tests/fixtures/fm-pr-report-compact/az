@@ -2,6 +2,10 @@
 set -eu
 
 printf '%s\n' "$*" >> "$AZ_TRACE"
+if { [ "${AZ_TIMEOUT_STAGE:-}" = show ] && [ "$1 $2 $3" = 'repos pr show' ]; } ||
+   { [ "${AZ_TIMEOUT_STAGE:-}" = threads ] && [ "$1 $2" = 'devops invoke' ]; }; then
+  exec python3 -c 'import sys, time; sys.stderr.buffer.write(b"WARNING: delayed az response\n"); sys.stderr.buffer.flush(); time.sleep(20)'
+fi
 if [ "$1 $2 $3" = "repos pr show" ]; then
   if [ "${AZ_PR_EXISTS:-true}" != "true" ]; then
     printf 'pull request not found\n' >&2
