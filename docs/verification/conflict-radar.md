@@ -13,7 +13,7 @@ bash bin/fm-doc-audience-check.sh
 bash bin/fm-test-run.sh --check-coverage
 ```
 
-The radar suite covers committed, staged, unstaged and untracked paths, all three classes, documentation-named text ledgers, dependency text manifests, explicit registry ledgers, disjoint changes, index preservation, unreadable and empty worktrees, task/PR deduplication, external-only PR overlaps kept as evidence without alerts, GitHub and Azure pagination, one Azure token per run, PR-and-iteration file-list reuse, rename-source paths, completion retention, teardown pruning, failed-read retention, local origin/HEAD bases, HTTPS userinfo normalization, bounded Git calls, corrupt-memory refusal, a GitHub response page larger than `ARG_MAX`, 2,400-path GitHub, Azure, worktree and registry-ledger lists read without argv limits, and null or missing remembered path arrays reported as unmeasured.
+The radar suite covers committed, staged, unstaged and untracked paths, all three classes, documentation-named text ledgers, dependency text manifests, explicit registry ledgers, disjoint changes, index preservation, unreadable and empty worktrees, task/PR deduplication, external-only PR overlaps kept as evidence without alerts, GitHub and Azure pagination, one Azure token per run, PR-and-iteration file-list reuse, rename-source paths, completion retention, teardown pruning, failed-read retention, local origin/HEAD bases, HTTPS userinfo normalization, bounded Git calls, corrupt-memory refusal, a GitHub response page larger than `ARG_MAX`, raw-scalar and TOON-enveloped gh-axi responses with truncated envelopes reported as unmeasured, 2,400-path GitHub, Azure, worktree and registry-ledger lists read without argv limits, and null or missing remembered path arrays reported as unmeasured.
 The existing delivery suite checks that the registry query preserves delivery, forge and branch behavior.
 
 ## Observed result
@@ -22,6 +22,8 @@ On 2026-10-23, Bash 5.3.20, Git 2.56.0, jq 1.8.2 and pinned ShellCheck 0.11.0 pa
 The targeted behavior runner reported `FM_TEST_SUMMARY total=2 failed=0 skipped_gate=0`.
 The audience check and coverage guard reported `ok`, and full source-aware lint emitted no findings.
 The coverage guard passed under `LC_ALL=C`; under the host's `en_GB.UTF-8` locale it exited 1 on a `comm` input-order error.
+On 2026-11-15, after the shared gh-axi body reader in `bin/fm-pr-lib.sh` began accepting raw-scalar responses, the radar suite alone passed with Bash 5.3.20 and jq 1.8.2 and reported `FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0`.
+That run used fake gh-axi fixtures only; no new live GitHub read was taken.
 On 2026-10-03, a live GitHub read using gh-axi 0.1.35, with radar state confined to a disposable fixture home, reported `unmeasured=0`.
 That live observation exercised the installed gh-axi envelope and open-PR listing; no open PR file-list response was present, so changed-file pagination remains fixture-proven.
 Azure changed-file reads are fixture-proven, including bearer delivery through a private file descriptor, one token acquisition per run, latest-iteration selection, unchanged-iteration file-list reuse, base comparison and continuation offsets.
