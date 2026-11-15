@@ -967,6 +967,11 @@ ado_verify_preconditions() {
       "$URL" "$status" "$merge_status" "$draft" "$head" "$project_id" >&2
     return 1
   fi
+  note_expected_head "$head"
+  if [ -n "$FM_PR_EXPECTED_HEAD_REFUSAL" ]; then
+    printf 'error: refusing to complete %s\n%s\n' "$URL" "$FM_PR_EXPECTED_HEAD_REFUSAL" >&2
+    return 1
+  fi
   if [ "$(grep '^pr_head=' "$META" | tail -1 | cut -d= -f2- || true)" != "$head" ]; then
     echo "error: Azure DevOps head changed after recording $URL; retry to verify and record its current head" >&2
     return 1

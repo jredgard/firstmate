@@ -5066,6 +5066,12 @@ if [ "$*" != 'account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6
         printf '%s\n' '{"value":[{"status":"rejected","configuration":{"isBlocking":true,"type":{"displayName":"Build"}}}]}' > "$FM_TEST_ADO_DIR/ado-policies.json"
       fi
     fi
+    if [ "${FM_TEST_COMMENT_HEAD_CHANGE_AFTER_POST:-false}" = true ] \
+      && [[ " $* " == *' --http-method POST '* ]]; then
+      "$FM_TEST_ROOT/tests/fixtures/fm-pr-report-compact/az" "$@" || exit $?
+      printf '1\n' > "$FM_TEST_ADO_DIR/ado-moving-head"
+      exit 0
+    fi
     exec "$FM_TEST_ROOT/tests/fixtures/fm-pr-report-compact/az" "$@"
   fi
   printf '{"description":"", "repo":"Backend", "project":"Project One"}\n'
@@ -5134,6 +5140,9 @@ case "$method:$url" in
     [ "$body" = '{"vote":10}' ] || exit 2
     [ ! -e "$FM_TEST_ADO_DIR/ado-vote-fails" ] || exit 1
     : > "$FM_TEST_ADO_DIR/ado-voted"
+    if [ -e "$FM_TEST_ADO_DIR/ado-head-change-after-vote" ]; then
+      printf '1\n' > "$FM_TEST_ADO_DIR/ado-moving-head"
+    fi
     ;;
   PATCH:*'/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1')
     if [ "${FM_TEST_COMMENT_REQUIRED:-false}" = true ]; then
@@ -5158,6 +5167,70 @@ SH
   chmod +x "$dir/fakebin/az" "$dir/fakebin/curl"
   printf '%s\n' '{"value":[{"status":"approved","configuration":{"type":{"displayName":"Build"}}},{"status":"rejected","configuration":{"isBlocking":true,"type":{"id":"fa4e907d-c16b-4a4c-9dfa-4916e5d171ab","displayName":"Require a merge strategy"}}}]}' \
     > "$dir/ado-policies.json"
+}
+
+test_ado_expected_head_actions() {
+  local dir action scenario url rc
+  url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
+  for action in approve-complete approve-only complete-only; do
+    for scenario in matching mismatched after-vote; do
+      [ "$scenario" != after-vote ] || [ "$action" = approve-complete ] || continue
+      dir=$(make_case "ado-expected-head-$action-$scenario")
+      add_ado_merge_mocks "$dir"
+      sed -i.bak 's/mode=no-mistakes/mode=direct-PR/' "$dir/state/task-x1.meta"
+      case "$scenario" in
+        mismatched) printf '1\n' > "$dir/ado-moving-head" ;;
+        after-vote) : > "$dir/ado-head-change-after-vote" ;;
+      esac
+      set --
+      case "$action" in
+        approve-only) set -- --approve-only ;;
+        complete-only)
+          set -- --complete-only
+          : > "$dir/ado-already-approved"
+          ;;
+      esac
+      set +e
+      FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+        run_pr_merge "$dir" task-x1 "$url" "$@" \
+        --expected-head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+        > "$dir/stdout" 2> "$dir/stderr"
+      rc=$?
+      set -e
+      if [ "$scenario" = matching ]; then
+        expect_code 0 "$rc" "$action matching expected head: $(cat "$dir/stderr")"
+        if [ "$action" = complete-only ]; then
+          [ ! -e "$dir/ado-voted" ] || fail "completion-only cast a vote"
+          assert_no_regex '^PUT ' "$dir/ado.log" "completion-only attempted a vote"
+        else
+          [ -e "$dir/ado-voted" ] || fail "$action did not approve the matching head"
+        fi
+        if [ "$action" = approve-only ]; then
+          [ ! -e "$dir/ado-complete" ] || fail "approval-only completed the PR"
+          assert_no_regex '^PATCH ' "$dir/ado.log" "approval-only attempted completion"
+        else
+          [ -e "$dir/ado-complete" ] || fail "$action did not complete the matching head"
+          assert_grep "verified: $url is completed at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
+            "$dir/stdout" "matching completion was not confirmed at the reviewed head"
+        fi
+      else
+        expect_code 1 "$rc" "$action $scenario expected head: $(cat "$dir/stderr")"
+        assert_grep 'the live head is "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", not the expected head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
+          "$dir/stderr" "$action $scenario did not report the reviewed-head mismatch"
+        [ ! -e "$dir/ado-complete" ] || fail "$action $scenario completed an unreviewed head"
+        assert_no_regex '^PATCH ' "$dir/ado.log" "$action $scenario attempted completion"
+        if [ "$scenario" = mismatched ]; then
+          assert_grep 'pr_head=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' \
+            "$dir/state/task-x1.meta" "the mismatch did not exercise a re-recorded live head"
+          [ ! -e "$dir/ado-voted" ] || fail "$action approved a mismatched expected head"
+          assert_no_regex '^(PUT|POST|PATCH) ' "$dir/ado.log" "expected-head mismatch attempted a forge write"
+        else
+          [ -e "$dir/ado-voted" ] || fail "the head did not move after a successful vote"
+        fi
+      fi
+    done
+  done
+  pass "Azure DevOps pins the reviewed head across approval, completion and the post-vote recheck"
 }
 
 test_quiet_words_keep_ado_green_and_completion_guards() {
@@ -6337,7 +6410,7 @@ PYDB
 test_no_mistakes_review_comment_precondition() {
   local scenario dir url rc expected posts wait review posting ci required
   url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
-  for scenario in present missing posting ci-posting race pipeline unavailable attended yolo yolo-override quiet-override refused unconfirmed unreadable unfinished direct unattributed newer-ready newer-failed newer-poll same-head-review-failed same-head-test-failed same-head-other-push no-matching run-moved head-changed policy-changed authority-entered authority-returned approve-only complete-only; do
+  for scenario in present missing posting ci-posting race pipeline unavailable attended yolo yolo-override quiet-override refused unconfirmed unreadable unfinished direct unattributed newer-ready newer-failed newer-poll same-head-review-failed same-head-test-failed same-head-other-push no-matching run-moved head-changed expected-head-match expected-head-changed expected-complete-only-head-changed policy-changed authority-entered authority-returned approve-only complete-only; do
     dir=$(make_case "review-comment-ado-$scenario")
     add_ado_merge_mocks "$dir"
     printf '%s\n' '<!-- no-mistakes-pipeline-attestation:v1 {"head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","steps":[]} -->' > "$dir/description"
@@ -6414,6 +6487,13 @@ PYDB
         set -- --complete-only
         : > "$dir/ado-already-approved"
         ;;
+      expected-head-match|expected-head-changed)
+        set -- --expected-head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        ;;
+      expected-complete-only-head-changed)
+        set -- --complete-only --expected-head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        : > "$dir/ado-already-approved"
+        ;;
     esac
     set +e
     AZ_TRACE="$dir/comment.log" AZ_DESCRIPTION_FILE="$dir/description" \
@@ -6423,6 +6503,7 @@ PYDB
       FM_TEST_COMMENT_REQUIRED="$required" FM_TEST_COMMENT_LOCK_PROBE=true \
       FM_TEST_COMMENT_AUTHORITY_CHANGE="$([ "$scenario" != authority-entered ] || echo enter; [ "$scenario" != authority-returned ] || echo archive)" \
       FM_TEST_COMMENT_HEAD_CHANGE="$([ "$scenario" != head-changed ] && echo false || echo true)" \
+      FM_TEST_COMMENT_HEAD_CHANGE_AFTER_POST="$([ "$scenario" != expected-head-changed ] && [ "$scenario" != expected-complete-only-head-changed ] && echo false || echo true)" \
       FM_TEST_COMMENT_POLICY_CHANGE="$([ "$scenario" != policy-changed ] && echo false || echo true)" \
       AZ_RUN_HEAD_CHANGE_READ="$([ "$scenario" != run-moved ] && echo 0 || echo 2)" \
       AZ_POST_REFUSED="$([ "$scenario" != refused ] && echo false || echo true)" \
@@ -6434,7 +6515,7 @@ PYDB
     set -e
     expected=0
     case "$scenario" in
-      unavailable|quiet-override|refused|unconfirmed|unreadable|unfinished|no-matching|run-moved|head-changed|policy-changed|authority-entered) expected=1 ;;
+      unavailable|quiet-override|refused|unconfirmed|unreadable|unfinished|no-matching|run-moved|head-changed|expected-head-changed|expected-complete-only-head-changed|policy-changed|authority-entered) expected=1 ;;
     esac
     expect_code "$expected" "$rc" "review comment ado $scenario: $(cat "$dir/stderr")"
     if [ "$expected" = 0 ] && [ "$scenario" != approve-only ]; then
@@ -6446,6 +6527,13 @@ PYDB
       [ ! -e "$dir/ado-voted" ] || fail "$scenario voted before refusing"
       case "$scenario" in
         head-changed) assert_grep 'head changed after recording' "$dir/stderr" "head change was not rejected" ;;
+        expected-head-changed|expected-complete-only-head-changed)
+          assert_grep 'the live head is "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", not the expected head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' \
+            "$dir/stderr" "head movement after review publication was not compared with the reviewed head"
+          assert_no_regex '^(PUT|PATCH) ' "$dir/ado.log" "head movement after review publication attempted approval or completion"
+          jq -e 'any(.value[].comments[]; .content | contains("attestation-head:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))' \
+            "$dir/threads" >/dev/null || fail "the review comment was not published before head movement"
+          ;;
         policy-changed) assert_grep 'policies not approved' "$dir/stderr" "policy change was not rejected" ;;
         *) assert_grep 'automated merge refused - missing no-mistakes review comment' "$dir/stderr" "requirement not named for $scenario: $(cat "$dir/stderr")" ;;
       esac
@@ -6459,7 +6547,7 @@ PYDB
     posts=$(grep -c 'POST' "$dir/comment.log" 2>/dev/null || true)
     posts=${posts:-0}
     case "$scenario" in
-      missing|posting|ci-posting|newer-ready|newer-failed|newer-poll|same-head-review-failed|same-head-test-failed|same-head-other-push|head-changed|policy-changed|complete-only)
+      missing|posting|ci-posting|newer-ready|newer-failed|newer-poll|same-head-review-failed|same-head-test-failed|same-head-other-push|head-changed|expected-head-match|expected-head-changed|expected-complete-only-head-changed|policy-changed|complete-only)
         [ "$posts" = 1 ] || fail "$scenario must post once (got $posts)"
         assert_grep 'fixed-1' "$dir/comment-body" "recorded findings not preserved"
         assert_grep 'no residual findings' "$dir/comment-body" "closed verdict missing"
@@ -6490,6 +6578,7 @@ PYDB
 }
 
 test_no_mistakes_review_comment_precondition
+test_ado_expected_head_actions
 test_gitlab_head_override_args_refuse_before_recording
 test_ado_headless_merge_and_refusals
 test_quiet_words_keep_ado_green_and_completion_guards
