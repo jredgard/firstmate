@@ -24,8 +24,7 @@ test_latch_trips_after_two_engine_errors_then_probes_and_recovers() {
 
   park_again "$home"
   append_status "$home" 'inside the cooldown'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "latch: a close inside the cooldown did not reach main"
+  wait_until_deadline 60 host_exited "$home" || fail "latch: a close inside the cooldown did not reach main"
   assert_re '^signal: .*demo.status' "$home/host.out" "a close inside the cooldown must reach main"
   assert_re '^supervision-host: the away session is paused after repeated engine errors until .*; this wake is yours$' \
     "$home/host.out" "a close inside the cooldown must say why main has it"
@@ -36,8 +35,7 @@ test_latch_trips_after_two_engine_errors_then_probes_and_recovers() {
   end_cooldown "$home"
   park_again "$home"
   append_status "$home" 'the probe fails'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "latch: the failed probe did not hand the wake back"
+  wait_until_deadline 60 host_exited "$home" || fail "latch: the failed probe did not hand the wake back"
   [ "$(engine_calls "$home")" -eq 3 ] || fail "the cooldown's end did not let one wake probe the engine"
   assert_no_re 'paused' "$home/host.out" "a failed probe must not repeat the trip line"
   assert_grep 'cooldown=600' "$home/state/.supervision-host-health" "a failed probe must double the cooldown"
@@ -46,8 +44,7 @@ test_latch_trips_after_two_engine_errors_then_probes_and_recovers() {
   end_cooldown "$home" 2400
   park_again "$home"
   append_status "$home" 'a later probe fails'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "latch: the later failed probe did not hand the wake back"
+  wait_until_deadline 60 host_exited "$home" || fail "latch: the later failed probe did not hand the wake back"
   [ "$(engine_calls "$home")" -eq 4 ] || fail "the grown cooldown's end did not let one wake probe the engine"
   assert_grep 'cooldown=3600' "$home/state/.supervision-host-health" "the doubled cooldown must stop at one hour"
   main_drain_and_ack "$home"
@@ -81,8 +78,7 @@ test_latch_keeps_attended_closes_on_main_and_skips_unopted_homes() {
   FM_HOME="$home" "$CONTRACT" archive >/dev/null 2>&1 || fail "fixture: could not archive the away posture"
   park_again "$home"
   append_status "$home" 'attended while latched'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "latch scope: the attended close did not reach main"
+  wait_until_deadline 60 host_exited "$home" || fail "latch scope: the attended close did not reach main"
   assert_re '^signal: .*demo.status' "$home/host.out" "an attended close in a latched session must reach main"
   assert_no_re '^supervision-host' "$home/host.out" "an attended close in a latched session must reach main exactly as the arm printed it"
   [ "$(cat "$home/state/.supervision-host-health")" = "$health" ] || fail "an attended close changed the latch"
@@ -93,8 +89,7 @@ test_latch_keeps_attended_closes_on_main_and_skips_unopted_homes() {
     || fail "fixture: could not record the away posture again"
   park_again "$home"
   append_status "$home" 'away after opting out'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "latch scope: the close after the opt-out did not reach main"
+  wait_until_deadline 60 host_exited "$home" || fail "latch scope: the close after the opt-out did not reach main"
   assert_re '^supervision-host: the home no longer runs the supervision host$' "$home/host.out" \
     "a home opted out by config/supervision-host-off must hand the close back as the opt-out, not the latch"
   assert_no_re 'paused' "$home/host.out" "a home opted out by config/supervision-host-off must not read the latch"
@@ -109,8 +104,7 @@ test_attended_latch_keeps_closes_on_main_and_records_recovery_off_main() {
   start_session "$home"
   park_again "$home"
   append_status "$home" 'first'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "latch: the first engine error did not hand the wake back"
+  wait_until_deadline 60 host_exited "$home" || fail "latch: the first engine error did not hand the wake back"
   assert_re '^supervision-host: the supervision session could not take this wake: the engine turn failed \(exit 3\); this wake is yours$' \
     "$home/host.out" "the first engine error must hand the wake back with its reason"
   assert_no_re 'paused' "$home/host.out" "one engine error must not latch the session"
@@ -118,8 +112,7 @@ test_attended_latch_keeps_closes_on_main_and_records_recovery_off_main() {
 
   park_again "$home"
   append_status "$home" 'second'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "latch: the second engine error did not hand the wake back"
+  wait_until_deadline 60 host_exited "$home" || fail "latch: the second engine error did not hand the wake back"
   assert_re '^supervision-host: the supervision session is paused after repeated engine errors; every wake reaches you for the next 5 minutes' "$home/host.out" \
     "the second consecutive engine error must trip the latch with one line"
   assert_grep 'cooldown=300' "$home/state/.supervision-host-health" "the latch must start with the Pi policy's five-minute cooldown"
@@ -127,8 +120,7 @@ test_attended_latch_keeps_closes_on_main_and_records_recovery_off_main() {
 
   park_again "$home"
   append_status "$home" 'inside the cooldown'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "latch: a close inside the cooldown did not reach main"
+  wait_until_deadline 60 host_exited "$home" || fail "latch: a close inside the cooldown did not reach main"
   assert_re '^signal: .*demo.status' "$home/host.out" "a close inside the cooldown must reach main"
   assert_no_re '^supervision-host' "$home/host.out" "a close inside the cooldown must reach main exactly as the arm printed it"
   [ "$(engine_calls "$home")" -eq 2 ] || fail "the engine ran inside the cooldown"
@@ -139,8 +131,7 @@ test_attended_latch_keeps_closes_on_main_and_records_recovery_off_main() {
   end_cooldown "$home"
   park_again "$home"
   append_status "$home" 'the probe fails'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "latch: the failed probe did not hand the wake back"
+  wait_until_deadline 60 host_exited "$home" || fail "latch: the failed probe did not hand the wake back"
   [ "$(engine_calls "$home")" -eq 3 ] || fail "the cooldown's end did not let one wake probe the engine"
   assert_no_re 'paused' "$home/host.out" "a failed probe must not repeat the trip line"
   assert_grep 'cooldown=600' "$home/state/.supervision-host-health" "a failed probe must double the cooldown"
@@ -149,8 +140,7 @@ test_attended_latch_keeps_closes_on_main_and_records_recovery_off_main() {
   end_cooldown "$home" 2400
   park_again "$home"
   append_status "$home" 'a later probe fails'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "latch: the later failed probe did not hand the wake back"
+  wait_until_deadline 60 host_exited "$home" || fail "latch: the later failed probe did not hand the wake back"
   [ "$(engine_calls "$home")" -eq 4 ] || fail "the grown cooldown's end did not let one wake probe the engine"
   assert_grep 'cooldown=3600' "$home/state/.supervision-host-health" "the doubled cooldown must stop at one hour"
   main_drain_and_ack "$home"
@@ -471,8 +461,7 @@ test_first_cycle_status_streams_and_owner_options_reach_it() {
     || fail "stream: the first cycle's status did not reach the owner before a close: $(cat "$home/host.out")"
   host_exited "$home" && fail "stream: the host exited before any close: $(cat "$home/host.out")"
   append_status "$home" 'fixture finished' 'done'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "stream: the attended close did not reach main"
+  wait_until_deadline 60 host_exited "$home" || fail "stream: the attended close did not reach main"
   [ "$(grep -c '^watcher: ' "$home/host.out")" -eq 1 ] || fail "stream: the status line must be printed once: $(cat "$home/host.out")"
   [ "$(sed -n '1p' "$home/host.out" | cut -c1-17)" = 'watcher: started ' ] || fail "stream: the status line must come first"
   assert_re '^signal: .*demo.status' "$home/host.out" "stream: the close must follow the status line"
@@ -503,8 +492,7 @@ test_first_cycle_status_streams_and_owner_options_reach_it() {
   [ "$fresh" != "$stale" ] || fail "stream: --restart attached to the watcher it should have replaced"
   wait_until 100 sh -c '! kill -0 "$1" 2>/dev/null' _ "$stale" || fail "stream: --restart left the old watcher running"
   wait_until 200 host_exited "$home" || append_status "$home" 'second close' 'done'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "stream: the restarting host's close did not reach main"
+  wait_until_deadline 60 host_exited "$home" || fail "stream: the restarting host's close did not reach main"
   assert_re '^(signal: .*demo.status|check: rearm-resurface)$' "$home/host.out" "stream: the restarting host's close must reach main"
 
   # That close left an unacknowledged downtime episode; a host the owner starts
@@ -592,8 +580,7 @@ test_unverified_engine_hands_every_away_wake_to_main() {
   start_host "$home"
   wait_until 150 watcher_live "$home" || fail "no engine: the host never started a watcher cycle"
   append_status "$home" 'anything'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "no engine: the wake did not reach main"
+  wait_until_deadline 60 host_exited "$home" || fail "no engine: the wake did not reach main"
   assert_re "^supervision-host: no supervision engine runs here: config/supervision-host names 'pi', which is not a verified supervision engine" \
     "$home/host.out" "an unverified engine must be named on the wake it hands to main"
   ! ls "$home"/engine-call.* >/dev/null 2>&1 || fail "no engine: an engine ran"

@@ -354,8 +354,7 @@ test_claude_stop_hook_delivers_a_main_only_pass_through() {
   turn_end "$home"
   wait_until 150 watcher_live "$home" || fail "hook main-only: the Stop hook never started a watcher cycle: $(cat "$home/hook.err" 2>/dev/null)"
   append_status "$home" 'which export format?' needs-decision
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 hook_exited "$home" || fail "hook main-only: the Stop hook never closed: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 hook_exited "$home" || fail "hook main-only: the Stop hook never closed: $(cat "$home/state/.supervision-host.log")"
   assert_re '	pass-through	attended	main-only	signal:' "$home/state/.supervision-host.log" "fixture: the close was not a main-only pass-through"
   assert_rewoke_main "$home" "hook main-only"
   assert_re '^signal: .*demo.status' "$home/hook.err" "the rewake must carry the close"
@@ -412,8 +411,7 @@ test_claude_stop_hook_rewakes_a_present_captain_beside_a_quiet_record() {
   turn_end "$home"
   wait_until 150 watcher_live "$home" || fail "hook quiet: the Stop hook never started a watcher cycle: $(cat "$home/hook.err" 2>/dev/null)"
   append_status "$home" 'ready for review'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 hook_exited "$home" || fail "hook quiet: the Stop hook never closed: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 hook_exited "$home" || fail "hook quiet: the Stop hook never closed: $(cat "$home/state/.supervision-host.log")"
   assert_re '	handled	turn=[^	]*	posture=quiet	' "$home/state/.supervision-host.log" "a quiet-with-words record must put the host's turn under the quiet posture"
   assert_rewoke_main "$home" "hook quiet"
   assert_re '^supervision-host: branch-outcome: ' "$home/hook.err" "the rewake must carry the captain outcome"
@@ -458,8 +456,7 @@ test_claude_stop_hook_runs_the_host_without_the_file_and_off_opts_out() {
   turn_end "$home"
   wait_until 150 watcher_live "$home" || fail "off: the Stop hook never started a watcher cycle: $(cat "$home/hook.err" 2>/dev/null)"
   append_status "$home" 'step one'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 hook_exited "$home" || fail "off: the Stop hook never closed"
+  wait_until_deadline 60 hook_exited "$home" || fail "off: the Stop hook never closed"
   assert_rewoke_main "$home" "off"
   assert_re '^signal: .*demo.status' "$home/hook.err" "off: the rewake must carry the arm's close"
   assert_no_re '^supervision-host' "$home/hook.err" "off: the close must reach main exactly as the arm printed it"
@@ -480,8 +477,7 @@ test_claude_stop_hook_delivers_a_close_that_turns_main_only_at_its_turn() {
   turn_end "$home"
   wait_until 150 watcher_live "$home" || fail "hook turns-main-only: the Stop hook never started a watcher cycle: $(cat "$home/hook.err" 2>/dev/null)"
   append_status "$home" 'step one'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 hook_exited "$home" || fail "hook turns-main-only: the Stop hook never closed: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 hook_exited "$home" || fail "hook turns-main-only: the Stop hook never closed: $(cat "$home/state/.supervision-host.log")"
   [ "$(cat "$home/offer-count" 2>/dev/null)" -ge 2 ] || fail "fixture: the close was not accepted before it turned main-only"
   [ "$(engine_calls "$home")" -eq 0 ] || fail "hook turns-main-only: the engine ran on a stale offer"
   assert_rewoke_main "$home" "hook turns-main-only"
@@ -501,8 +497,7 @@ test_successor_left_at_the_turn_survives_the_hook_process_group_teardown() {
   turn_end "$home"
   wait_until 150 watcher_live "$home" || fail "at-turn teardown: the Stop hook never started a watcher cycle: $(cat "$home/hook.err" 2>/dev/null)"
   append_status "$home" 'step one'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 hook_exited "$home" || fail "at-turn teardown: the Stop hook never closed: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 hook_exited "$home" || fail "at-turn teardown: the Stop hook never closed: $(cat "$home/state/.supervision-host.log")"
   [ "$(cat "$home/offer-count" 2>/dev/null)" -ge 2 ] || fail "fixture: the close was not accepted before it turned main-only"
   assert_rewoke_main "$home" "at-turn teardown"
   watcher=$(cat "$home/state/.watch.lock/pid")
@@ -534,7 +529,7 @@ SH
   turn_end "$home"
   wait_until 150 watcher_live "$home" || fail "hook write failure: no watcher started"
   append_status "$home" 'step one'
-  wait_until 600 hook_exited "$home" || fail "hook write failure: the Stop hook did not finish"
+  wait_until_deadline 60 hook_exited "$home" || fail "hook write failure: the Stop hook did not finish"
   [ "$(cat "$home/offer-count" 2>/dev/null)" -ge 2 ] || fail "fixture: the close did not turn main-only at its turn"
   assert_re 'pass-through[[:space:]]+downtime-unrestored' "$home/state/.supervision-host.log" "fixture: downtime publication did not fail"
   assert_re '^(pending|announced):handling:' "$home/state/.watcher-down" "fixture: the marker unexpectedly became downtime"
@@ -555,8 +550,7 @@ test_successor_close_during_main_turn_is_delivered_at_the_next_turn_end() {
   turn_end "$home"
   wait_until 150 watcher_live "$home" || fail "successor close: the Stop hook never started a watcher cycle: $(cat "$home/hook.err" 2>/dev/null)"
   append_status "$home" 'which export format?' needs-decision
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 hook_exited "$home" || fail "successor close: the first close never reached the Stop hook: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 hook_exited "$home" || fail "successor close: the first close never reached the Stop hook: $(cat "$home/state/.supervision-host.log")"
   assert_rewoke_main "$home" "successor close (first)"
   successor=$(cat "$home/state/.watch.lock/pid")
   main_drain "$home" >/dev/null
@@ -568,8 +562,7 @@ test_successor_close_during_main_turn_is_delivered_at_the_next_turn_end() {
   [ -z "$MAIN_ACK" ] || FM_HOME="$home" "$FAKE_CLAUDE" -c '"$0" "$@" >/dev/null 2>&1' "$ROOT/bin/fm-wake-drain.sh" $MAIN_ACK \
     || fail "successor close: main's acknowledgement failed: $MAIN_ACK"
   turn_end "$home"
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 hook_exited "$home" || fail "successor close: the next turn end never closed: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 hook_exited "$home" || fail "successor close: the next turn end never closed: $(cat "$home/state/.supervision-host.log")"
   assert_rewoke_main "$home" "successor close (next turn end)"
   drained=$(main_drain "$home")
   assert_contains "$drained" 'which region?' "the successor's close must reach main's drain"
@@ -592,8 +585,7 @@ test_pass_through_successor_survives_the_hook_process_group_teardown() {
   turn_end "$home"
   wait_until 150 watcher_live "$home" || fail "group teardown: the Stop hook never started a watcher cycle: $(cat "$home/hook.err" 2>/dev/null)"
   append_status "$home" 'which export format?' needs-decision
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 hook_exited "$home" || fail "group teardown: the decision close never reached the Stop hook: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 hook_exited "$home" || fail "group teardown: the decision close never reached the Stop hook: $(cat "$home/state/.supervision-host.log")"
   assert_re '	pass-through	attended	main-only	signal:' "$home/state/.supervision-host.log" "fixture: the close was not a main-only pass-through"
   assert_rewoke_main "$home" "group teardown (pass-through)"
   watcher=$(cat "$home/state/.watch.lock/pid")
@@ -624,8 +616,7 @@ test_next_park_takes_over_the_cycle_a_pass_through_left_for_main() {
   assert_re '^acked:' "$home/state/.watcher-down" "takeover: the takeover opened a downtime episode"
   assert_no_re 'rearm-resurface' "$home/state/.supervision-host.log" "takeover: the takeover resurfaced a recovery to main"
   append_status "$home" 'which region?' needs-decision
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 hook_exited "$home" || fail "takeover: the owned cycle did not deliver the next close: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 hook_exited "$home" || fail "takeover: the owned cycle did not deliver the next close: $(cat "$home/state/.supervision-host.log")"
   assert_rewoke_main "$home" "takeover (next close)"
   assert_re '^signal: .*demo.status' "$home/hook.err" "takeover: the next close must carry the watcher's reason line"
   pass "host+hook: the next park takes over the cycle a main-only pass-through left, so one arm owns it"
@@ -679,8 +670,7 @@ test_unrecorded_successor_is_stopped_rather_than_left_for_main() {
   turn_end "$home"
   wait_until 150 watcher_live "$home" || fail "unrecorded successor: the Stop hook never started a watcher cycle: $(cat "$home/hook.err" 2>/dev/null)"
   append_status "$home" 'which export format?' needs-decision
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 hook_exited "$home" || fail "unrecorded successor: the decision close never reached the Stop hook: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 hook_exited "$home" || fail "unrecorded successor: the decision close never reached the Stop hook: $(cat "$home/state/.supervision-host.log")"
   assert_re '	pass-through	attended	main-only	signal:' "$home/state/.supervision-host.log" "fixture: the close was not a main-only pass-through"
   assert_re '	pass-through	successor-unrecorded	signal:' "$home/state/.supervision-host.log" "unrecorded successor: the failed record was not logged"
   assert_rewoke_main "$home" "unrecorded successor (pass-through)"

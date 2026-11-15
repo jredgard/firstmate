@@ -136,8 +136,7 @@ test_attended_captain_outcome_reaches_main_through_branch_outcomes() {
   start_host "$home"
   wait_until 150 watcher_live "$home" || fail "captain: the host never started a watcher cycle"
   append_status "$home" 'ready for review'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "captain: the captain outcome did not wake main: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 host_exited "$home" || fail "captain: the captain outcome did not wake main: $(cat "$home/state/.supervision-host.log")"
   expect_code 0 "$(cat "$home/host.rc")" "a captain-outcome exit must exit 0 for the owner to deliver"
   assert_re '^supervision-host: branch-outcome: .*\(store rows 1\); run bin/fm-wake-drain.sh' "$home/host.out" \
     "the exit must name the captain outcome's store row and send main to its drain"
@@ -194,8 +193,7 @@ test_quiet_record_without_its_daemon_is_a_present_captain() {
   start_host "$home"
   wait_until 150 watcher_live "$home" || fail "quiet: the host never started a watcher cycle"
   append_status "$home" 'ready for review'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "quiet: the captain outcome did not wake the present captain's main: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 host_exited "$home" || fail "quiet: the captain outcome did not wake the present captain's main: $(cat "$home/state/.supervision-host.log")"
   assert_re '	handled	turn=[^	]*	posture=attended	' "$home/state/.supervision-host.log" "a wordless quiet record must leave the host's turn attended"
   assert_no_re '^POSTURE: AWAY' "$home/engine-call.1" "a turn beside a quiet record must carry no away tail"
   assert_re 'MAIN DIALOG MIRROR' "$home/engine-call.1" "a turn beside a quiet record must carry the captain's dialog"
@@ -211,8 +209,7 @@ test_quiet_record_without_its_daemon_is_a_present_captain() {
   start_host "$home"
   wait_until 150 watcher_live "$home" || fail "quiet main-only: the host never started a watcher cycle"
   append_status "$home" 'which export format?' needs-decision
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "quiet main-only: the decision close did not reach main: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 host_exited "$home" || fail "quiet main-only: the decision close did not reach main: $(cat "$home/state/.supervision-host.log")"
   assert_re '^signal: .*demo.status' "$home/host.out" "the decision close must reach main as the arm printed it"
   [ "$(engine_calls "$home")" -eq 0 ] || fail "quiet main-only: the engine took a decision close from a present captain"
   assert_re '	pass-through	attended	main-only	signal:' "$home/state/.supervision-host.log" "the ledger must record the attended main-only pass-through"
@@ -225,8 +222,7 @@ test_attended_main_only_close_passes_straight_to_main() {
   start_host "$home"
   wait_until 150 watcher_live "$home" || fail "main-only: the host never started a watcher cycle"
   append_status "$home" 'which export format?' needs-decision
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "main-only: the decision close did not reach main: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 host_exited "$home" || fail "main-only: the decision close did not reach main: $(cat "$home/state/.supervision-host.log")"
   expect_code 0 "$(cat "$home/host.rc")" "a main-only close must exit 0"
   assert_re '^signal: .*demo.status' "$home/host.out" "the close must carry the watcher's reason line"
   assert_no_re '^supervision-host' "$home/host.out" "a main-only close must reach main exactly as the arm printed it"
@@ -248,8 +244,7 @@ test_off_written_while_parked_passes_the_next_attended_close_to_main() {
   wait_until 150 watcher_live "$home" || fail "off while parked: the host never started a watcher cycle"
   : > "$home/config/supervision-host-off"
   append_status "$home" 'step one'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "off while parked: the close did not reach main: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 host_exited "$home" || fail "off while parked: the close did not reach main: $(cat "$home/state/.supervision-host.log")"
   expect_code 0 "$(cat "$home/host.rc")" "a close on a home that opted out must exit 0"
   assert_re '^signal: .*demo.status' "$home/host.out" "the close must carry the watcher's reason line"
   assert_no_re '^supervision-host' "$home/host.out" "the close must reach main exactly as the arm printed it"
@@ -272,8 +267,7 @@ test_main_only_pass_through_leaves_the_successor_watcher_running() {
   start_host "$home"
   wait_until 150 watcher_live "$home" || fail "successor: the host never started a watcher cycle"
   append_status "$home" 'which export format?' needs-decision
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "successor: the decision close did not reach main: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 host_exited "$home" || fail "successor: the decision close did not reach main: $(cat "$home/state/.supervision-host.log")"
   expect_code 0 "$(cat "$home/host.rc")" "a main-only close must exit 0"
   assert_re '^signal: .*demo.status' "$home/host.out" "the close must carry the watcher's reason line"
   assert_no_re '^supervision-host' "$home/host.out" "a main-only close must reach main exactly as the arm printed it"
@@ -309,8 +303,7 @@ test_attended_close_with_unidentified_main_session_passes_to_main() {
     ' "$HOST" 2>> "$home/claude.err" &
   wait_until 150 watcher_live "$home" || fail "unidentified: the host never started a watcher cycle: $(cat "$home/host.out")"
   append_status "$home" 'step one'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "unidentified: the close did not reach main: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 host_exited "$home" || fail "unidentified: the close did not reach main: $(cat "$home/state/.supervision-host.log")"
   expect_code 0 "$(cat "$home/host.rc")" "a close for an unidentified main session must exit 0"
   assert_re '^signal: .*demo.status' "$home/host.out" "the close must carry the watcher's reason line"
   assert_no_re '^supervision-host' "$home/host.out" "the close must reach main exactly as the arm printed it"
@@ -346,8 +339,7 @@ SH
   start_host "$home"
   wait_until 150 watcher_live "$home" || fail "away-then-attended: the host never started a watcher cycle"
   append_status "$home" 'which export format?' needs-decision
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "away-then-attended: the decision close did not reach main: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 host_exited "$home" || fail "away-then-attended: the decision close did not reach main: $(cat "$home/state/.supervision-host.log")"
   assert_absent "$home/state/.afk-contract" "fixture: the captain did not return before the turn"
   expect_code 0 "$(cat "$home/host.rc")" "the close must exit 0"
   assert_re '^signal: .*demo.status' "$home/host.out" "the close must carry the watcher's reason line"
@@ -367,8 +359,7 @@ test_attended_close_that_turns_main_only_before_its_turn_passes_to_main() {
   start_host "$home"
   wait_until 150 watcher_live "$home" || fail "turns-main-only: the host never started a watcher cycle"
   append_status "$home" 'step one'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "turns-main-only: the close did not reach main: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 host_exited "$home" || fail "turns-main-only: the close did not reach main: $(cat "$home/state/.supervision-host.log")"
   assert_grep 'which export format?' "$home/state/demo.status" "fixture: the decision was not recorded before the turn"
   expect_code 0 "$(cat "$home/host.rc")" "the close must exit 0"
   assert_re '^signal: .*demo.status' "$home/host.out" "the close must carry the watcher's reason line"
@@ -402,8 +393,7 @@ test_primary_without_a_verified_mirror_runs_away_only() {
     FM_SUPERVISION_HOST_PRIMARY=$harness start_host "$home"
     wait_until 150 watcher_live "$home" || fail "$harness: the host never started a watcher cycle"
     append_status "$home" 'fixture finished' 'done'
-    # The fork's slower CI runners need headroom for this host/engine wait.
-    wait_until 450 host_exited "$home" || fail "$harness: the host did not hand the attended close to main"
+    wait_until_deadline 60 host_exited "$home" || fail "$harness: the host did not hand the attended close to main"
     assert_re '^signal: .*demo.status' "$home/host.out" "the close must carry the watcher's reason line"
     assert_no_re '^supervision-host' "$home/host.out" "the close must reach main exactly as the arm printed it"
     [ "$(engine_calls "$home")" -eq 0 ] || fail "$harness: the engine ran an attended wake without a verified dialog mirror"
@@ -567,8 +557,7 @@ SH
   echo noreport > "$home/stub-mode"
   park_after_stop "$home"
   append_status "$home" 'no report'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "mirror boundary: the unreported turn did not hand its wake back"
+  wait_until_deadline 60 host_exited "$home" || fail "mirror boundary: the unreported turn did not hand its wake back"
   assert_re '^\[captain\] fourth ask, turn unreported$' "$home/engine-call.5" "fixture: the unreported turn did not carry the fourth dialog"
   main_drain_and_ack "$home"
   echo handle > "$home/stub-mode"
@@ -600,8 +589,7 @@ test_attended_wake_with_an_unreadable_mirror_reaches_main() {
 
   rm -f "$mirror"
   append_status "$home" 'missing mirror'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "bad mirror: a missing mirror did not hand the wake to main"
+  wait_until_deadline 60 host_exited "$home" || fail "bad mirror: a missing mirror did not hand the wake to main"
   assert_re '^signal: .*demo.status' "$home/host.out" "the handed-back close must carry the watcher's reason line"
   assert_re '^supervision-host: the supervision session could not take this wake: the dialog mirror could not be read; this wake is yours$' \
     "$home/host.out" "a missing mirror must hand the wake to main with its reason"
@@ -614,8 +602,7 @@ test_attended_wake_with_an_unreadable_mirror_reaches_main() {
   [ -f "$mirror" ] || fail "fixture: the next park did not write the mirror again"
   chmod 000 "$mirror"
   append_status "$home" 'unreadable mirror'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "bad mirror: an unreadable mirror did not hand the wake to main"
+  wait_until_deadline 60 host_exited "$home" || fail "bad mirror: an unreadable mirror did not hand the wake to main"
   chmod 644 "$mirror"
   assert_re '^signal: .*demo.status' "$home/host.out" "the handed-back close must carry the watcher's reason line"
   assert_re '^supervision-host: the supervision session could not take this wake: the dialog mirror could not be read; this wake is yours$' \
@@ -630,8 +617,7 @@ test_attended_wake_with_an_unreadable_mirror_reaches_main() {
   chmod +x "$home/fakebin/node"
   park_again "$home"
   append_status "$home" 'mirror lost before the prompt'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "bad mirror: a feed lost before the prompt did not hand the wake to main"
+  wait_until_deadline 60 host_exited "$home" || fail "bad mirror: a feed lost before the prompt did not hand the wake to main"
   rm -f "$home/fakebin/node"
   assert_re '^supervision-host: the supervision session could not take this wake: the dialog mirror could not be read; this wake is yours$' \
     "$home/host.out" "a feed lost before the prompt must hand the wake to main with its reason"
@@ -643,8 +629,7 @@ test_attended_wake_with_an_unreadable_mirror_reaches_main() {
   printf '\n' >> "$mirror"
   park_again "$home"
   append_status "$home" 'malformed mirror'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "bad mirror: a malformed mirror entry did not hand the wake to main"
+  wait_until_deadline 60 host_exited "$home" || fail "bad mirror: a malformed mirror entry did not hand the wake to main"
   assert_re '^supervision-host: the supervision session could not take this wake: the dialog mirror could not be read; this wake is yours$' \
     "$home/host.out" "a malformed mirror entry must hand the wake to main with its reason"
   [ "$(engine_calls "$home")" -eq 1 ] || fail "bad mirror: the engine ran past a malformed mirror entry"
@@ -720,8 +705,7 @@ test_away_turn_without_a_report_hands_the_wake_to_main() {
   start_host "$home"
   wait_until 150 watcher_live "$home" || fail "noreport: the host never started a watcher cycle"
   append_status "$home" 'needs a look'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "noreport: the host did not hand the wake to main"
+  wait_until_deadline 60 host_exited "$home" || fail "noreport: the host did not hand the wake to main"
   expect_code 0 "$(cat "$home/host.rc")" "a handed-back wake must exit 0 for the owner to deliver"
   assert_re '^signal: .*demo.status' "$home/host.out" "the handed-back close must carry the reason line"
   assert_re '^supervision-host: .*recorded no outcome for its wake; this wake is yours$' "$home/host.out" "the handback must say why"
@@ -743,8 +727,7 @@ test_return_during_an_engine_turn_hands_its_outcomes_to_main() {
   start_host "$home"
   wait_until 150 watcher_live "$home" || fail "return: the host never started a watcher cycle"
   append_status "$home" 'mid-task'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "return: the host did not hand the late outcome to main: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 host_exited "$home" || fail "return: the host did not hand the late outcome to main: $(cat "$home/state/.supervision-host.log")"
   expect_code 0 "$(cat "$home/host.rc")" "a late-outcome handoff must exit 0 for the owner to deliver"
   assert_absent "$home/state/.afk-contract" "fixture: the stub's return did not archive the record"
   assert_re '^signal: .*demo.status' "$home/host.out" "the handoff must carry the close"
@@ -780,8 +763,7 @@ test_silent_outcomes_are_not_relayed_when_the_captain_returns() {
       kill -TERM "$host"
       wait_until_deadline 60 host_exited "$home" || fail "$mode: the host did not stop on TERM"
     else
-      # The fork's slower CI runners need headroom for this host/engine wait.
-      wait_until 450 host_exited "$home" || fail "$mode: the failed turn did not hand the wake to main: $(cat "$home/host.out" 2>/dev/null) $(tail -n 8 "$home/state/.supervision-host.log" 2>/dev/null)"
+      wait_until_deadline 60 host_exited "$home" || fail "$mode: the failed turn did not hand the wake to main: $(cat "$home/host.out" 2>/dev/null) $(tail -n 8 "$home/state/.supervision-host.log" 2>/dev/null)"
       assert_re '^supervision-host: the away session could not take this wake: the engine turn failed \(exit 3\); this wake is yours$' \
         "$home/host.out" "$mode: the failed turn must still hand its wake to main"
     fi
@@ -855,8 +837,7 @@ test_outcome_after_the_return_survives_a_host_killed_at_the_turn_end() {
 
   rm -f "$home/host.rc"
   start_host "$home"
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "return-first: the next host did not resurface the queued outcome"
+  wait_until_deadline 60 host_exited "$home" || fail "return-first: the next host did not resurface the queued outcome"
   assert_re '^check: rearm-resurface$' "$home/host.out" "the next host's first cycle must resurface the queue"
   assert_re '	pass-through	attended	main-only	check: rearm-resurface' "$home/state/.supervision-host.log" "the attended resurface must reach main"
   drained=$(FM_HOME="$home" "$ROOT/bin/fm-wake-drain.sh" 2>&1)
@@ -887,8 +868,7 @@ test_next_host_clears_a_turn_its_killed_predecessor_left() {
 
   rm -f "$home/host.rc"
   start_host "$home"
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "killed: the next host did not resurface the queued outcome"
+  wait_until_deadline 60 host_exited "$home" || fail "killed: the next host did not resurface the queued outcome"
   ! kill -0 "$engine" 2>/dev/null || fail "the next host revived its killed predecessor's engine"
   for f in "$home"/state/.supervision-host-result.* "$home"/state/.supervision-host-errors.* \
     "$home"/state/.supervision-host-descendants.* "$home/state/.supervision-host-turn"; do
@@ -905,8 +885,7 @@ test_report_without_acknowledgement_hands_the_wake_to_main() {
   start_host "$home"
   wait_until 150 watcher_live "$home" || fail "noack: the host never started a watcher cycle"
   append_status "$home" 'reported, never acknowledged'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "noack: the host counted an unacknowledged wake handled: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 host_exited "$home" || fail "noack: the host counted an unacknowledged wake handled: $(cat "$home/state/.supervision-host.log")"
   expect_code 0 "$(cat "$home/host.rc")" "a handed-back wake must exit 0 for the owner to deliver"
   assert_grep '"task":"demo"' "$home/state/branch-outcomes.jsonl" "fixture: the stub did not report"
   assert_re '^signal: .*demo.status' "$home/host.out" "the handed-back close must carry the reason line"
@@ -926,8 +905,7 @@ test_return_during_a_failed_turn_still_hands_its_outcomes_to_main() {
   start_host "$home"
   wait_until 150 watcher_live "$home" || fail "return-fail: the host never started a watcher cycle"
   append_status "$home" 'mid-task, then a crash'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "return-fail: the host did not hand the wake to main"
+  wait_until_deadline 60 host_exited "$home" || fail "return-fail: the host did not hand the wake to main"
   expect_code 0 "$(cat "$home/host.rc")" "a failed turn's handback must exit 0 for the owner to deliver"
   assert_absent "$home/state/.afk-contract" "fixture: the stub's return did not archive the record"
   assert_re '^supervision-host: the away session could not take this wake: the engine turn failed \(exit 3\); .*captain returned during its turn.*store rows 1[,)]' "$home/host.out" \
@@ -945,8 +923,7 @@ test_incomplete_engine_result_hands_the_wake_to_main() {
   start_host "$home"
   wait_until 150 watcher_live "$home" || fail "emptyresult: the host never started a watcher cycle"
   append_status "$home" 'handled, but the result is empty'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$home" || fail "emptyresult: the host counted an empty result handled: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 host_exited "$home" || fail "emptyresult: the host counted an empty result handled: $(cat "$home/state/.supervision-host.log")"
   expect_code 0 "$(cat "$home/host.rc")" "a handed-back wake must exit 0 for the owner to deliver"
   assert_grep '"task":"demo"' "$home/state/branch-outcomes.jsonl" "fixture: the stub did not report"
   assert_re '^signal: .*demo.status' "$home/host.out" "the handed-back close must carry the reason line"

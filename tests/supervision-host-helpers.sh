@@ -631,8 +631,7 @@ SH
     "fixture: the first turn did not leave an inherited handling episode"
   [ "$mode" != refuse ] || : > "$home/fail-downtime-write"
   : > "$home/before-return.release"
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 hook_exited "$home" || fail "inherited handling: the Stop hook did not finish"
+  wait_until_deadline 60 hook_exited "$home" || fail "inherited handling: the Stop hook did not finish"
   assert_re 'handled.*posture=attended' "$home/state/.supervision-host.log" "the first turn must finish"
   assert_re 'pass-through[[:space:]]+attended[[:space:]]+main-only[[:space:]]+signal: .*beta.status' \
     "$home/state/.supervision-host.log" "the second close must use the initial main-only path"
@@ -738,8 +737,7 @@ SH
     "fixture: the closed handling successor must leave the marker in handling before the host hands back"
   : > "$home/fail-downtime-write"
   printf 'continue\n' > "$home/stub-release"
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 hook_exited "$home" || fail "restore failure: the Stop hook did not finish"
+  wait_until_deadline 60 hook_exited "$home" || fail "restore failure: the Stop hook did not finish"
   expect_code 2 "$(cat "$home/hook.rc")" "the Stop hook must notify main when neither hand-back nor downtime restoration commits"
   assert_grep 'firstmate watcher auto-arm FAILED' "$home/hook.err" "the refused rewake must turn into a delivered failure notice"
   assert_re '^epoch=[0-9]+ owner_pid=[0-9]+ outcome=failed ' "$home/state/.claude-autoarm-epoch" \
@@ -779,8 +777,7 @@ leave_a_cycle_for_main_and_restart() {  # <home>
   turn_end "$home"
   wait_until 150 watcher_live "$home" || fail "takeover: the Stop hook never started a watcher cycle: $(cat "$home/hook.err" 2>/dev/null)"
   append_status "$home" 'which export format?' needs-decision
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 hook_exited "$home" || fail "takeover: the decision close never reached the Stop hook: $(cat "$home/state/.supervision-host.log")"
+  wait_until_deadline 60 hook_exited "$home" || fail "takeover: the decision close never reached the Stop hook: $(cat "$home/state/.supervision-host.log")"
   assert_re '	pass-through	attended	main-only	signal:' "$home/state/.supervision-host.log" "fixture: the close was not a main-only pass-through"
   assert_rewoke_main "$home" "takeover (pass-through)"
   LEFT_WATCHER=$(cat "$home/state/.watch.lock/pid")
@@ -840,8 +837,7 @@ quiet_pass_through_successor() {  # <home>
 park_after_stop() {  # <home>
   rm -f "$1/host.rc"
   : > "$1/park.go"
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$1" || fail "the watcher's downtime resurface did not reach main: $(cat "$1/host.out")"
+  wait_until_deadline 60 host_exited "$1" || fail "the watcher's downtime resurface did not reach main: $(cat "$1/host.out")"
   assert_re '^check: rearm-resurface' "$1/host.out" "fixture: the first close after the watcher stopped was not its resurface"
   main_drain_and_ack "$1"
   quiet_pass_through_successor "$1"
@@ -964,16 +960,14 @@ trip_latch() {  # <home>
   start_session "$1"
   park_again "$1"
   append_status "$1" 'first'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$1" || fail "latch: the first engine error did not hand the wake back"
+  wait_until_deadline 60 host_exited "$1" || fail "latch: the first engine error did not hand the wake back"
   assert_re '^supervision-host: the away session could not take this wake: the engine turn failed \(exit 3\); this wake is yours$' \
     "$1/host.out" "the first engine error must hand the wake back with its reason"
   assert_no_re 'paused' "$1/host.out" "one engine error must not latch the session"
   main_drain_and_ack "$1"
   park_again "$1"
   append_status "$1" 'second'
-  # The fork's slower CI runners need headroom for this host/engine wait.
-  wait_until 450 host_exited "$1" || fail "latch: the second engine error did not hand the wake back"
+  wait_until_deadline 60 host_exited "$1" || fail "latch: the second engine error did not hand the wake back"
   assert_re '^supervision-host: the away session could not take this wake: the engine turn failed \(exit 3\); this wake is yours$' \
     "$1/host.out" "the tripping handback must still say why"
   assert_re '^supervision-host: the supervision session is paused after repeated engine errors; every wake reaches you for the next 5 minutes' \
