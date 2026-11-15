@@ -79,8 +79,8 @@ META_TMP=$(mktemp "$STATE/.fm-remote-relaunch-meta.XXXXXX") || {
   printf 'effort=%s\n' "$NEW_EFFORT"
 } >> "$META_TMP"
 # Every other line is preserved in its original relative order after the
-# refreshed harness/model/effort, including pr= and pr_head=; PR identity
-# parsing does not require those fields to be last in the record.
+# refreshed harness/model/effort, keeping the authenticated poll suffix
+# beginning at pr= last; task identity parsing still reads the full record.
 while IFS= read -r line || [ -n "$line" ]; do
   case "$line" in
     harness=*|model=*|effort=*) ;;
