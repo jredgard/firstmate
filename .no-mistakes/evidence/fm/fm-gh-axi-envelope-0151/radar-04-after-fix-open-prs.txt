@@ -1,0 +1,45 @@
+=== scenario: AFTER fix (0a412b23), origin kunchenguid/gh-axi with open PRs
+radar script: ~/.no-mistakes/worktrees/551ff26a6b1c/01M7G7B7FHQMZ3RVH7A7ET38E5/bin/fm-conflict-radar.sh ; gh-axi 0.1.51; project origin: https://github.com/kunchenguid/gh-axi.git
+--- fm-conflict-radar.sh  gh-axi
+exit code: 0
+  gh-axi: code "shared.go" sources=task:task-a,task:task-b
+stderr:
+  warn: no registry at /tmp/fm-lab.lzGzt1/data/projects.md; defaulting gh-axi to no-mistakes off
+--- fm-conflict-radar.sh --json gh-axi
+exit code: 0
+{
+  "unmeasured": [],
+  "pr_sources": [
+    {
+      "url": "https://github.com/kunchenguid/gh-axi/pull/260",
+      "branch": "release-please--branches--main--components--gh-axi",
+      "status": "open",
+      "measurement": "measured",
+      "path_count": 3
+    },
+    {
+      "url": "https://github.com/kunchenguid/gh-axi/pull/238",
+      "branch": "fm/gh-axi-token-redaction-20261031",
+      "status": "open",
+      "measurement": "measured",
+      "path_count": 16
+    },
+    {
+      "url": "https://github.com/kunchenguid/gh-axi/pull/184",
+      "branch": "fix/api-method-default",
+      "status": "open",
+      "measurement": "measured",
+      "path_count": 6
+    },
+    {
+      "url": "https://github.com/kunchenguid/gh-axi/pull/87",
+      "branch": "fix/repo-list-owner-positional-arg",
+      "status": "open",
+      "measurement": "measured",
+      "path_count": 7
+    }
+  ]
+}
+stderr:
+  warn: no registry at /tmp/fm-lab.lzGzt1/data/projects.md; defaulting gh-axi to no-mistakes off
+lab removed: yes

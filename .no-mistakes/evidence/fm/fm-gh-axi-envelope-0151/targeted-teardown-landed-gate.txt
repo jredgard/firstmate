@@ -1,0 +1,2 @@
+ok - recorded GitHub PR requires merged-at-head readback before cleanup, including missing-copy and legacy records
+EXIT=0

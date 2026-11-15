@@ -1,0 +1,7 @@
+=== reviewer identity read (fm-pr-merge github_approve pipeline stage), live gh-axi 0.1.51
+--- live: gh-axi api /user --jq '.login | @base64' --full
+rc=0 stdout=[anJlZGdhcmQ=]
+--- AFTER fix (0a412b23): fm_pr_gh_axi_base64_body | decode, exactly as bin/fm-pr-merge.sh github_approve
+rc=0 login=[jredgard]
+--- BEFORE fix (97277a47): the removed awk envelope parser on the same stdout
+rc=1 body=[]  -> github_approve would print: could not verify GitHub reviewer identity

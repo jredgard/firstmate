@@ -1,0 +1,11 @@
+raw scalar (0.1.51 wire)               rc=0 out=eyJoZWFkIjoiMjExZDQ5YWM3
+raw JSON-quoted scalar                 rc=0 out=eyJoZWFkIjoiMjExZDQ5YWM3
+complete envelope                      rc=0 out=eyJoZWFkIjoiMjExZDQ5YWM3
+envelope truncated: true               rc=1 out=
+envelope missing truncated             rc=1 out=
+envelope duplicate body                rc=1 out=
+envelope duplicate truncated           rc=1 out=
+raw two lines                          rc=1 out=
+raw invalid base64                     rc=4 out=
+raw empty                              rc=4 out=
+error text                             rc=4 out=

@@ -1,0 +1,17 @@
+=== scenario: AFTER fix (0a412b23): merged PR 14 at recorded head
+teardown script: ~/.no-mistakes/worktrees/551ff26a6b1c/01M7G7B7FHQMZ3RVH7A7ET38E5/bin/fm-teardown.sh
+gh-axi: ~/.local/npm-global/bin/gh-axi 0.1.51
+recorded pr=https://github.com/jredgard/no-mistakes/pull/14 pr_head=211d49ac7afaa99f71bee5de0a143825540b8326
+--- live gh-axi stdout for the teardown query:
+eyJoZWFkIjoiMjExZDQ5YWM3YWZhYTk5ZjcxYmVlNWRlMGExNDM4MjU1NDBiODMyNiIsIm1lcmdlX2NvbW1pdF9zaGEiOiIwMWYxOTViNTYzZTk2ZGVhN2NkYWEzNzA4ODM2MWVlMjJlYmJmN2EyIiwibWVyZ2VkIjp0cnVlLCJudW1iZXIiOjE0LCJzdGF0ZSI6ImNsb3NlZCJ9
+--- running fm-teardown.sh task-x1
+exit code: 0
+stdout:
+  repo: already current
+  teardown task-x1 complete (window firstmate:fm-task-x1, worktree /tmp/fm-lab.uEy2BR/wt)
+  Backlog: task-x1 is closed in /tmp/fm-lab.uEy2BR/data/backlog.md. Run bin/fm-tasks-axi.sh ready for dependency-cleared candidates, check date gates, and dispatch only work whose blockers are gone and date is due.
+stderr:
+  fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.uEy2BR
+task meta present after: no
+backlog state after: done
+lab removed: yes

@@ -1,0 +1,15 @@
+=== scenario: AFTER fix: merged PR 14 but recorded pr_head is a different local commit (not in merge) must refuse
+teardown script: ~/.no-mistakes/worktrees/551ff26a6b1c/01M7G7B7FHQMZ3RVH7A7ET38E5/bin/fm-teardown.sh
+gh-axi: ~/.local/npm-global/bin/gh-axi 0.1.51
+recorded pr=https://github.com/jredgard/no-mistakes/pull/14 pr_head=257f07acf05ea055b992e63f41d828e09260e2dd
+--- live gh-axi stdout for the teardown query:
+eyJoZWFkIjoiMjExZDQ5YWM3YWZhYTk5ZjcxYmVlNWRlMGExNDM4MjU1NDBiODMyNiIsIm1lcmdlX2NvbW1pdF9zaGEiOiIwMWYxOTViNTYzZTk2ZGVhN2NkYWEzNzA4ODM2MWVlMjJlYmJmN2EyIiwibWVyZ2VkIjp0cnVlLCJudW1iZXIiOjE0LCJzdGF0ZSI6ImNsb3NlZCJ9
+--- running fm-teardown.sh task-x1
+exit code: 1
+stdout:
+stderr:
+  fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.iBEMf5
+  REFUSED: GitHub pull request https://github.com/jredgard/no-mistakes/pull/14 for task task-x1 is not verifiably merged at the recorded head (state=merged); preserving task and worktree.
+task meta present after: yes
+backlog state after: in_flight
+lab removed: yes

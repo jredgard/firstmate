@@ -1,0 +1,28 @@
+=== scenario: BEFORE fix (base 97277a47)
+radar script: /tmp/fm-envtest-base/bin/fm-conflict-radar.sh ; gh-axi 0.1.51; project origin: https://github.com/jredgard/no-mistakes.git
+seeded radar memory: PR 14 recorded as open, associated with task-a
+--- fm-conflict-radar.sh  no-mistakes
+exit code: 0
+  no-mistakes: unmeasured: forge: origin unsupported/unreadable or open PR listing failed
+  no-mistakes: unmeasured: pr:https://github.com/jredgard/no-mistakes/pull/14: previous PR completion unmeasured
+  no-mistakes: code "shared.go" sources=task:task-a,task:task-b
+stderr:
+  warn: no registry at /tmp/fm-lab.Bm2Td5/data/projects.md; defaulting no-mistakes to no-mistakes off
+--- fm-conflict-radar.sh --json no-mistakes
+exit code: 0
+{
+  "unmeasured": [
+    "forge: origin unsupported/unreadable or open PR listing failed",
+    "pr:https://github.com/jredgard/no-mistakes/pull/14: previous PR completion unmeasured"
+  ],
+  "pr_sources": [
+    {
+      "url": "https://github.com/jredgard/no-mistakes/pull/14",
+      "status": "unknown",
+      "measurement": "measured"
+    }
+  ]
+}
+stderr:
+  warn: no registry at /tmp/fm-lab.Bm2Td5/data/projects.md; defaulting no-mistakes to no-mistakes off
+lab removed: yes

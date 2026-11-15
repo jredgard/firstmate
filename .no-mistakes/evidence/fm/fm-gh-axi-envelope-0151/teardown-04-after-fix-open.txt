@@ -1,0 +1,15 @@
+=== scenario: AFTER fix: OPEN PR kunchenguid/firstmate#8494 must refuse
+teardown script: ~/.no-mistakes/worktrees/551ff26a6b1c/01M7G7B7FHQMZ3RVH7A7ET38E5/bin/fm-teardown.sh
+gh-axi: ~/.local/npm-global/bin/gh-axi 0.1.51
+recorded pr=https://github.com/kunchenguid/firstmate/pull/8494 pr_head=7f3ada1dee99266398788b79efe30f6b87bd1b0e
+--- live gh-axi stdout for the teardown query:
+eyJoZWFkIjoiN2YzYWRhMWRlZTk5MjY2Mzk4Nzg4Yjc5ZWZlMzBmNmI4N2JkMWIwZSIsIm1lcmdlX2NvbW1pdF9zaGEiOiIxYzQwYjVjODBjOTgzYmNlNGJmMGQwOTlkNTgxNDRjMzJhNjBkOTY4IiwibWVyZ2VkIjpmYWxzZSwibnVtYmVyIjo4NDk0LCJzdGF0ZSI6Im9wZW4ifQ==
+--- running fm-teardown.sh task-x1
+exit code: 1
+stdout:
+stderr:
+  fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.MvmDh4
+  REFUSED: GitHub pull request https://github.com/kunchenguid/firstmate/pull/8494 for task task-x1 is not verifiably merged at the recorded head (state=open); preserving task and worktree.
+task meta present after: yes
+backlog state after: in_flight
+lab removed: yes

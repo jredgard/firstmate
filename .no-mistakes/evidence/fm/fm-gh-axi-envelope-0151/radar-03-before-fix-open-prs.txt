@@ -1,0 +1,19 @@
+=== scenario: BEFORE fix (base 97277a47), origin kunchenguid/gh-axi with open PRs
+radar script: /tmp/fm-envtest-base/bin/fm-conflict-radar.sh ; gh-axi 0.1.51; project origin: https://github.com/kunchenguid/gh-axi.git
+--- fm-conflict-radar.sh  gh-axi
+exit code: 0
+  gh-axi: unmeasured: forge: origin unsupported/unreadable or open PR listing failed
+  gh-axi: code "shared.go" sources=task:task-a,task:task-b
+stderr:
+  warn: no registry at /tmp/fm-lab.vWpAJ7/data/projects.md; defaulting gh-axi to no-mistakes off
+--- fm-conflict-radar.sh --json gh-axi
+exit code: 0
+{
+  "unmeasured": [
+    "forge: origin unsupported/unreadable or open PR listing failed"
+  ],
+  "pr_sources": []
+}
+stderr:
+  warn: no registry at /tmp/fm-lab.vWpAJ7/data/projects.md; defaulting gh-axi to no-mistakes off
+lab removed: yes

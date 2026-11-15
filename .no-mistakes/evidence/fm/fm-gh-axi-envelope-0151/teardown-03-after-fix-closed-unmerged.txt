@@ -1,0 +1,15 @@
+=== scenario: AFTER fix: closed-UNMERGED PR jredgard/firstmate#42 must refuse
+teardown script: ~/.no-mistakes/worktrees/551ff26a6b1c/01M7G7B7FHQMZ3RVH7A7ET38E5/bin/fm-teardown.sh
+gh-axi: ~/.local/npm-global/bin/gh-axi 0.1.51
+recorded pr=https://github.com/jredgard/firstmate/pull/42 pr_head=6ac14db6e152f31071a3ee446ffc5e8c84712807
+--- live gh-axi stdout for the teardown query:
+eyJoZWFkIjoiNmFjMTRkYjZlMTUyZjMxMDcxYTNlZTQ0NmZmYzVlOGM4NDcxMjgwNyIsIm1lcmdlX2NvbW1pdF9zaGEiOiI4NDE2ODQ4MWRiMzkwODBjNTZkNGMzOTRmMjQxYWM3NzE0YTViMGRlIiwibWVyZ2VkIjpmYWxzZSwibnVtYmVyIjo0Miwic3RhdGUiOiJjbG9zZWQifQ==
+--- running fm-teardown.sh task-x1
+exit code: 1
+stdout:
+stderr:
+  fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.STfJZ1
+  REFUSED: GitHub pull request https://github.com/jredgard/firstmate/pull/42 for task task-x1 is not verifiably merged at the recorded head (state=closed); preserving task and worktree.
+task meta present after: yes
+backlog state after: in_flight
+lab removed: yes

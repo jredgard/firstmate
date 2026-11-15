@@ -1,0 +1,15 @@
+=== scenario: BEFORE fix (base 97277a47): merged PR 14 at recorded head
+teardown script: /tmp/fm-envtest-base/bin/fm-teardown.sh
+gh-axi: ~/.local/npm-global/bin/gh-axi 0.1.51
+recorded pr=https://github.com/jredgard/no-mistakes/pull/14 pr_head=211d49ac7afaa99f71bee5de0a143825540b8326
+--- live gh-axi stdout for the teardown query:
+eyJoZWFkIjoiMjExZDQ5YWM3YWZhYTk5ZjcxYmVlNWRlMGExNDM4MjU1NDBiODMyNiIsIm1lcmdlX2NvbW1pdF9zaGEiOiIwMWYxOTViNTYzZTk2ZGVhN2NkYWEzNzA4ODM2MWVlMjJlYmJmN2EyIiwibWVyZ2VkIjp0cnVlLCJudW1iZXIiOjE0LCJzdGF0ZSI6ImNsb3NlZCJ9
+--- running fm-teardown.sh task-x1
+exit code: 1
+stdout:
+stderr:
+  fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.wS93rt
+  REFUSED: GitHub pull request https://github.com/jredgard/no-mistakes/pull/14 for task task-x1 is not verifiably merged at the recorded head (state=unreadable); preserving task and worktree.
+task meta present after: yes
+backlog state after: in_flight
+lab removed: yes
