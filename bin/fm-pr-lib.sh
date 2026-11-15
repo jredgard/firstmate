@@ -41,6 +41,34 @@
 
 _FM_PR_LIB_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Read a gh-axi --jq @base64 --full response from stdin and emit its base64
+# body. Current releases print the selected scalar directly; older releases
+# wrap it in TOON. Envelopes require one body and one truncated: false field.
+# Payload decoding and provider-specific validation remain with the caller.
+fm_pr_gh_axi_base64_body() {
+  local encoded
+  encoded=$(awk '
+    /^api(_response)?:$/ { envelope=1; next }
+    /^  body: / { envelope=1; sub(/^  body: /, ""); body=$0; bodies++; next }
+    /^  truncated: / {
+      envelope=1; truncations++
+      if ($0 != "  truncated: false") invalid=1
+      next
+    }
+    { raw=$0; lines++ }
+    END {
+      if (envelope) {
+        if (bodies == 1 && truncations == 1 && !invalid) print body
+        else exit 1
+      } else if (lines == 1) print raw
+      else exit 1
+    }') || return 1
+  printf '%s\n' "$encoded" | jq -Rer '
+    (fromjson? // .) | select(type == "string") |
+    select(test("^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$")) |
+    select(length > 0)'
+}
+
 FM_PR_PROVIDER=
 FM_PR_ADO_TOKEN=
 export -n FM_PR_ADO_TOKEN

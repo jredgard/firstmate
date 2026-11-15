@@ -24,14 +24,19 @@ set -eu
 printf '%s\n' "$*" >> "$RADAR_CALLS"
 [ ! -e "$RADAR_FIXTURE/fail" ] || exit 1
 case "$3" in */files\?*) [ ! -e "$RADAR_FIXTURE/files-fail" ] || exit 1 ;; esac
+emit_body() {
+  case "${RADAR_RESPONSE_SHAPE:-envelope}" in
+    raw) cat ;;
+    truncated) printf 'api_response:\n  body: '; cat; printf '  truncated: true\n' ;;
+    *) printf 'api_response:\n  body: '; cat; printf '  truncated: false\n' ;;
+  esac
+}
 case "$3" in
   */pulls\?*) file="$RADAR_FIXTURE/prs.json" ;;
   */pulls/7/files*)
     if [ -e "$RADAR_FIXTURE/large-files.json" ]; then
       page=${3##*page=}
-      printf 'api_response:\n  body: '
-      jq -r --argjson page "$page" '.[(($page-1)*100):($page*100)] | @base64' "$RADAR_FIXTURE/large-files.json"
-      printf '  truncated: false\n'
+      jq -r --argjson page "$page" '.[(($page-1)*100):($page*100)] | @base64' "$RADAR_FIXTURE/large-files.json" | emit_body
       exit 0
     fi
     if [ -e "$RADAR_FIXTURE/pages" ]; then
@@ -42,7 +47,7 @@ case "$3" in
   */pulls/8) file="$RADAR_FIXTURE/state.json" ;;
   *) exit 1 ;;
 esac
-printf 'api_response:\n  body: %s\n  truncated: false\n' "$(jq -r '@base64' "$file")"
+jq -r '@base64' "$file" | emit_body
 EOF
 chmod +x "$TOOLS/gh-axi"
 export PATH="$TOOLS:$PATH"
@@ -219,6 +224,11 @@ printf '[{"filename":"README.md"},{"filename":"pr-only.md"}]\n' > "$RADAR_FIXTUR
 run_radar
 assert_json '.projects[0].matrix | any(.path=="README.md" and (.sources|length)==3 and (.participants|length)==2)' 'task and its PR count as one participant'
 assert_json '.projects[0].matrix | any(.path=="pr-only.md" and (.shared|not))' 'PR-only path is observed'
+RADAR_RESPONSE_SHAPE=raw run_radar
+assert_json '.projects[0] | (.unmeasured|length)==0 and any(.sources[]; .kind=="pr" and .status=="open" and (.paths|index("pr-only.md"))!=null)' 'raw GitHub response measures open PR paths'
+RADAR_RESPONSE_SHAPE=truncated run_radar
+assert_json '.projects[0].unmeasured | any(startswith("forge:"))' 'truncated GitHub envelope cannot claim a measured forge'
+run_radar
 touch "$RADAR_FIXTURE/files-fail"
 run_radar
 assert_json '.projects[0] | any(.sources[]; .kind=="pr" and .measurement=="unmeasured" and (.paths|index("pr-only.md"))!=null) and (.unmeasured|length)>0' 'failed PR file read retains prior matrix evidence'
@@ -234,6 +244,8 @@ printf '[]\n' > "$RADAR_FIXTURE/prs.json"
 printf '{"state":"closed"}\n' > "$RADAR_FIXTURE/state.json"
 run_radar
 assert_json '.projects[0].sources | any(.kind=="pr" and .status=="closed" and (.paths|index("pr-only.md"))!=null)' 'completed PR remains until associated task teardown'
+RADAR_RESPONSE_SHAPE=raw run_radar
+assert_json '.projects[0].sources | any(.kind=="pr" and .status=="closed" and (.paths|index("pr-only.md"))!=null)' 'raw closed PR response retains associated path evidence'
 rm "$FM_STATE_OVERRIDE/alpha.meta"
 run_radar
 assert_json '.projects[0].sources | all(.kind!="pr" and .task_id!="alpha")' 'gone task and completed PR evidence is pruned'

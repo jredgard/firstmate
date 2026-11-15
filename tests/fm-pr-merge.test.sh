@@ -5602,7 +5602,7 @@ test_github_changes_requested_refuses_approval() {
 
 test_github_reviewer_response_contract() {
   local dir kind rc encoded url=https://github.com/example/repo/pull/9
-  for kind in quoted unquoted bot bot-author truncated duplicate invalid; do
+  for kind in quoted unquoted raw raw-quoted raw-duplicate bot bot-author truncated duplicate invalid missing-truncated conflicting-truncated; do
     dir=$(make_case "github-reviewer-response-$kind")
     add_gh_mocks "$dir" "$MR_HEAD"
     printf 'REVIEW_REQUIRED\n' > "$dir/review-decision"
@@ -5616,6 +5616,11 @@ test_github_reviewer_response_contract() {
     esac
     printf 'api_response:\n  body: %s\n  truncated: false\n' "$encoded" > "$dir/reviewer-response"
     case "$kind" in
+      raw) printf '%s\n' "$encoded" | jq -r . > "$dir/reviewer-response" ;;
+      raw-quoted) printf '%s\n' "$encoded" > "$dir/reviewer-response" ;;
+      raw-duplicate) printf '%s\n%s\n' "$encoded" "$encoded" > "$dir/reviewer-response" ;;
+      missing-truncated) printf 'api_response:\n  body: %s\n' "$encoded" > "$dir/reviewer-response" ;;
+      conflicting-truncated) printf '  truncated: true\n' >> "$dir/reviewer-response" ;;
       bot) rm "$dir/reviewer-response"; printf 'reviewer[bot]\n' > "$dir/reviewer-login" ;;
       truncated) printf 'api_response:\n  body: %s\n  truncated: true\n' "$encoded" > "$dir/reviewer-response" ;;
       duplicate) printf '  body: %s\n' "$encoded" >> "$dir/reviewer-response" ;;
@@ -5623,7 +5628,7 @@ test_github_reviewer_response_contract() {
     rc=0
     run_pr_merge "$dir" task-x1 "$url" --approve-only > "$dir/stdout" 2> "$dir/stderr" || rc=$?
     case "$kind" in
-      bot-author|truncated|duplicate|invalid)
+      bot-author|truncated|duplicate|invalid|raw-duplicate|missing-truncated|conflicting-truncated)
         expect_code 1 "$rc" "GitHub reviewer response $kind"
         [ ! -e "$dir/github-reviewed" ] || fail "invalid reviewer response approved"
         assert_no_grep 'api POST' "$dir/gh-axi.log" "invalid reviewer response posted a review"
@@ -5640,7 +5645,7 @@ test_github_reviewer_response_contract() {
     esac
     assert_no_grep 'pr merge ' "$dir/gh.log" "reviewer response approval-only merged"
   done
-  pass "gh-axi complete quoted and unquoted response bodies accept bot logins and reject self-approval"
+  pass "gh-axi raw and complete envelope bodies accept bot logins and reject incomplete responses and self-approval"
 }
 
 test_github_post_approval_mergeability() {
