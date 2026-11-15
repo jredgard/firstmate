@@ -1,0 +1,16 @@
+# wait_until_deadline (verbatim upstream helper) driven against a disposable fixture home
+wait_until_deadline: host_exited timed out for <fixture-home>
+/tmp/fm-test-driver/deadline.sh: line 35: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+fixture host still parked
+/tmp/fm-test-driver/deadline.sh: line 41: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+park: waiting on lane
+/tmp/fm-test-driver/deadline.sh: line 47: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+(missing)
+/tmp/fm-test-driver/deadline.sh: line 67: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+(process tree dumped: 548 rows, elided from evidence)
+never-exiting host, deadline 3s: rc=1 after 3s
+host exits after ~1s, deadline 60s: rc=0 after 1s

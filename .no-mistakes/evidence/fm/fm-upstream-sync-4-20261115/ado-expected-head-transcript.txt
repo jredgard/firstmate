@@ -1,0 +1,176 @@
+================ scenario: matching-reviewed-head
+$ fm-pr-merge.sh task-x1 https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 --expected-head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+--- exit: 0
+--- stdout:
+armed: state/task-x1.check.sh
+verified: https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 is completed at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+--- stderr:
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+warning: cannot verify ownership of ado PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 for task task-x1; pr_owner_verified=no, merge monitoring remains armed
+--- ADO REST calls (method url body):
+  GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+  GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+  GET https://dev.azure.com/acme/11111111-1111-1111-1111-111111111111/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/11111111-1111-1111-1111-111111111111/42&api-version=7.1-preview.1 
+  PUT https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42/reviewers/22222222-2222-2222-2222-222222222222?api-version=7.1 {"vote":10}
+  GET https://dev.azure.com/acme/11111111-1111-1111-1111-111111111111/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/11111111-1111-1111-1111-111111111111/42&api-version=7.1-preview.1 
+  GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+  GET https://dev.azure.com/acme/11111111-1111-1111-1111-111111111111/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/11111111-1111-1111-1111-111111111111/42&api-version=7.1-preview.1 
+  PATCH https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 {"status":"completed","lastMergeSourceCommit":{"commitId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"completionOptions":{"mergeStrategy":"squash","deleteSourceBranch":false,"transitionWorkItems":false}}
+  GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+--- task meta pr_head lines:
+  project=/tmp/fm-pr-merge-tests.HCNrV5/drive-matching-reviewed-head/project
+  pr_owner_verified=no
+  pr=https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42
+  pr_head=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+--- forge writes: vote=yes completion=yes
+================ scenario: worker-pushed-after-review
+$ fm-pr-merge.sh task-x1 https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 --expected-head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+--- exit: 1
+--- stdout:
+armed: state/task-x1.check.sh
+--- stderr:
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+warning: cannot verify ownership of ado PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 for task task-x1; pr_owner_verified=no, merge monitoring remains armed
+error: refusing to complete https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42
+  - the live head is "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", not the expected head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+--- ADO REST calls (method url body):
+  GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+  GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+--- task meta pr_head lines:
+  project=/tmp/fm-pr-merge-tests.HCNrV5/drive-worker-pushed-after-review/project
+  pr_owner_verified=no
+  pr=https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42
+  pr_head=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+--- forge writes: vote=no completion=no
+================ scenario: head-moves-after-vote
+$ fm-pr-merge.sh task-x1 https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 --expected-head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+--- exit: 1
+--- stdout:
+armed: state/task-x1.check.sh
+--- stderr:
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+warning: cannot verify ownership of ado PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 for task task-x1; pr_owner_verified=no, merge monitoring remains armed
+error: refusing to complete https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42
+  - the live head is "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", not the expected head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+--- ADO REST calls (method url body):
+  GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+  GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+  GET https://dev.azure.com/acme/11111111-1111-1111-1111-111111111111/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/11111111-1111-1111-1111-111111111111/42&api-version=7.1-preview.1 
+  PUT https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42/reviewers/22222222-2222-2222-2222-222222222222?api-version=7.1 {"vote":10}
+  GET https://dev.azure.com/acme/11111111-1111-1111-1111-111111111111/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/11111111-1111-1111-1111-111111111111/42&api-version=7.1-preview.1 
+  GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+--- task meta pr_head lines:
+  project=/tmp/fm-pr-merge-tests.HCNrV5/drive-head-moves-after-vote/project
+  pr_owner_verified=no
+  pr=https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42
+  pr_head=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+--- forge writes: vote=yes completion=no
+================ scenario: complete-only-mismatch
+$ fm-pr-merge.sh task-x1 https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 --complete-only --expected-head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+--- exit: 1
+--- stdout:
+armed: state/task-x1.check.sh
+--- stderr:
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+warning: cannot verify ownership of ado PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 for task task-x1; pr_owner_verified=no, merge monitoring remains armed
+error: refusing to complete https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42
+  - the live head is "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", not the expected head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+--- ADO REST calls (method url body):
+  GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+  GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+--- task meta pr_head lines:
+  project=/tmp/fm-pr-merge-tests.HCNrV5/drive-complete-only-mismatch/project
+  pr_owner_verified=no
+  pr=https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42
+  pr_head=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+--- forge writes: vote=no completion=no
+================ scenario: approve-only-mismatch
+$ fm-pr-merge.sh task-x1 https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 --approve-only --expected-head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+--- exit: 1
+--- stdout:
+armed: state/task-x1.check.sh
+--- stderr:
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+warning: cannot verify ownership of ado PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 for task task-x1; pr_owner_verified=no, merge monitoring remains armed
+error: refusing to complete https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42
+  - the live head is "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", not the expected head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+--- ADO REST calls (method url body):
+  GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+  GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+--- task meta pr_head lines:
+  project=/tmp/fm-pr-merge-tests.HCNrV5/drive-approve-only-mismatch/project
+  pr_owner_verified=no
+  pr=https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42
+  pr_head=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+--- forge writes: vote=no completion=no
+================ scenario: no-pin-recorded-head-drift
+$ fm-pr-merge.sh task-x1 https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 
+--- exit: 1
+--- stdout:
+armed: state/task-x1.check.sh
+--- stderr:
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+warning: cannot verify ownership of ado PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 for task task-x1; pr_owner_verified=no, merge monitoring remains armed
+error: Azure DevOps completion failed for https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42; merge poll remains armed
+--- ADO REST calls (method url body):
+  GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+  GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+  GET https://dev.azure.com/acme/11111111-1111-1111-1111-111111111111/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/11111111-1111-1111-1111-111111111111/42&api-version=7.1-preview.1 
+  PUT https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42/reviewers/22222222-2222-2222-2222-222222222222?api-version=7.1 {"vote":10}
+  GET https://dev.azure.com/acme/11111111-1111-1111-1111-111111111111/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/11111111-1111-1111-1111-111111111111/42&api-version=7.1-preview.1 
+  GET https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+  GET https://dev.azure.com/acme/11111111-1111-1111-1111-111111111111/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/11111111-1111-1111-1111-111111111111/42&api-version=7.1-preview.1 
+  PATCH https://dev.azure.com/acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 {"status":"completed","lastMergeSourceCommit":{"commitId":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"completionOptions":{"mergeStrategy":"squash","deleteSourceBranch":false,"transitionWorkItems":false}}
+--- task meta pr_head lines:
+  project=/tmp/fm-pr-merge-tests.HCNrV5/drive-no-pin-recorded-head-drift/project
+  pr_owner_verified=no
+  pr=https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42
+  pr_head=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+--- forge writes: vote=yes completion=no
+================ scenario: update-branch-refused-for-ado
+$ fm-pr-merge.sh task-x1 https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 --update-branch
+--- exit: 2
+--- stdout:
+--- stderr:
+error: --update-branch applies only to GitHub
+--- ADO REST calls (method url body):
+  (none)
+--- task meta pr_head lines:
+  project=/tmp/fm-pr-merge-tests.HCNrV5/drive-update-branch-refused-for-ado/project
+--- forge writes: vote=no completion=no

@@ -1,0 +1,15 @@
+merge commit parents:
+c8a484942a4593b4a0de950808a8eb996257aebb parents: 97277a47104f60ef1066be8e2faf1464491f4cf7 427056c4181c41074ad24f051f79919330df0fa5
+merge-base(HEAD, upstream 427056c4): 427056c4181c41074ad24f051f79919330df0fa5
+upstream 427056c4 is ancestor of HEAD: yes
+fork base 97277a47 is ancestor of HEAD: yes
+commits on top of merge (no rebase/squash): 2
+--- fork-owned standalone files vs fork base 97277a47:
+bin/fm-pr-report-compact fork-base==HEAD:yes upstream==HEAD:no
+tests/fm-pr-report-compact.test.sh fork-base==HEAD:yes upstream==HEAD:no
+tests/fixtures/fm-pr-report-compact/az fork-base==HEAD:yes upstream==HEAD:no
+bin/fm-conflict-radar.sh fork-base==HEAD:yes upstream==HEAD:no
+tests/fm-conflict-radar.test.sh fork-base==HEAD:yes upstream==HEAD:no
+.github/workflows/no-mistakes-required.yml fork-base==HEAD:yes upstream==HEAD:yes
+tests/fm-no-mistakes-required.test.sh fork-base==HEAD:yes upstream==HEAD:yes
+bootstrap floor: MIN=1.48.0
