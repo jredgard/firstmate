@@ -324,6 +324,20 @@ test_spawn_home_layout() {
   pass "spawn-home layout writes harness pin, beat, and brief"
 }
 
+test_launch_command_omits_osc_wrappers() {
+  local expected launch prefix
+  expected="env PROFILE='fixture' claude --settings '{\"apiKeyHelper\":\"printf x; printf y\"}' 'fixture brief'"
+  launch="export COMPACT_ADVISER_DISABLE=1; export FM_TASK_INBOX='/tmp/fixture.inbox'; '/tmp/toolbelt/fm-osc7501.sh' arm --task fixture >/dev/null || true"$'\n'
+  launch+="export FM_HOME='/tmp/fixture-home'; $expected"$'\n'
+  launch+="'/tmp/toolbelt/fm-osc7501.sh' disarm --state '/tmp/fixture-state' >/dev/null 2>/dev/null || true"
+  assert_equals "$expected" "$(fm_test_launch_command "$launch")" \
+    "launch parsing retained an OSC wrapper or lost a quoted semicolon"
+  prefix="'/tmp/toolbelt/fm-git-strip-ai-trailers.sh' env-file hooks config && . config || return 1 2>/dev/null || exit 1; "
+  assert_equals "$expected" "$(fm_test_launch_command "$prefix$launch")" \
+    "launch parsing with Git hooks retained an OSC wrapper"
+  pass "launch parsing returns only the agent command across OSC and Git wrappers"
+}
+
 # A host whose `sleep` is a multicall coreutils (uutils on Ubuntu 26.04) refuses
 # to run under a foreign name, so a harness-named symlink to it never becomes a
 # live process. The fake `sleep` below models that refusal on any host, which
@@ -435,8 +449,71 @@ SH
   pass "shared helpers and runner keep fixture Git off an inherited repository location"
 )
 
+# A suite started from a Herdr-hosted terminal inherits the launcher's identity,
+# its terminal marker, and a supervisor's home/state overrides. Sourcing the
+# library must leave none of them for a fixture to bind to, and a value a case
+# exports afterwards must still be honored.
+test_inherited_launcher_env_is_cleared() (
+  local dir="$TMP_ROOT/launcher-env" decoy out rc=0
+  decoy="$dir/decoy-home"
+  mkdir -p "$decoy/config" "$dir/own-home" "$dir/empty-config"
+  printf 'paseo\n' > "$decoy/config/backend"
+  # shellcheck disable=SC2016 # expanded by the child bash
+  out=$(env -u TMUX -u CMUX_WORKSPACE_ID -u __CFBundleIdentifier \
+    HERDR_ENV=1 HERDR_PANE_ID=w1:p1 HERDR_TAB_ID=w1:t1 HERDR_WORKSPACE_ID=w1 \
+    HERDR_SOCKET_PATH="$decoy/herdr.sock" HERDR_SESSION=host \
+    HERDR_BIN_PATH="$decoy/herdr" TERM_PROGRAM=rex FM_BACKEND=paseo \
+    FM_HOME="$decoy" FM_ROOT="$decoy" FM_ROOT_OVERRIDE="$decoy" \
+    FM_STATE_OVERRIDE="$decoy/state" FM_DATA_OVERRIDE="$decoy/data" \
+    FM_CONFIG_OVERRIDE="$decoy/config" FM_PROJECTS_OVERRIDE="$decoy/projects" \
+    bash -c '
+    set -u
+    . "$1/tests/lib.sh"
+    for name in HERDR_ENV HERDR_PANE_ID HERDR_TAB_ID HERDR_WORKSPACE_ID \
+      HERDR_SOCKET_PATH HERDR_SESSION HERDR_BIN_PATH TERM_PROGRAM FM_BACKEND \
+      FM_HOME FM_ROOT FM_ROOT_OVERRIDE FM_STATE_OVERRIDE FM_DATA_OVERRIDE \
+      FM_CONFIG_OVERRIDE FM_PROJECTS_OVERRIDE; do
+      [ -z "${!name+x}" ] || { echo "$name survived tests/lib.sh"; exit 1; }
+    done
+    (
+      . "$ROOT/bin/fm-backend.sh"
+      [ "$FM_BACKEND_CONFIG_DIR" = "$ROOT/config" ] \
+        || { echo "cleared home still resolves config at $FM_BACKEND_CONFIG_DIR"; exit 1; }
+    ) || exit 1
+    (
+      export FM_CONFIG_OVERRIDE="$2/empty-config" REX_BLOCK=block
+      . "$ROOT/bin/fm-backend.sh"
+      backend=$(fm_backend_name)
+      case "$backend" in
+        herdr|rex|paseo) echo "inherited launcher still selects $backend"; exit 1 ;;
+      esac
+    ) || exit 1
+    (
+      export FM_CONFIG_OVERRIDE="$2/empty-config" HERDR_ENV=1
+      . "$ROOT/bin/fm-backend.sh"
+      [ "$(fm_backend_name)" = herdr ] \
+        || { echo "a launcher identity exported after sourcing was ignored"; exit 1; }
+    ) || exit 1
+    (
+      export FM_CONFIG_OVERRIDE="$2/empty-config" FM_BACKEND=paseo
+      . "$ROOT/bin/fm-backend.sh"
+      [ "$(fm_backend_name)" = paseo ] \
+        || { echo "a backend exported after sourcing was ignored"; exit 1; }
+    ) || exit 1
+    (
+      export FM_HOME="$2/own-home"
+      . "$ROOT/bin/fm-backend.sh"
+      [ "$FM_BACKEND_CONFIG_DIR" = "$2/own-home/config" ] \
+        || { echo "a home exported after sourcing was ignored"; exit 1; }
+    ) || exit 1
+  ' _ "$ROOT" "$dir" 2>&1) || rc=$?
+  [ "$rc" = 0 ] || fail "inherited launcher environment reached a fixture: $out"
+  pass "tests/lib.sh clears an inherited launcher environment and honors later exports"
+)
+
 test_git_config_isolation || fail "Git fixture config isolation"
 test_gateway_environment_isolation
+test_inherited_launcher_env_is_cleared || fail "launcher environment isolation"
 test_inherited_git_location_isolation || fail "Git fixture location isolation"
 test_agent_standin_survives_a_multicall_sleep || fail "agent stand-in multicall case"
 test_touch_epoch_preserves_repeated_dst_hour
@@ -446,3 +523,4 @@ test_fake_gh_and_gh_axi
 test_spawn_tmux_and_fakebin
 test_send_stubs_and_ssh
 test_spawn_home_layout
+test_launch_command_omits_osc_wrappers
