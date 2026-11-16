@@ -7,7 +7,7 @@
 # safeguards: PR runs supersede within one PR while close main pushes keep only
 # the newest run, and every CI job carries a finite hang tripwire drawn from the
 # three-tier timeout policy that docs/fm-test-portable-shards.md "Timeouts"
-# owns (fast, normal, heavy), with one measured supervision-host exception.
+# owns (fast, normal, heavy), with measured fork Linux runner headroom.
 #
 # They also hold the outside pull request gate the maintainer approved in
 # DOP-167 (keep public CI within GitHub's 40-job limit): a PR from an author
@@ -335,9 +335,9 @@ job_timeout() {
   ruby -ryaml -e '
 job = YAML.load_file(ARGV[0]).fetch("jobs").fetch(ARGV[1])
 timeout = job.fetch("timeout-minutes", "none")
-if ARGV[1] == "tests-portable-serial" && timeout == "${{ matrix.timeout || 30 }}"
+if ARGV[1] == "tests-portable-serial" && timeout == "${{ matrix.timeout || 45 }}"
   include_row = job.fetch("strategy").fetch("matrix").fetch("include").find { |row| row["shard"] == ARGV[2].to_i }
-  timeout = include_row ? include_row.fetch("timeout", 30) : 30
+  timeout = include_row ? include_row.fetch("timeout", 45) : 45
 end
 puts timeout
 ' "$CI_WORKFLOW" "$1" "${2:-1}"
@@ -347,7 +347,8 @@ puts timeout
 # must join a tier, and a job-level value outside these tiers is exactly the
 # one-off number the policy removed.
 FAST_TIER_JOBS='test-coverage invariants tests-timing-aggregate full-suite'
-NORMAL_TIER_JOBS='lint tests-portable-parallel-1 tests-portable-parallel-2 tests-portable-serial macos-stock-bash'
+NORMAL_TIER_JOBS='lint tests-portable-parallel-1 tests-portable-parallel-2 tests-portable-serial'
+STOCK_BASH_JOB='macos-stock-bash'
 HEAVY_TIER_JOBS='tests-herdr tests-hc'
 
 # Print the one timeout every listed job shares; fail on any disagreement.
@@ -561,11 +562,11 @@ test_every_job_has_a_finite_timeout() {
   reported=$(ruby -ryaml -e '
 YAML.load_file(ARGV[0]).fetch("jobs").each do |name, job|
   timeout = job["timeout-minutes"]
-  if name == "tests-portable-serial" && timeout == "${{ matrix.timeout || 30 }}"
+  if name == "tests-portable-serial" && timeout == "${{ matrix.timeout || 45 }}"
     matrix = job.fetch("strategy").fetch("matrix")
     values = matrix.fetch("shard").map do |shard|
       row = matrix.fetch("include").find { |entry| entry["shard"] == shard }
-      row ? row.fetch("timeout", 30) : 30
+      row ? row.fetch("timeout", 45) : 45
     end
     next if values.all? { |v| v.is_a?(Integer) && v > 0 }
   end
@@ -577,21 +578,21 @@ end
   pass "every ci.yml job carries a finite timeout"
 }
 
-# Every ordinary job sits in exactly one tier; only the dedicated host shard
-# has a measured exception to the normal value.
+# Every job sits in one timeout group; Linux lanes carry the fork margin
+# while stock macOS Bash retains its ordinary budget.
 test_every_job_belongs_to_exactly_one_timeout_tier() {
   local expected actual distinct
   # shellcheck disable=SC2086
-  expected=$(printf '%s\n' $FAST_TIER_JOBS $NORMAL_TIER_JOBS $HEAVY_TIER_JOBS | LC_ALL=C sort)
+  expected=$(printf '%s\n' $FAST_TIER_JOBS $NORMAL_TIER_JOBS $STOCK_BASH_JOB $HEAVY_TIER_JOBS | LC_ALL=C sort)
   [ "$(printf '%s\n' "$expected" | LC_ALL=C sort -u)" = "$expected" ] \
     || fail "a job is listed in more than one timeout tier:"$'\n'"$expected"
   actual=$(workflow_jobs | LC_ALL=C sort) || fail "could not list ci.yml jobs"
   [ "$actual" = "$expected" ] \
     || fail "ci.yml jobs and the timeout tiers disagree; every job must join one tier"$'\n'"workflow: $(printf '%s' "$actual" | tr '\n' ' ')"$'\n'"tiers: $(printf '%s' "$expected" | tr '\n' ' ')"
   distinct=$(for job in $expected; do job_timeout "$job"; done | LC_ALL=C sort -u | wc -l | tr -d ' ')
-  [ "$distinct" = 3 ] \
-    || fail "ci.yml must carry exactly three distinct job timeouts (fast, normal, heavy), got $distinct"
-  pass "every ci.yml job belongs to a timeout tier with the dedicated host exception"
+  [ "$distinct" = 4 ] \
+    || fail "ci.yml must carry exactly four distinct job timeouts (fast, macOS, fork Linux, heavy), got $distinct"
+  pass "every ci.yml job belongs to a timeout tier with measured fork Linux headroom"
 }
 
 # Fast tier: seconds-long checks share one short tripwire in the 5-10 minute band.
@@ -604,8 +605,8 @@ test_fast_tier_shares_one_short_tripwire() {
   pass "fast tier jobs share one $fast minute tripwire"
 }
 
-# Normal tier: every test or lint lane shares ONE fixed 30-minute budget,
-# above the fast tier. That budget is a hang tripwire, not a packing estimate.
+# Fork Linux margin: lint and portable lanes share a 45-minute backstop.
+# Stock macOS Bash stays at 30 minutes; neither value is a packing estimate.
 test_normal_tier_shares_one_budget() {
   local fast normal
   # shellcheck disable=SC2086
@@ -614,9 +615,11 @@ test_normal_tier_shares_one_budget() {
   normal=$(tier_timeout normal $NORMAL_TIER_JOBS) || exit 1
   [ "$normal" -gt "$fast" ] \
     || fail "normal tier ($normal) must exceed the fast tier ($fast)"
-  [ "$normal" = 30 ] \
-    || fail "normal tier must be the single 30-minute shared budget, got $normal"
-  pass "normal tier jobs share one $normal minute budget"
+  [ "$normal" = 45 ] \
+    || fail "fork Linux lanes must share a 45-minute budget, got $normal"
+  [ "$(job_timeout "$STOCK_BASH_JOB")" = 30 ] \
+    || fail "stock macOS Bash must retain its 30-minute budget"
+  pass "fork Linux lanes share $normal minutes while stock macOS Bash retains 30"
 }
 
 # Heavy tier: Herdr alone carries a job-level last-resort backstop above the
@@ -727,7 +730,7 @@ serial = jobs.fetch("tests-portable-serial").fetch("strategy")
 raise "serial failures must not cancel other shards" unless serial.fetch("fail-fast") == false
 matrix = serial.fetch("matrix")
 raise "unexpected serial dimensions" unless matrix.keys.sort == ["include", "shard"]
-raise "only the host shard may override the normal timeout" unless matrix.fetch("include") == [{"shard" => 2, "timeout" => 45}]
+raise "retain the existing host-shard timeout row" unless matrix.fetch("include") == [{"shard" => 2, "timeout" => 45}]
 shards = matrix.fetch("shard")
 lanes, status = Open3.capture2(File.join(root, "bin/fm-test-run.sh"), "--list-lanes")
 raise "cannot list runner lanes" unless status.success?
@@ -754,13 +757,13 @@ test_dedicated_host_shard_has_measured_timeout_margin() {
   local normal host scripts
   normal=$(job_timeout tests-portable-serial 1) || fail "cannot resolve normal shard timeout"
   host=$(job_timeout tests-portable-serial 2) || fail "cannot resolve host shard timeout"
-  [ "$normal" = 30 ] && [ "$host" = 45 ] \
-    || fail "serial timeouts must be 30 minutes except the 45-minute host shard"
+  [ "$normal" = 45 ] && [ "$host" = 45 ] \
+    || fail "all fork serial shards must have 45 minutes"
   scripts=$(bash "$ROOT/bin/fm-test-run.sh" --list --lane portable-serial-2of12) \
     || fail "cannot list dedicated host shard"
   [ "$scripts" = tests/fm-supervision-host.test.sh ] \
-    || fail "extended timeout must belong exclusively to the supervision-host suite: $scripts"
-  pass "only the dedicated supervision-host shard gets the measured 45-minute timeout"
+    || fail "reserved host shard must contain exclusively the supervision-host suite: $scripts"
+  pass "dedicated supervision-host shard retains its 45-minute timeout and exclusive membership"
 }
 
 test_dedicated_host_shard_has_measured_timeout_margin

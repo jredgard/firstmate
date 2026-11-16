@@ -58,8 +58,8 @@ jobs:
     name: ${{ (github.event.action == 'labeled' && github.event.label.name != 'full-ci') && 'Not run for label - ' || '' }}Lint ${{ matrix.partition }}
     runs-on: ubuntu-24.04
     if: ${{ !(github.event_name == 'push' && vars.FM_CI_SKIP_PUSH == '1') && !(github.event.action == 'labeled' && github.event.label.name != 'full-ci') && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER' || github.event.pull_request.author_association == 'COLLABORATOR' || contains(github.event.pull_request.labels.*.name, 'full-ci')) }}
-    # Normal tier (see the timeout policy above).
-    timeout-minutes: 30
+    # Fork Linux margin (see the timeout policy above).
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -121,8 +121,8 @@ jobs:
     name: ${{ (github.event.action == 'labeled' && github.event.label.name != 'full-ci') && 'Not run for label - ' || '' }}Behavior portable parallel 1
     runs-on: ubuntu-24.04
     if: ${{ !(github.event_name == 'push' && vars.FM_CI_SKIP_PUSH == '1') && !(github.event.action == 'labeled' && github.event.label.name != 'full-ci') && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER' || github.event.pull_request.author_association == 'COLLABORATOR' || contains(github.event.pull_request.labels.*.name, 'full-ci')) }}
-    # Normal tier (see the timeout policy above).
-    timeout-minutes: 30
+    # Fork Linux margin (see the timeout policy above).
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
         with:
@@ -176,8 +176,8 @@ jobs:
     name: ${{ (github.event.action == 'labeled' && github.event.label.name != 'full-ci') && 'Not run for label - ' || '' }}Behavior portable parallel 2
     runs-on: ubuntu-24.04
     if: ${{ !(github.event_name == 'push' && vars.FM_CI_SKIP_PUSH == '1') && !(github.event.action == 'labeled' && github.event.label.name != 'full-ci') && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER' || github.event.pull_request.author_association == 'COLLABORATOR' || contains(github.event.pull_request.labels.*.name, 'full-ci')) }}
-    # Normal tier (see the timeout policy above).
-    timeout-minutes: 30
+    # Fork Linux margin (see the timeout policy above).
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
         with:
@@ -221,8 +221,8 @@ jobs:
     name: ${{ (github.event.action == 'labeled' && github.event.label.name != 'full-ci') && 'Not run for label - ' || '' }}Behavior portable serial ${{ matrix.shard }}
     runs-on: ubuntu-24.04
     if: ${{ !(github.event_name == 'push' && vars.FM_CI_SKIP_PUSH == '1') && !(github.event.action == 'labeled' && github.event.label.name != 'full-ci') && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER' || github.event.pull_request.author_association == 'COLLABORATOR' || contains(github.event.pull_request.labels.*.name, 'full-ci')) }}
-    # Normal tier (see the timeout policy above).
-    timeout-minutes: ${{ matrix.timeout || 30 }}
+    # Fork Linux margin; retain the existing host-shard override for syncs.
+    timeout-minutes: ${{ matrix.timeout || 45 }}
     strategy:
       # Every shard reports so one failure never hides another shard's result.
       fail-fast: false
