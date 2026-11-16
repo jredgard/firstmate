@@ -1319,10 +1319,7 @@ github_approve() {
       ;;
   esac
   if ! identity=$(GH_TOKEN="$token" GITHUB_TOKEN="$token" gh-axi api /user --jq '.login | @base64' --full 2>/dev/null) \
-    || ! login=$(printf '%s\n' "$identity" | awk '
-      /^  body: / { sub(/^  body: /, ""); body=$0; bodies++ }
-      /^  truncated: / { if ($2 == "false") complete++; else invalid=1 }
-      END { if (bodies == 1 && complete == 1 && !invalid) print body; else exit 1 }' \
+    || ! login=$(printf '%s\n' "$identity" | fm_pr_gh_axi_base64_body \
       | jq -Rer '(fromjson? // .) | @base64d | select(test("^[A-Za-z0-9-]+(\\[bot\\])?$"))') \
     || [ -z "$login" ] \
     || ! author=$(gh pr view "$URL" --json author --jq '.author.login' 2>/dev/null) \

@@ -1237,8 +1237,12 @@ test_no_mistakes_truly_unpushed_refuses() {
 # Captured gh-axi REST output, with only PR identity and object IDs rebound
 # to the local Git fixture. State and merged flag are the recorded wire values.
 add_gh_recorded_fixture() {
-  local case_dir=$1 fixture=$2 head=$3 merge=${4:-} number=${5:-7} encoded
-  encoded=$(sed -n 's/^  body: //p' "$ROOT/tests/fixtures/fm-teardown-github/$fixture.toon")
+  local case_dir=$1 fixture=$2 head=$3 merge=${4:-} number=${5:-7} shape=${6:-envelope} encoded
+  if [ "$fixture" = merged ] && [ "$shape" = raw ]; then
+    encoded=$(cat "$ROOT/tests/fixtures/fm-teardown-github/merged-gh-axi-0.1.51.base64")
+  else
+    encoded=$(sed -n 's/^  body: //p' "$ROOT/tests/fixtures/fm-teardown-github/$fixture.toon")
+  fi
   printf '%s' "$encoded" | jq -R '@base64d | fromjson' \
     | jq --arg head "$head" --arg merge "$merge" --argjson number "$number" \
       '.number=$number | .head=$head | .merge_commit_sha=(if $merge == "" then null else $merge end)' \
@@ -1246,46 +1250,57 @@ add_gh_recorded_fixture() {
   cat > "$case_dir/fakebin/gh-axi" <<SH
 #!/usr/bin/env bash
 [ "\$*" = 'api GET /repos/example/repo/pulls/7 --jq {number, state, merged, head: .head.sha, merge_commit_sha} | @base64 --full' ] || exit 2
-printf 'api_response:\n  body: %s\n  truncated: false\n' "\$(cat '$case_dir/gh-record-base64')"
+case '$shape' in
+  raw) cat '$case_dir/gh-record-base64' ;;
+  truncated) printf 'api_response:\n  body: %s\n  truncated: true\n' "\$(cat '$case_dir/gh-record-base64')" ;;
+  *) printf 'api_response:\n  body: %s\n  truncated: false\n' "\$(cat '$case_dir/gh-record-base64')" ;;
+esac
 SH
   chmod +x "$case_dir/fakebin/gh-axi"
 }
 
 test_github_recorded_pr_landed_gate() {
-  local fixture case_dir head rc recorded merge
-  for fixture in open closed merged; do
-    case_dir=$(make_case "github-pushed-$fixture")
+  local fixture case_dir head rc recorded merge shape expected_state entry
+  # Envelope output covers every recorded state, including the missing-copy
+  # rerun. Raw gh-axi 0.1.44+ output must accept a merged PR and still decode
+  # an open one; a truncated envelope must stay unreadable even when merged.
+  for entry in envelope:open envelope:closed envelope:merged raw:merged raw:open truncated:merged; do
+    shape=${entry%%:*} fixture=${entry#*:}
+    case_dir=$(make_case "github-pushed-$shape-$fixture")
     write_meta "$case_dir" no-mistakes ship
     wt_commit_file "$case_dir" feature.txt hello
     head=$(git -C "$case_dir/wt" rev-parse HEAD)
     append_pr_meta_for_current_head "$case_dir"
     seed_backlog_in_flight "$case_dir"
     git -C "$case_dir/wt" push -q origin fm/task-x1
-    add_gh_recorded_fixture "$case_dir" "$fixture" "$head"
+    add_gh_recorded_fixture "$case_dir" "$fixture" "$head" "" 7 "$shape"
+    expected_state=$fixture
+    [ "$shape" != truncated ] || expected_state=unreadable
     rc=0
     FM_FAKE_AXI_STATUS="$(parked_axi_status_toon fm/task-x1 "$head")" \
       FM_FAKE_NM_ABORT_LOG="$case_dir/abort-log" \
       run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
-    if [ "$fixture" = merged ]; then
-      expect_code 0 "$rc" 'merged GitHub PR at recorded head'
+    if [ "$expected_state" = merged ]; then
+      expect_code 0 "$rc" "merged GitHub PR at recorded head ($shape)"
       assert_absent "$case_dir/state/task-x1.meta" 'merged GitHub task remained active'
       [ "$(backlog_row_state "$case_dir")" = 'done' ] || fail 'merged GitHub task stayed open'
-    else
-      expect_code 1 "$rc" "$fixture GitHub PR teardown"
-      assert_grep "REFUSED: GitHub pull request https://github.com/example/repo/pull/7 for task task-x1 is not verifiably merged at the recorded head (state=$fixture)" "$case_dir/stderr" \
-        'GitHub refusal did not name the PR and state'
-      assert_refusal_retained_task_state "$case_dir" "$fixture" "$head"
-      [ "$(backlog_row_state "$case_dir")" = in_flight ] || fail 'unmerged GitHub task was closed'
-      [ ! -s "$case_dir/abort-log" ] || fail 'unmerged GitHub teardown aborted the parked run'
-      # An already-missing copy must not bypass the PR guard either.
-      sed "s|^worktree=.*|worktree=$case_dir/absent|" "$case_dir/state/task-x1.meta" > "$case_dir/new-meta"
-      mv "$case_dir/new-meta" "$case_dir/state/task-x1.meta"
-      rc=0
-      run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
-      expect_code 1 "$rc" "$fixture GitHub PR with absent worktree"
-      assert_grep "state=$fixture" "$case_dir/stderr" 'missing worktree bypassed PR state readback'
-      assert_present "$case_dir/state/task-x1.meta" 'missing-copy refusal erased task record'
+      continue
     fi
+    expect_code 1 "$rc" "$fixture GitHub PR teardown ($shape)"
+    assert_grep "REFUSED: GitHub pull request https://github.com/example/repo/pull/7 for task task-x1 is not verifiably merged at the recorded head (state=$expected_state)" "$case_dir/stderr" \
+      'GitHub refusal did not name the PR and state'
+    assert_refusal_retained_task_state "$case_dir" "$fixture" "$head"
+    [ "$(backlog_row_state "$case_dir")" = in_flight ] || fail 'unmerged GitHub task was closed'
+    [ ! -s "$case_dir/abort-log" ] || fail 'unmerged GitHub teardown aborted the parked run'
+    [ "$shape" = envelope ] || continue
+    # An already-missing copy must not bypass the PR guard either.
+    sed "s|^worktree=.*|worktree=$case_dir/absent|" "$case_dir/state/task-x1.meta" > "$case_dir/new-meta"
+    mv "$case_dir/new-meta" "$case_dir/state/task-x1.meta"
+    rc=0
+    run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+    expect_code 1 "$rc" "$fixture GitHub PR with absent worktree"
+    assert_grep "state=$fixture" "$case_dir/stderr" 'missing worktree bypassed PR state readback'
+    assert_present "$case_dir/state/task-x1.meta" 'missing-copy refusal erased task record'
   done
   # Legacy records without pr_head still require the merged flag and warn.
   for fixture in open closed merged; do

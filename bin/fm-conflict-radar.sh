@@ -89,9 +89,7 @@ radar_git() {
 gh_json() {
   local response encoded
   response=$(fm_run_timed "$TIMEOUT" gh-axi api GET "$1" --jq '@base64' --full 2>/dev/null) || return 1
-  printf '%s\n' "$response" | awk '/^  truncated: / {if ($2=="false") found=1} END {exit !found}' || return 1
-  encoded=$(printf '%s\n' "$response" | awk '/^  body: / {sub(/^  body: /, ""); print; exit}')
-  [ -n "$encoded" ] || return 1
+  encoded=$(printf '%s\n' "$response" | fm_pr_gh_axi_base64_body) || return 1
   printf '%s\n' "$encoded" | jq -R 'fromjson? // .' | jq -e '@base64d | fromjson'
 }
 

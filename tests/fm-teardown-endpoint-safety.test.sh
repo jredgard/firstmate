@@ -119,7 +119,8 @@ test_branch_teardown_requires_its_completed_pr() {
       gitlab) url=https://gitlab.example/o/r/-/merge_requests/8 ;;
       gerrit) url=https://gerrit.example/c/o/r/+/8 ;;
     esac
-    for variant in missing invalid duplicate open closed unreadable completed explicit explicit-open explicit-unreadable relaunched foreign main local-only; do
+    for variant in missing invalid duplicate open closed unreadable completed raw-completed raw-open raw-closed truncated explicit explicit-open explicit-unreadable relaunched foreign main local-only; do
+      case "$variant:$provider" in raw-*:github|truncated:github) ;; raw-*:*|truncated:*) continue ;; esac
       dir=$(make_case "branch-pr-$provider-$variant")
       actor=branch mode=no-mistakes merged_arg=()
       [ "$variant" != main ] || actor=main
@@ -146,8 +147,8 @@ printf '%s %s\n' "${0##*/}" "$*" >> "$FM_FORGE_LOG"
 case "$FM_FORGE_VARIANT" in unreadable|explicit-unreadable) exit 1 ;; esac
 state=MERGED merged=true
 case "$FM_FORGE_VARIANT" in
-  open|explicit-open) state=OPEN merged=false ;;
-  closed) state=CLOSED merged=false ;;
+  open|explicit-open|raw-open) state=OPEN merged=false ;;
+  closed|raw-closed) state=CLOSED merged=false ;;
 esac
 case "${0##*/}" in
   gh)
@@ -157,7 +158,11 @@ case "${0##*/}" in
     api_state=closed
     [ "$state" != OPEN ] || api_state=open
     encoded=$(printf '{"number":8,"state":"%s","merged":%s,"head":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}' "$api_state" "$merged" | base64 | tr -d '\n')
-    printf 'api:\n  truncated: false\n  body: %s\n' "$encoded" ;;
+    case "$FM_FORGE_VARIANT" in
+      raw-*) printf '%s\n' "$encoded" ;;
+      truncated) printf 'api_response:\n  truncated: true\n  body: %s\n' "$encoded" ;;
+      *) printf 'api:\n  truncated: false\n  body: %s\n' "$encoded" ;;
+    esac ;;
   glab)
     case "$state" in MERGED) state=merged ;; OPEN) state=opened ;; CLOSED) state=closed ;; esac
     printf '{"state":"%s"}\n' "$state" ;;
@@ -181,7 +186,7 @@ SH
         PATH="$dir/fakebin:$PATH" "$TEARDOWN" "$id" "${merged_arg[@]}" \
         > "$dir/out" 2> "$dir/err" || rc=$?
       case "$variant:$provider" in
-        completed:*|main:*|local-only:*|explicit:*|relaunched:*)
+        completed:*|raw-completed:*|main:*|local-only:*|explicit:*|relaunched:*)
           [ "$rc" -eq 0 ] || fail "$provider/$variant: ordinary teardown refused: $(cat "$dir/err")"
           assert_absent "$dir/home/state/$id.meta" "$provider/$variant: successful teardown retained metadata"
           if [ "$variant" = main ] || [ "$variant" = local-only ]; then

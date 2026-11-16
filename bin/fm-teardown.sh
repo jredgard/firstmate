@@ -1762,16 +1762,14 @@ ensure_commit_object() {
 # Recorded GitHub PRs are an independent landed-work gate: remote reachability
 # and content already in main cannot complete a still-open PR. Read the explicit
 # REST merged flag, since state=closed alone also describes an abandoned PR.
-# The gh-axi base64 envelope preserves the typed JSON without TOON truncation.
+# The shared gh-axi body reader preserves typed JSON across response formats.
 recorded_github_pr_is_landed() {
   local response encoded json expected head merge proof_repo
   TEARDOWN_GITHUB_PR_STATE=unreadable
   fm_pr_url_parse "$PR_URL" && [ "$FM_PR_PROVIDER" = github ] || return 1
   response=$(fm_run_timed 10 gh-axi api GET "/repos/$FM_PR_OWNER/$FM_PR_REPO/pulls/$FM_PR_NUMBER" \
     --jq '{number, state, merged, head: .head.sha, merge_commit_sha} | @base64' --full 2>/dev/null) || return 1
-  printf '%s\n' "$response" | awk '/^  truncated: / {if ($2=="false") found=1} END {exit !found}' || return 1
-  encoded=$(printf '%s\n' "$response" | awk '/^  body: / {sub(/^  body: /, ""); print; exit}')
-  [ -n "$encoded" ] || return 1
+  encoded=$(printf '%s\n' "$response" | fm_pr_gh_axi_base64_body) || return 1
   json=$(printf '%s\n' "$encoded" | jq -R 'fromjson? // .' | jq -e '@base64d | fromjson') || return 1
   printf '%s' "$json" | jq -e --argjson number "$FM_PR_NUMBER" \
     '.number == $number and (.state == "open" or .state == "closed") and (.merged | type) == "boolean"' >/dev/null 2>&1 || return 1
