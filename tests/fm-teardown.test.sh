@@ -1260,44 +1260,47 @@ SH
 }
 
 test_github_recorded_pr_landed_gate() {
-  local fixture case_dir head rc recorded merge shape expected_state
-  for shape in envelope raw truncated; do
-    for fixture in open closed merged; do
-      case_dir=$(make_case "github-pushed-$shape-$fixture")
-      write_meta "$case_dir" no-mistakes ship
-      wt_commit_file "$case_dir" feature.txt hello
-      head=$(git -C "$case_dir/wt" rev-parse HEAD)
-      append_pr_meta_for_current_head "$case_dir"
-      seed_backlog_in_flight "$case_dir"
-      git -C "$case_dir/wt" push -q origin fm/task-x1
-      add_gh_recorded_fixture "$case_dir" "$fixture" "$head" "" 7 "$shape"
-      expected_state=$fixture
-      [ "$shape" != truncated ] || expected_state=unreadable
-      rc=0
-      FM_FAKE_AXI_STATUS="$(parked_axi_status_toon fm/task-x1 "$head")" \
-        FM_FAKE_NM_ABORT_LOG="$case_dir/abort-log" \
-        run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
-      if [ "$fixture" = merged ] && [ "$shape" != truncated ]; then
-        expect_code 0 "$rc" 'merged GitHub PR at recorded head'
-        assert_absent "$case_dir/state/task-x1.meta" 'merged GitHub task remained active'
-        [ "$(backlog_row_state "$case_dir")" = 'done' ] || fail 'merged GitHub task stayed open'
-      else
-        expect_code 1 "$rc" "$fixture GitHub PR teardown"
-        assert_grep "REFUSED: GitHub pull request https://github.com/example/repo/pull/7 for task task-x1 is not verifiably merged at the recorded head (state=$expected_state)" "$case_dir/stderr" \
-          'GitHub refusal did not name the PR and state'
-        assert_refusal_retained_task_state "$case_dir" "$fixture" "$head"
-        [ "$(backlog_row_state "$case_dir")" = in_flight ] || fail 'unmerged GitHub task was closed'
-        [ ! -s "$case_dir/abort-log" ] || fail 'unmerged GitHub teardown aborted the parked run'
-        # An already-missing copy must not bypass the PR guard either.
-        sed "s|^worktree=.*|worktree=$case_dir/absent|" "$case_dir/state/task-x1.meta" > "$case_dir/new-meta"
-        mv "$case_dir/new-meta" "$case_dir/state/task-x1.meta"
-        rc=0
-        run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
-        expect_code 1 "$rc" "$fixture GitHub PR with absent worktree"
-        assert_grep "state=$expected_state" "$case_dir/stderr" 'missing worktree bypassed PR state readback'
-        assert_present "$case_dir/state/task-x1.meta" 'missing-copy refusal erased task record'
-      fi
-    done
+  local fixture case_dir head rc recorded merge shape expected_state entry
+  # Envelope output covers every recorded state, including the missing-copy
+  # rerun. Raw gh-axi 0.1.44+ output must accept a merged PR and still decode
+  # an open one; a truncated envelope must stay unreadable even when merged.
+  for entry in envelope:open envelope:closed envelope:merged raw:merged raw:open truncated:merged; do
+    shape=${entry%%:*} fixture=${entry#*:}
+    case_dir=$(make_case "github-pushed-$shape-$fixture")
+    write_meta "$case_dir" no-mistakes ship
+    wt_commit_file "$case_dir" feature.txt hello
+    head=$(git -C "$case_dir/wt" rev-parse HEAD)
+    append_pr_meta_for_current_head "$case_dir"
+    seed_backlog_in_flight "$case_dir"
+    git -C "$case_dir/wt" push -q origin fm/task-x1
+    add_gh_recorded_fixture "$case_dir" "$fixture" "$head" "" 7 "$shape"
+    expected_state=$fixture
+    [ "$shape" != truncated ] || expected_state=unreadable
+    rc=0
+    FM_FAKE_AXI_STATUS="$(parked_axi_status_toon fm/task-x1 "$head")" \
+      FM_FAKE_NM_ABORT_LOG="$case_dir/abort-log" \
+      run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+    if [ "$expected_state" = merged ]; then
+      expect_code 0 "$rc" "merged GitHub PR at recorded head ($shape)"
+      assert_absent "$case_dir/state/task-x1.meta" 'merged GitHub task remained active'
+      [ "$(backlog_row_state "$case_dir")" = 'done' ] || fail 'merged GitHub task stayed open'
+      continue
+    fi
+    expect_code 1 "$rc" "$fixture GitHub PR teardown ($shape)"
+    assert_grep "REFUSED: GitHub pull request https://github.com/example/repo/pull/7 for task task-x1 is not verifiably merged at the recorded head (state=$expected_state)" "$case_dir/stderr" \
+      'GitHub refusal did not name the PR and state'
+    assert_refusal_retained_task_state "$case_dir" "$fixture" "$head"
+    [ "$(backlog_row_state "$case_dir")" = in_flight ] || fail 'unmerged GitHub task was closed'
+    [ ! -s "$case_dir/abort-log" ] || fail 'unmerged GitHub teardown aborted the parked run'
+    [ "$shape" = envelope ] || continue
+    # An already-missing copy must not bypass the PR guard either.
+    sed "s|^worktree=.*|worktree=$case_dir/absent|" "$case_dir/state/task-x1.meta" > "$case_dir/new-meta"
+    mv "$case_dir/new-meta" "$case_dir/state/task-x1.meta"
+    rc=0
+    run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+    expect_code 1 "$rc" "$fixture GitHub PR with absent worktree"
+    assert_grep "state=$fixture" "$case_dir/stderr" 'missing worktree bypassed PR state readback'
+    assert_present "$case_dir/state/task-x1.meta" 'missing-copy refusal erased task record'
   done
   # Legacy records without pr_head still require the merged flag and warn.
   for fixture in open closed merged; do
