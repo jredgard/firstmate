@@ -1,0 +1,6 @@
+$ (FIX scripts: ~/.no-mistakes/worktrees/551ff26a6b1c/01M7HQ4FDK3CVJP1JQ8JEC6QTC) FM_HOME=/tmp/fm-lab.YGoKho fm-conflict-radar.sh firstmate
+warn: no registry at /tmp/fm-lab.YGoKho/data/projects.md; defaulting firstmate to no-mistakes off
+firstmate: code "bin/fm-pr-lib.sh" sources=pr:https://github.com/jredgard/firstmate/pull/56,task:lab-fm-a
+exit=0
+--- persisted sources/unmeasured:
+{"sources":[{"id":"task:lab-fm-a","status":"tracked","measurement":"measured","paths":["bin/fm-pr-lib.sh"]},{"id":"task:lab-fm-b","status":"tracked","measurement":"measured","paths":["README.md"]},{"id":"pr:https://github.com/jredgard/firstmate/pull/56","status":"open","measurement":"measured","paths":["bin/fm-pr-lib.sh"]}],"unmeasured":[]}

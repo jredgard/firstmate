@@ -1,0 +1,9 @@
+$ gh-axi --version: 0.1.51
+$ (scripts: ~/.no-mistakes/worktrees/551ff26a6b1c/01M7HQ4FDK3CVJP1JQ8JEC6QTC) fm-teardown.sh nm-upstream-sync-4-20261115   # pr=https://github.com/jredgard/no-mistakes/pull/14 pr_head=211d49ac7afaa99f71bee5de0a143825540b8326
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.YGoKho
+no-mistakes: already current
+teardown nm-upstream-sync-4-20261115 complete (window fm-lab:fm-nm-upstream-sync-4-20261115, worktree /tmp/fm-lab.YGoKho/wt/nm-upstream-sync-4-20261115)
+Backlog: nm-upstream-sync-4-20261115 is closed in /tmp/fm-lab.YGoKho/data/backlog.md. Run bin/fm-tasks-axi.sh ready for dependency-cleared candidates, check date gates, and dispatch only work whose blockers are gone and date is due.
+exit=0
+meta present after: no
+backlog state after: done

@@ -1,0 +1,7 @@
+$ gh-axi --version: 0.1.51
+$ (scripts: /tmp/fm-lab.YGoKho/base) fm-teardown.sh nm-upstream-sync-4-20261115   # pr=https://github.com/jredgard/no-mistakes/pull/14 pr_head=211d49ac7afaa99f71bee5de0a143825540b8326
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.YGoKho
+REFUSED: GitHub pull request https://github.com/jredgard/no-mistakes/pull/14 for task nm-upstream-sync-4-20261115 is not verifiably merged at the recorded head (state=unreadable); preserving task and worktree.
+exit=1
+meta present after: yes
+backlog state after: in_flight

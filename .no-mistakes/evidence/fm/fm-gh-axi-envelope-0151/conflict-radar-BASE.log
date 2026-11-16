@@ -1,0 +1,7 @@
+$ (BASE scripts: /tmp/fm-lab.YGoKho/base) FM_HOME=/tmp/fm-lab.YGoKho fm-conflict-radar.sh no-mistakes
+warn: no registry at /tmp/fm-lab.YGoKho/data/projects.md; defaulting no-mistakes to no-mistakes off
+no-mistakes: unmeasured: forge: origin unsupported/unreadable or open PR listing failed
+no-mistakes: overlap unmeasured (no measured shared paths)
+exit=0
+--- persisted state/conflict-radar/no-mistakes.json (sources/unmeasured):
+{"sources":[{"id":"task:lab-closed-unmerged","status":"tracked","measurement":"measured"},{"id":"task:lab-merged-wrong-head","status":"tracked","measurement":"measured"},{"id":"task:lab-open-pr","status":"tracked","measurement":"measured"}],"unmeasured":["forge: origin unsupported/unreadable or open PR listing failed"]}

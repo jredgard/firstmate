@@ -1,0 +1,23 @@
+$ gh-axi --version: 0.1.51
+$ (scripts: ~/.no-mistakes/worktrees/551ff26a6b1c/01M7HQ4FDK3CVJP1JQ8JEC6QTC) fm-teardown.sh lab-open-pr   # pr=https://github.com/jredgard/firstmate/pull/56 pr_head=8bdb205a6a579ddb9ae6b606abec547ef65cae38
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.YGoKho
+REFUSED: GitHub pull request https://github.com/jredgard/firstmate/pull/56 for task lab-open-pr is not verifiably merged at the recorded head (state=open); preserving task and worktree.
+exit=1
+meta present after: yes
+backlog state after: in_flight
+
+$ gh-axi --version: 0.1.51
+$ (scripts: ~/.no-mistakes/worktrees/551ff26a6b1c/01M7HQ4FDK3CVJP1JQ8JEC6QTC) fm-teardown.sh lab-closed-unmerged   # pr=https://github.com/jredgard/firstmate/pull/42 pr_head=6ac14db6e152f31071a3ee446ffc5e8c84712807
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.YGoKho
+REFUSED: GitHub pull request https://github.com/jredgard/firstmate/pull/42 for task lab-closed-unmerged is not verifiably merged at the recorded head (state=closed); preserving task and worktree.
+exit=1
+meta present after: yes
+backlog state after: in_flight
+
+$ gh-axi --version: 0.1.51
+$ (scripts: ~/.no-mistakes/worktrees/551ff26a6b1c/01M7HQ4FDK3CVJP1JQ8JEC6QTC) fm-teardown.sh lab-merged-wrong-head   # pr=https://github.com/jredgard/no-mistakes/pull/14 pr_head=931d41395cba624f8cbcdd902ccfa0297f28789a
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.YGoKho
+REFUSED: GitHub pull request https://github.com/jredgard/no-mistakes/pull/14 for task lab-merged-wrong-head is not verifiably merged at the recorded head (state=merged); preserving task and worktree.
+exit=1
+meta present after: yes
+backlog state after: in_flight

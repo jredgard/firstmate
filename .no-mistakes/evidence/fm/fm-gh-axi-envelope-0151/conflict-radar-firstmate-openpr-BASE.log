@@ -1,0 +1,7 @@
+$ (BASE scripts: /tmp/fm-lab.YGoKho/base) FM_HOME=/tmp/fm-lab.YGoKho fm-conflict-radar.sh firstmate
+warn: no registry at /tmp/fm-lab.YGoKho/data/projects.md; defaulting firstmate to no-mistakes off
+firstmate: unmeasured: forge: origin unsupported/unreadable or open PR listing failed
+firstmate: overlap unmeasured (no measured shared paths)
+exit=0
+--- persisted sources/unmeasured:
+{"sources":[{"id":"task:lab-fm-a","status":"tracked","measurement":"measured","paths":["bin/fm-pr-lib.sh"]},{"id":"task:lab-fm-b","status":"tracked","measurement":"measured","paths":["README.md"]}],"unmeasured":["forge: origin unsupported/unreadable or open PR listing failed"]}

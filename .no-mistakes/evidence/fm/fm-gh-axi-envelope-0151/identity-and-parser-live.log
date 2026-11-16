@@ -1,0 +1,22 @@
+$ gh-axi api /user --jq ".login | @base64" --full   # live, gh-axi 0.1.51, ambient read-only identity
+anJlZGdhcmQ=
+
+--- BASE (4b463953) inline envelope parser from github_approve:
+rc=4 login=''  -> base would print: could not verify GitHub reviewer identity
+
+--- FIX (8bdb205a) fm_pr_gh_axi_base64_body from bin/fm-pr-lib.sh, same jq tail as github_approve:
+rc=0 login='jredgard'
+
+--- FIX: live PR 14 teardown read decoded through the shared reader:
+{"head":"211d49ac7afaa99f71bee5de0a143825540b8326","merge_commit_sha":"01f195b563e96dea7cdaa37088361ee22ebbf7a2","merged":true,"number":14,"state":"closed"}
+
+--- FIX: adversarial mutations of the live response must fail closed:
+raw: rc=0 out=eyJoZWFkIjoiMjExZDQ5YWM3
+envelope-complete: rc=0 out=eyJoZWFkIjoiMjExZDQ5YWM3
+envelope-truncated: rc=1 out=
+envelope-missing-truncated: rc=1 out=
+envelope-duplicate-body: rc=1 out=
+raw-two-lines: rc=1 out=
+raw-cut-mid-base64: rc=4 out=
+raw-non-base64: rc=4 out=
+empty: rc=1 out=
