@@ -62,7 +62,7 @@ The two parallel lanes use longest-processing-time assignment over those hints.
 [`bin/fm-test-run.sh`](../bin/fm-test-run.sh) holds the duration values in `portable_parallel_weight_hints` and the ordered memberships and lane-specific prerequisite constraints beside `list_portable_parallel_1` and `list_portable_parallel_2`.
 Read the derived packing estimates with that runner's `--check-coverage`; its header and `--help` own the output fields and the selection-specific `--list-scheduled` weight rules.
 The largest individual hint sets a lower bound on the estimated duration of any split, regardless of how evenly the remaining work is assigned.
-The CI cap follows the three-tier timeout policy in [Timeouts](#timeouts) below.
+The CI cap follows the timeout policy in [Timeouts](#timeouts) below.
 
 [`tests/fm-test-run.test.sh`](../tests/fm-test-run.test.sh), in `test_portable_parallel_lanes_stay_duration_balanced`, requires every parallel member to have a hint and the lane sums to differ by no more than five percent of the larger sum.
 Its scheduling regressions also check stored parallel lane order and preserve serial-weight scheduling for other selections.
@@ -80,7 +80,7 @@ Membership is derived rather than enumerated, so a newly added test lands here b
 ## Portable serial CI shards
 
 The fork uses twelve shards: upstream's eleven ordinary packing lanes plus the retained dedicated supervision-host reservation.
-With the four measured fork-added tests, eleven total shards packed one ordinary shard at 1282478 ms against the unchanged 1200000 ms target; the additional runner preserves that target without increasing ordinary job timeouts.
+With the four measured fork-added tests, eleven total shards packed one ordinary shard at 1282478 ms against the unchanged 1200000 ms target; the additional runner preserves that packing target independently of the job backstops in [Timeouts](#timeouts).
 
 On green CI run [30725985757](https://github.com/kunchenguid/firstmate/actions/runs/30725985757), that remainder accumulated 19m04s of script time against a 20-minute job timeout.
 On [PR 1495](https://github.com/kunchenguid/firstmate/pull/1495), its main step ran about 19m51s before the job was cancelled at that boundary.
@@ -159,17 +159,17 @@ The workflow retains per-PR supersession and keeps only the newest of close main
 
 ## Timeouts
 
-CI job timeouts follow one three-tier policy, so the workflow reads as a policy rather than as a collection of per-job numbers.
+CI job timeouts follow one four-tier policy, so the workflow reads as a policy rather than as a collection of per-job numbers.
 Every tier is a hang tripwire with headroom above the healthy duration, never a packing estimate or a runtime target.
-A lane that reaches its tier bound needs investigation and a distribution or runtime fix; the dedicated supervision-host shard has a measured exception because its successful 27m29s script cannot fit the ordinary packing target.
+A lane that reaches its bound needs investigation; the fork Linux lanes use a 45-minute backstop because observed healthy jobs approach 30 minutes on the slower fork runners.
 
 | Tier | Jobs | Bound | Rationale |
 |---|---|---|---|
 | Fast | coverage guard, repo invariants, timing aggregate, Full suite verdict | 5 minutes | Seconds-long local work, so the tripwire only catches a hung runner. |
-| Normal | lint partitions, portable parallel shards, ordinary portable serial shards, macOS stock Bash | 30 minutes, one value shared by every job in the tier | One shared hang tripwire keeps every ordinary test and lint lane on the same policy instead of allowing per-lane packing estimates or one-off caps to set the bound. |
-| Fork host margin | dedicated supervision-host serial shard 2 | 45 minutes | Retains the fork runner margin while the upstream host split is adopted; every other serial shard remains at 30 minutes. |
+| Normal | macOS stock Bash | 30 minutes | The stock Bash compatibility job retains ample measured headroom. |
+| Fork Linux margin | lint partitions, portable parallel shards, all portable serial shards | 45 minutes | Observed maxima exceed 70 percent of the former 30-minute limit across both lint partitions, both parallel jobs, and every ordinary serial shard; the reserved host shard retains its existing 45-minute override. |
 | Heavy | Herdr | family-run step 20 minutes under a 75-minute job-level last-resort backstop | Healthy runs finish in about 7-10 minutes, so the step tripwire fails a wedged suite while the `always()` cleanup and timing upload still run, and the job cap only catches a hang outside that step. |
 
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) holds the executable values and names each job's tier beside its `timeout-minutes`.
-[`tests/fm-ci-workflow.test.sh`](../tests/fm-ci-workflow.test.sh) holds the policy against the parsed workflow: every job belongs to exactly one tier, the fast tier stays within 5-10 minutes, the ordinary normal jobs share one 30-minute budget, only the exclusive supervision-host shard resolves to 45 minutes, and the Herdr family-run step is the 20-minute tripwire below its job backstop with an `always()` teardown after it.
+[`tests/fm-ci-workflow.test.sh`](../tests/fm-ci-workflow.test.sh) holds the policy against the parsed workflow: every job belongs to exactly one tier, the fast tier stays within 5-10 minutes, stock macOS Bash retains 30 minutes, the fork Linux lanes share 45 minutes with the reserved supervision-host shard still exclusive, and the Herdr family-run step is the 20-minute tripwire below its job backstop with an `always()` teardown after it.
 A passing coverage guard does not establish a healthy job duration; refresh the healthy figures above from the lanes' uploaded timing artifacts.
