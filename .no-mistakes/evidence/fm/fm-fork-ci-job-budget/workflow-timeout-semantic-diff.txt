@@ -1,0 +1,31 @@
+job                                            base   new
+lint[partition 1]                                30    45  CHANGED
+lint[partition 2]                                30    45  CHANGED
+test-coverage                                     5     5
+tests-portable-parallel-1                        30    45  CHANGED
+tests-portable-parallel-2                        30    45  CHANGED
+tests-portable-serial[shard 1]                   30    45  CHANGED
+tests-portable-serial[shard 2]                   45    45
+tests-portable-serial[shard 3]                   30    45  CHANGED
+tests-portable-serial[shard 4]                   30    45  CHANGED
+tests-portable-serial[shard 5]                   30    45  CHANGED
+tests-portable-serial[shard 6]                   30    45  CHANGED
+tests-portable-serial[shard 7]                   30    45  CHANGED
+tests-portable-serial[shard 8]                   30    45  CHANGED
+tests-portable-serial[shard 9]                   30    45  CHANGED
+tests-portable-serial[shard 10]                  30    45  CHANGED
+tests-portable-serial[shard 11]                  30    45  CHANGED
+tests-portable-serial[shard 12]                  30    45  CHANGED
+tests-herdr                                      75    75
+tests-hc                                         75    75
+tests-timing-aggregate                            5     5
+macos-stock-bash                                 30    30
+invariants                                        5     5
+full-suite                                        5     5
+
+workflow identical apart from job-level timeout-minutes: True
+step-level timeouts unchanged: True
+full-suite needs unchanged: True
+all lint/portable Linux lanes at 45: True (16 lanes)
+macOS stock bash: 30 | fast: {'test-coverage': 5, 'invariants': 5, 'tests-timing-aggregate': 5, 'full-suite': 5} | heavy: {'tests-herdr': 75, 'tests-hc': 75}
+runs-on unchanged: True
