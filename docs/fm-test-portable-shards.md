@@ -62,7 +62,7 @@ The two parallel lanes use longest-processing-time assignment over those hints.
 [`bin/fm-test-run.sh`](../bin/fm-test-run.sh) holds the duration values in `portable_parallel_weight_hints` and the ordered memberships and lane-specific prerequisite constraints beside `list_portable_parallel_1` and `list_portable_parallel_2`.
 Read the derived packing estimates with that runner's `--check-coverage`; its header and `--help` own the output fields and the selection-specific `--list-scheduled` weight rules.
 The largest individual hint sets a lower bound on the estimated duration of any split, regardless of how evenly the remaining work is assigned.
-The CI cap follows the three-tier timeout policy in [Timeouts](#timeouts) below.
+The CI cap follows the timeout policy in [Timeouts](#timeouts) below.
 
 [`tests/fm-test-run.test.sh`](../tests/fm-test-run.test.sh), in `test_portable_parallel_lanes_stay_duration_balanced`, requires every parallel member to have a hint and the lane sums to differ by no more than five percent of the larger sum.
 Its scheduling regressions also check stored parallel lane order and preserve serial-weight scheduling for other selections.
@@ -159,7 +159,7 @@ The workflow retains per-PR supersession and keeps only the newest of close main
 
 ## Timeouts
 
-CI job timeouts follow one three-tier policy, so the workflow reads as a policy rather than as a collection of per-job numbers.
+CI job timeouts follow one four-tier policy, so the workflow reads as a policy rather than as a collection of per-job numbers.
 Every tier is a hang tripwire with headroom above the healthy duration, never a packing estimate or a runtime target.
 A lane that reaches its bound needs investigation; the fork Linux lanes use a 45-minute backstop because observed healthy jobs approach 30 minutes on the slower fork runners.
 

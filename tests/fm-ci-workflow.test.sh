@@ -6,8 +6,8 @@
 # fan-out, and four jobs carried no timeout at all. These tests hold both
 # safeguards: PR runs supersede within one PR while close main pushes keep only
 # the newest run, and every CI job carries a finite hang tripwire drawn from the
-# three-tier timeout policy that docs/fm-test-portable-shards.md "Timeouts"
-# owns (fast, normal, heavy), with measured fork Linux runner headroom.
+# four-tier timeout policy that docs/fm-test-portable-shards.md "Timeouts"
+# owns (fast, normal, fork Linux margin, heavy).
 #
 # They also hold the outside pull request gate the maintainer approved in
 # DOP-167 (keep public CI within GitHub's 40-job limit): a PR from an author
