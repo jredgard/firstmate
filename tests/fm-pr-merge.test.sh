@@ -5150,13 +5150,14 @@ case "$method:$url" in
         "$AZ_THREADS_FILE" >/dev/null || exit 3
     fi
     [ -e "$FM_TEST_ADO_DIR/ado-voted" ] || [ -e "$FM_TEST_ADO_DIR/ado-already-approved" ] || exit 2
-    del=false twi=false
+    del=false twi=false strategy=squash
     [ ! -e "$FM_TEST_ADO_DIR/ado-expect-delete-branch" ] || del=true
     [ ! -e "$FM_TEST_ADO_DIR/ado-expect-transition" ] || twi=true
-    printf '%s' "$body" | jq -e --argjson del "$del" --argjson twi "$twi" '
+    [ ! -f "$FM_TEST_ADO_DIR/ado-expect-strategy" ] || strategy=$(cat "$FM_TEST_ADO_DIR/ado-expect-strategy")
+    printf '%s' "$body" | jq -e --arg strategy "$strategy" --argjson del "$del" --argjson twi "$twi" '
       .status == "completed" and
       .lastMergeSourceCommit.commitId == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" and
-      .completionOptions.mergeStrategy == "squash" and
+      .completionOptions.mergeStrategy == $strategy and
       .completionOptions.deleteSourceBranch == $del and
       .completionOptions.transitionWorkItems == $twi' >/dev/null || exit 2
     : > "$FM_TEST_ADO_DIR/ado-complete"
@@ -5165,7 +5166,7 @@ case "$method:$url" in
 esac
 SH
   chmod +x "$dir/fakebin/az" "$dir/fakebin/curl"
-  printf '%s\n' '{"value":[{"status":"approved","configuration":{"type":{"displayName":"Build"}}},{"status":"rejected","configuration":{"isBlocking":true,"type":{"id":"fa4e907d-c16b-4a4c-9dfa-4916e5d171ab","displayName":"Require a merge strategy"}}}]}' \
+  printf '%s\n' '{"value":[{"status":"approved","configuration":{"type":{"displayName":"Build"}}}]}' \
     > "$dir/ado-policies.json"
 }
 
@@ -5723,7 +5724,7 @@ test_ado_policy_gate_matches_ado_completion_semantics() {
 
   dir=$(make_case ado-non-blocking-policy)
   add_ado_merge_mocks "$dir"
-  printf '%s\n' '{"value":[{"status":"rejected","configuration":{"isBlocking":false,"type":{"displayName":"Optional review"}}}]}' \
+  printf '%s\n' '{"value":[{"status":"rejected","configuration":{"isBlocking":false,"type":{"displayName":"Optional review"}}},{"status":"rejected","configuration":{"isBlocking":false,"type":{"id":"fa4e907d-c16b-4a4c-9dfa-4916e5d171ab","displayName":"Limit merge types"},"settings":{"allowNoFastForward":true}}}]}' \
     > "$dir/ado-policies.json"
   FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
     run_pr_merge "$dir" task-x1 "$url" </dev/null > "$dir/stdout" 2> "$dir/stderr" \
@@ -5732,7 +5733,7 @@ test_ado_policy_gate_matches_ado_completion_semantics() {
 
   dir=$(make_case ado-merge-strategy-type-id)
   add_ado_merge_mocks "$dir"
-  printf '%s\n' '{"value":[{"status":"rejected","configuration":{"isBlocking":true,"type":{"id":"FA4E907D-C16B-4A4C-9DFA-4916E5D171AB","displayName":"Squashzusammenführung erforderlich"}}}]}' \
+  printf '%s\n' '{"value":[{"status":"rejected","configuration":{"isBlocking":true,"type":{"id":"FA4E907D-C16B-4A4C-9DFA-4916E5D171AB","displayName":"Squashzusammenführung erforderlich"},"settings":{"allowSquash":true,"allowNoFastForward":true,"allowRebase":false,"allowRebaseMerge":false}}}]}' \
     > "$dir/ado-policies.json"
   FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
     run_pr_merge "$dir" task-x1 "$url" </dev/null > "$dir/stdout" 2> "$dir/stderr" \
@@ -5766,6 +5767,46 @@ test_ado_policy_gate_matches_ado_completion_semantics() {
   grep -qF 'Build=queued' "$dir/stderr" || fail "Azure DevOps queued policy was not named"
   [ ! -e "$dir/ado-complete" ] || fail "Azure DevOps completed with a queued blocking policy"
   pass "Azure DevOps policy gate passes notApplicable, non-blocking, and the merge-strategy type id, refusing the rest"
+}
+
+test_ado_merge_strategy_follows_blocking_policy() {
+  local dir url rc policy settings
+  url='https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42'
+
+  for policy in modern legacy; do
+    case "$policy" in
+      modern) settings='{"allowSquash":false,"allowNoFastForward":true,"allowRebase":false,"allowRebaseMerge":false}' ;;
+      legacy) settings='{"useSquashMerge":false}' ;;
+    esac
+    dir=$(make_case "ado-no-fast-forward-$policy")
+    add_ado_merge_mocks "$dir"
+    printf '%s\n' noFastForward > "$dir/ado-expect-strategy"
+    printf '{"value":[{"status":"rejected","configuration":{"isBlocking":true,"type":{"id":"fa4e907d-c16b-4a4c-9dfa-4916e5d171ab","displayName":"Limit merge types"},"settings":%s}}]}\n' "$settings" \
+      > "$dir/ado-policies.json"
+    FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+      run_pr_merge "$dir" task-x1 "$url" </dev/null > "$dir/stdout" 2> "$dir/stderr" \
+      || fail "Azure DevOps no-fast-forward completion failed with $settings: $(cat "$dir/stderr")"
+    [ -e "$dir/ado-complete" ] || fail "Azure DevOps did not complete with noFastForward"
+    grep -qF "verified: $url is completed at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" "$dir/stdout" \
+      || fail "Azure DevOps did not verify the no-fast-forward completion at the PR head"
+  done
+
+  dir=$(make_case ado-unsupported-merge-strategy-policy)
+  add_ado_merge_mocks "$dir"
+  printf '%s\n' '{"value":[{"status":"rejected","configuration":{"isBlocking":true,"type":{"id":"fa4e907d-c16b-4a4c-9dfa-4916e5d171ab","displayName":"Limit merge types"},"settings":{"allowSquash":false,"allowNoFastForward":false,"allowRebase":true,"allowRebaseMerge":true}}}]}' \
+    > "$dir/ado-policies.json"
+  set +e
+  FM_TEST_ADO_DIR="$dir" FM_ADO_REVIEWER_ID=22222222-2222-2222-2222-222222222222 \
+    run_pr_merge "$dir" task-x1 "$url" </dev/null > "$dir/stdout" 2> "$dir/stderr"
+  rc=$?
+  set -e
+  expect_code 1 "$rc" "Azure DevOps unsupported merge methods"
+  grep -qF 'allowed merge methods: rebase, rebaseMerge' "$dir/stderr" \
+    || fail "Azure DevOps unsupported merge methods refusal did not name the allowed methods"
+  if grep -Eq '^(PUT|PATCH) ' "$dir/ado.log"; then
+    fail "Azure DevOps attempted a vote or completion with an unsupported merge policy"
+  fi
+  pass "Azure DevOps completes a merge-commit-only policy and refuses rebase-only policy before any write"
 }
 
 test_ado_completion_options_are_home_opt_ins() {
@@ -6588,6 +6629,7 @@ test_gitlab_head_override_args_refuse_before_recording
 test_ado_headless_merge_and_refusals
 test_quiet_words_keep_ado_green_and_completion_guards
 test_ado_policy_gate_matches_ado_completion_semantics
+test_ado_merge_strategy_follows_blocking_policy
 test_ado_approval_actions
 test_github_approval_actions
 test_github_changes_requested_refuses_approval
