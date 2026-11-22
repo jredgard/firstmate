@@ -1,0 +1,9 @@
+GET /acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+GET /acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+GET /acme/11111111-1111-1111-1111-111111111111/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/11111111-1111-1111-1111-111111111111/42&api-version=7.1-preview.1 
+PUT /acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42/reviewers/22222222-2222-2222-2222-222222222222?api-version=7.1 {"vote":10}
+GET /acme/11111111-1111-1111-1111-111111111111/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/11111111-1111-1111-1111-111111111111/42&api-version=7.1-preview.1 
+GET /acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+GET /acme/11111111-1111-1111-1111-111111111111/_apis/policy/evaluations?artifactId=vstfs:///CodeReview/CodeReviewId/11111111-1111-1111-1111-111111111111/42&api-version=7.1-preview.1 
+PATCH /acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 {"status":"completed","lastMergeSourceCommit":{"commitId":"cac27ad3ce9c5be65abc7b12bb1509c9061b2594"},"completionOptions":{"mergeStrategy":"squash","deleteSourceBranch":false,"transitionWorkItems":false}}
+GET /acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 

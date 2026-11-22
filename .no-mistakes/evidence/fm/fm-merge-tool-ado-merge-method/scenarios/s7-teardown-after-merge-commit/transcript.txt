@@ -1,0 +1,48 @@
+# blocking merge-strategy policy settings on main: [{"allowSquash":false,"allowNoFastForward":true,"allowRebase":false,"allowRebaseMerge":false}]
+$ fm-pr-merge.sh task-x1 https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42
+armed: state/task-x1.check.sh
+verified: https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 is completed at head 3797179cb89c3b5235292ea66510bc9ee0638c18
+exit=0
+--- emulator completion record
+{"strategy": "noFastForward", "mergeCommit": "71f417437699901ff5f45352d7868653c21e32f9", "sourceHead": "3797179cb89c3b5235292ea66510bc9ee0638c18"}
+--- target branch main (git log --graph)
+*   71f4174 parents=[a257f51 3797179] Merged PR 42: example change
+|\  
+| * 3797179 parents=[1e6fbb4] Add feature
+* | a257f51 parents=[1e6fbb4] Unrelated main change
+|/  
+* 1e6fbb4 parents=[] initial
+--- PR source branch deleted on the forge after completion (as with deleteSourceBranch), worktree still present
+$ fm-teardown.sh task-x1 --merged-pr https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-ado-emu.7ociR3/lab
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+/tmp/fm-ado-emu.7ociR3/project: synced 1e6fbb4..71f4174
+teardown task-x1 complete (window firstmate:fm-task-x1, worktree /tmp/fm-ado-emu.7ociR3/wt)
+Backlog: task-x1 is closed in /tmp/fm-ado-emu.7ociR3/lab/data/backlog.md. Run bin/fm-tasks-axi.sh ready for dependency-cleared candidates, check date gates, and dispatch only work whose blockers are gone and date is due.
+exit=0
+--- task meta present after teardown?
+no (retired)
+--- backlog row
+task:
+  id: task-x1
+  title: ADO merge-commit fixture task
+  state: done
+  blocked: no
+  blocked_by: none
+  held: no
+  hold_reason: "-"
+  hold_kind: "-"
+  hold_until: "-"
+  kind: ship
+  repo: "-"
+  priority: "-"
+  created: "-"
+  closed: 2026-11-22
+  deps: none
+  links: none
+  body: "Azure DevOps PR https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42"
+--- operator-tool stand-in calls
+no-mistakes axi status
+treehouse return --force /tmp/fm-ado-emu.7ociR3/wt
+tmux kill-window -t =firstmate:=fm-task-x1

@@ -1,0 +1,2 @@
+armed: state/task-x1.check.sh
+verified: https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 is completed at head 6de95119d04a6cba736d3fbf44d3322b01a1e0c5

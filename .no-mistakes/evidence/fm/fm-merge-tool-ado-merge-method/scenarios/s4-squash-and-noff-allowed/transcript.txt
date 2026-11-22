@@ -1,0 +1,40 @@
+$ fm-pr-merge.sh task-x1 https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42   # firstmate root: {run-worktree}
+# blocking merge-strategy policy settings on main: [{"allowSquash":true,"allowNoFastForward":true,"allowRebase":false,"allowRebaseMerge":false}]
+# PR source head: a3d00bb46c5103f313cdbbe7e95c74a092e473a6
+--- stdout
+armed: state/task-x1.check.sh
+verified: https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42 is completed at head a3d00bb46c5103f313cdbbe7e95c74a092e473a6
+--- stderr
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+--- exit=0
+--- requests seen by the Azure DevOps emulator (method path body)
+GET /acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+GET /acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+GET /acme/11111111-1111-1111-1111-111111111111/_apis/policy/evaluations?... 
+PUT /acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42/reviewers/22222222-2222-2222-2222-222222222222?api-version=7.1 {"vote":10}
+GET /acme/11111111-1111-1111-1111-111111111111/_apis/policy/evaluations?... 
+GET /acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+GET /acme/11111111-1111-1111-1111-111111111111/_apis/policy/evaluations?... 
+PATCH /acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 {"status":"completed","lastMergeSourceCommit":{"commitId":"a3d00bb46c5103f313cdbbe7e95c74a092e473a6"},"completionOptions":{"mergeStrategy":"squash","deleteSourceBranch":false,"transitionWorkItems":false}}
+GET /acme/Project%20One/_apis/git/repositories/Backend/pullRequests/42?api-version=7.1 
+--- emulator completion record
+{"strategy": "squash", "mergeCommit": "7342dbb7405d6d1e62371d8decb986887897d314", "sourceHead": "a3d00bb46c5103f313cdbbe7e95c74a092e473a6"}--- target branch main after the run (git log --graph --format='%h %p %s')
+* 7342dbb parents=[0569c79] Merged PR 42: example change
+* 0569c79 parents=[e84b530] Unrelated main change
+* e84b530 parents=[] initial
+--- task meta
+window=fm-task-x1
+worktree=/tmp/fm-ado-emu.92B9VO/wt
+project=/tmp/fm-ado-emu.92B9VO/seed
+kind=ship
+branch=fm/example
+mode=direct-PR
+pr_owner_verified=yes
+pr=https://dev.azure.com/acme/Project%20One/_git/Backend/pullrequest/42
+pr_head=a3d00bb46c5103f313cdbbe7e95c74a092e473a6
