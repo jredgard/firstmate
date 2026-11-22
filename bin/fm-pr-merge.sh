@@ -165,10 +165,13 @@
 # then checks every blocking policy evaluation is approved or notApplicable; a
 # non-blocking evaluation never refuses, and the blocking merge-strategy
 # policy - matched by its type id fa4e907d-c16b-4a4c-9dfa-4916e5d171ab, never
-# by its localizable display name - is fulfilled by the squash completion
-# itself. The configured reviewer votes +10 idempotently, and the PATCH binds
-# the verified source commit with squash; source-branch deletion and work-item transition
-# stay off for GitHub parity unless FM_ADO_DELETE_SOURCE_BRANCH or
+# by its localizable display name - is fulfilled by completion itself.
+# Completion uses squash when no blocking merge-strategy policy applies or
+# squash is allowed, then falls back to noFastForward if allowed. If neither
+# is allowed, it refuses before voting and reports the allowed methods.
+# The configured reviewer votes +10 idempotently, and the PATCH binds
+# the selected strategy to the verified source commit. Source-branch deletion
+# and work-item transition stay off for GitHub parity unless FM_ADO_DELETE_SOURCE_BRANCH or
 # FM_ADO_TRANSITION_WORK_ITEMS is exactly "true", or is unset while the local
 # config/ado-delete-source-branch or config/ado-transition-work-items flag
 # file exists. A completed-status readback at the verified live head is required
@@ -982,10 +985,11 @@ ado_verify_preconditions() {
 }
 
 ado_verify_policies() {
-  local phase=${1:-complete} policies bad allowed=${ALLOW_RED[0]:-}
+  local phase=${1:-complete} policies bad allowed=${ALLOW_RED[0]:-} methods
+  local strategy_type=fa4e907d-c16b-4a4c-9dfa-4916e5d171ab
   # An evaluation passes when ADO itself would complete past it: approved,
   # notApplicable, or non-blocking. The blocking merge-strategy policy is
-  # fulfilled by the squash completion itself and is matched by its type id,
+  # fulfilled by completion itself and is matched by its type id,
   # never by its localizable display name. Every other blocking evaluation
   # fails closed unless the one named exception was explicitly requested in an
   # attended session.
@@ -994,14 +998,14 @@ ado_verify_policies() {
     echo "error: could not read Azure DevOps policies for $URL" >&2
     return 1
   fi
-  if ! bad=$(printf '%s' "$policies" | jq -er --arg allowed "$allowed" --arg phase "$phase" '
+  if ! bad=$(printf '%s' "$policies" | jq -er --arg allowed "$allowed" --arg phase "$phase" \
+      --arg strategy_type "$strategy_type" '
       if type == "object" and (.value | type) == "array" and
          all(.value[]; (.status | type) == "string" and
              (.configuration.type.displayName | type) == "string" and .configuration.type.displayName != "")
       then [.value[] | select(.status != "approved" and .status != "notApplicable")
             | select(.configuration.isBlocking != false)
-            | select((.configuration.type.id // "" | ascii_downcase)
-                != "fa4e907d-c16b-4a4c-9dfa-4916e5d171ab")
+            | select((.configuration.type.id // "" | ascii_downcase) != $strategy_type)
             | select(.configuration.type.displayName != $allowed)
             | select($phase != "approve" or .status != "queued" or
                  (.configuration.type.id // "" | ascii_downcase) != "fa4e907d-c16b-4a4c-9dfa-4906e5d171dd")
@@ -1020,6 +1024,38 @@ ado_verify_policies() {
     echo "error: refusing to complete $URL: policies not approved: $bad" >&2
     return 1
   fi
+
+  # Every applicable blocking policy must allow the method. With no such
+  # policy, all methods are eligible and squash is first in preference order.
+  if ! methods=$(printf '%s' "$policies" | jq -er --arg strategy_type "$strategy_type" '
+      [.value[]
+        | select(.status != "notApplicable")
+        | .configuration
+        | select(.isBlocking != false and .isEnabled != false)
+        | select((.type.id // "" | ascii_downcase) == $strategy_type)
+        | .settings
+        # Older policies used one boolean to select squash or noFastForward.
+        | if (.useSquashMerge | type) == "boolean" and
+             .allowSquash == null and .allowNoFastForward == null and
+             .allowRebase == null and .allowRebaseMerge == null
+          then {allowSquash: .useSquashMerge, allowNoFastForward: (.useSquashMerge | not)}
+          else . end] as $settings
+      | [
+          if all($settings[]; .allowSquash == true) then "squash" else empty end,
+          if all($settings[]; .allowNoFastForward == true) then "noFastForward" else empty end,
+          if all($settings[]; .allowRebase == true) then "rebase" else empty end,
+          if all($settings[]; .allowRebaseMerge == true) then "rebaseMerge" else empty end
+        ] | join(", ")' 2>/dev/null); then
+    echo "error: could not parse Azure DevOps merge-strategy settings for $URL" >&2
+    return 1
+  fi
+  case "${methods%%,*}" in
+    squash|noFastForward) ADO_MERGE_STRATEGY=${methods%%,*} ;;
+    *)
+      echo "error: refusing to complete $URL: allowed merge methods: ${methods:-none}; completion requires squash or noFastForward" >&2
+      return 1
+      ;;
+  esac
 }
 
 ado_wait_for_reviewer_policy() {
@@ -2082,7 +2118,7 @@ gitlab_confirm_merged() {
   [ "$state" = merged ]
 }
 
-# One squash-completion option, off by default for GitHub parity: the named
+# One completion option, off by default for GitHub parity: the named
 # environment variable set to exactly "true" enables it, any other set value,
 # even empty, disables it, and only an unset variable falls back to presence
 # of the named local config flag file.
@@ -2204,9 +2240,9 @@ case "$PROVIDER" in
     [ "$away_status" -eq 0 ] || exit "$away_status"
     ado_delete_source=$(ado_completion_option FM_ADO_DELETE_SOURCE_BRANCH ado-delete-source-branch)
     ado_transition_items=$(ado_completion_option FM_ADO_TRANSITION_WORK_ITEMS ado-transition-work-items)
-    ado_body=$(jq -nc --arg head "$FM_PR_MERGE_HEAD" \
+    ado_body=$(jq -nc --arg head "$FM_PR_MERGE_HEAD" --arg strategy "$ADO_MERGE_STRATEGY" \
       --argjson delete_source "$ado_delete_source" --argjson transition_items "$ado_transition_items" \
-      '{status:"completed",lastMergeSourceCommit:{commitId:$head},completionOptions:{mergeStrategy:"squash",deleteSourceBranch:$delete_source,transitionWorkItems:$transition_items}}') || exit 1
+      '{status:"completed",lastMergeSourceCommit:{commitId:$head},completionOptions:{mergeStrategy:$strategy,deleteSourceBranch:$delete_source,transitionWorkItems:$transition_items}}') || exit 1
     if ! fm_pr_ado_request PATCH "$FM_PR_ADO_BASE?api-version=7.1" "$ado_body" >/dev/null; then
       echo "error: Azure DevOps completion failed for $URL; merge poll remains armed" >&2
       exit 1
